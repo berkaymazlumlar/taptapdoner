@@ -78,3 +78,11 @@ abstract final class RoastedOpacity {
   static const gloss = 0.10;
   static const ambientShadow = 0.24;
 }
+
+abstract final class RoastedFooterTrayMetrics {
+  static const double height = 84;
+  static const double radius = 32;
+  static const double itemShellSize = 42;
+  static const double itemIconSize = 24;
+  static const double badgeSize = 18;
+}

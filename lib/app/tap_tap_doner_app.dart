@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/app/app_theme.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/app/overlay_ids.dart';
@@ -8,9 +11,9 @@ import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/ui/overlays/game_shell_overlay.dart';
 import 'package:taptapdoner/ui/overlays/offline_reward_overlay.dart';
-import 'package:taptapdoner/ui/overlays/prestige_overlay.dart';
 import 'package:taptapdoner/ui/overlays/settings_overlay.dart';
-import 'package:taptapdoner/ui/overlays/shop_overlay.dart';
+import 'package:taptapdoner/ui/pages/prestige_page.dart';
+import 'package:taptapdoner/ui/pages/shop_page.dart';
 
 class TapTapDonerApp extends StatefulWidget {
   const TapTapDonerApp({super.key, this.controller});
@@ -136,16 +139,23 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'TapTap Doner',
-      locale: Locale(_localeCode),
-      supportedLocales: AppStrings.supportedLocales,
-      localizationsDelegates: AppStrings.localizationsDelegates,
-      theme: buildAppTheme(),
-      home: _ready && _game != null
-          ? _GameHome(controller: _controller, game: _game!)
-          : const _LoadingScreen(),
+    return ScreenUtilInit(
+      designSize: const Size(390, 884),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'TapTap Doner',
+          locale: Locale(_localeCode),
+          supportedLocales: AppStrings.supportedLocales,
+          localizationsDelegates: AppStrings.localizationsDelegates,
+          theme: buildAppTheme(),
+          home: _ready && _game != null
+              ? _GameHome(controller: _controller, game: _game!)
+              : const _LoadingScreen(),
+        );
+      },
     );
   }
 }
@@ -166,17 +176,10 @@ class _GameHome extends StatelessWidget {
           OverlayIds.gameShell: (context, game) => GameShellOverlay(
             controller: controller,
             game: game,
-            onOpenShop: () => game.toggleModal(OverlayIds.shop),
-            onOpenPrestige: () => game.toggleModal(OverlayIds.prestige),
+            onOpenShop: () => unawaited(_showShopSheet(context, controller)),
+            onOpenPrestige: () =>
+                unawaited(_showPrestigeSheet(context, controller)),
             onOpenSettings: () => game.toggleModal(OverlayIds.settings),
-          ),
-          OverlayIds.shop: (context, game) => ShopOverlay(
-            controller: controller,
-            onClose: () => game.closeModal(OverlayIds.shop),
-          ),
-          OverlayIds.prestige: (context, game) => PrestigeOverlay(
-            controller: controller,
-            onClose: () => game.closeModal(OverlayIds.prestige),
           ),
           OverlayIds.settings: (context, game) => SettingsOverlay(
             controller: controller,
@@ -188,6 +191,103 @@ class _GameHome extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _showShopSheet(
+  BuildContext context,
+  GameController controller,
+) async {
+  final navigator = Navigator.of(context);
+  await showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    enableDrag: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.58),
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.96,
+    ),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+    ),
+    builder: (sheetContext) {
+      return KeyedSubtree(
+        key: const ValueKey('shop-sheet-root'),
+        child: ShopPage(
+          controller: controller,
+          onOpenKitchen: () => navigator.maybePop(),
+          onOpenPrestige: () {
+            navigator.maybePop();
+            unawaited(
+              Future<void>.delayed(
+                Duration.zero,
+                () {
+                  if (!context.mounted) {
+                    return;
+                  }
+                  unawaited(_showPrestigeSheet(context, controller));
+                },
+              ),
+            );
+          },
+          onBack: () => navigator.maybePop(),
+        ),
+      );
+    },
+  );
+}
+
+Future<void> _showPrestigeSheet(
+  BuildContext context,
+  GameController controller,
+) async {
+  final navigator = Navigator.of(context);
+  await showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    enableDrag: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.58),
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.96,
+    ),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+    ),
+    builder: (sheetContext) {
+      return KeyedSubtree(
+        key: const ValueKey('prestige-sheet-root'),
+        child: PrestigePage(
+          controller: controller,
+          onOpenKitchen: () => navigator.maybePop(),
+          onOpenShop: () {
+            navigator.maybePop();
+            unawaited(
+              Future<void>.delayed(
+                Duration.zero,
+                () {
+                  if (!context.mounted) {
+                    return;
+                  }
+                  unawaited(_showShopSheet(context, controller));
+                },
+              ),
+            );
+          },
+          onBack: () => navigator.maybePop(),
+          onPrestigeApplied: () async {
+            if (context.mounted) {
+              navigator.maybePop();
+            }
+          },
+        ),
+      );
+    },
+  );
 }
 
 class _LoadingScreen extends StatelessWidget {

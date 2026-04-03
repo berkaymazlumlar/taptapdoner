@@ -39,6 +39,7 @@ dependencies:
   flame: ^1.35.1
   intl: ^0.20.2
   shared_preferences: ^2.5.5
+  flutter_screenutil: ^5.9.3
 
 dev_dependencies:
   flutter_test:
