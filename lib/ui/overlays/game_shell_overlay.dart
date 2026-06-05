@@ -1,43 +1,170 @@
 import 'dart:math' as math;
 
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_controller.dart';
+import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/ui/overlays/action_dock_overlay.dart';
 import 'package:taptapdoner/ui/overlays/game_hud_overlay.dart';
+import 'package:taptapdoner/ui/overlays/settings_overlay.dart';
 import 'package:taptapdoner/ui/overlays/tap_zone_overlay.dart';
+import 'package:taptapdoner/ui/pages/prestige_page.dart';
+import 'package:taptapdoner/ui/pages/shop_page.dart';
+import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/game_bottom_nav_bar.dart';
 
-class GameShellOverlay extends StatelessWidget {
-  const GameShellOverlay({
+class GameShellOverlay extends StatefulWidget {
+  const GameShellOverlay({required this.controller, super.key});
+
+  final GameController controller;
+
+  @override
+  State<GameShellOverlay> createState() => _GameShellOverlayState();
+}
+
+class _GameShellOverlayState extends State<GameShellOverlay> {
+  GameBottomNavTab _activeTab = GameBottomNavTab.kitchen;
+  bool _settingsVisible = false;
+
+  void _selectTab(GameBottomNavTab tab) {
+    if (!mounted || _activeTab == tab) {
+      return;
+    }
+
+    setState(() {
+      _activeTab = tab;
+      _settingsVisible = false;
+    });
+  }
+
+  void _openSettings() {
+    setState(() {
+      _settingsVisible = true;
+    });
+  }
+
+  void _closeSettings() {
+    setState(() {
+      _settingsVisible = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final padding = MediaQuery.paddingOf(context);
+
+    return SizedBox.expand(
+      child: ColoredBox(
+        color: DonerColors.bgPrimary,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(
+                top: padding.top,
+                bottom: padding.bottom,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _buildActiveTab()),
+                  _buildBottomNav(),
+                ],
+              ),
+            ),
+            if (_settingsVisible)
+              SettingsOverlay(
+                controller: widget.controller,
+                onClose: _closeSettings,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveTab() {
+    switch (_activeTab) {
+      case GameBottomNavTab.kitchen:
+        return _KitchenTabPage(
+          controller: widget.controller,
+          onOpenSettings: _openSettings,
+        );
+      case GameBottomNavTab.shop:
+        return KeyedSubtree(
+          key: const ValueKey('shop-tab-root'),
+          child: ShopPage(
+            controller: widget.controller,
+            onOpenKitchen: () => _selectTab(GameBottomNavTab.kitchen),
+            onOpenPrestige: () => _selectTab(GameBottomNavTab.prestige),
+            onBack: () => _selectTab(GameBottomNavTab.kitchen),
+            presentation: ShopPagePresentation.tab,
+          ),
+        );
+      case GameBottomNavTab.prestige:
+        return KeyedSubtree(
+          key: const ValueKey('prestige-tab-root'),
+          child: PrestigePage(
+            controller: widget.controller,
+            onOpenKitchen: () => _selectTab(GameBottomNavTab.kitchen),
+            onOpenShop: () => _selectTab(GameBottomNavTab.shop),
+            onBack: () => _selectTab(GameBottomNavTab.kitchen),
+            onPrestigeApplied: () async {
+              _selectTab(GameBottomNavTab.kitchen);
+            },
+            presentation: PrestigePagePresentation.tab,
+          ),
+        );
+    }
+  }
+
+  Widget _buildBottomNav() {
+    return GameBottomNavBar(
+      activeTab: _activeTab,
+      onOpenKitchen: () => _selectTab(GameBottomNavTab.kitchen),
+      onOpenShop: () => _selectTab(GameBottomNavTab.shop),
+      onOpenPrestige: () => _selectTab(GameBottomNavTab.prestige),
+    );
+  }
+}
+
+class _KitchenTabPage extends StatefulWidget {
+  const _KitchenTabPage({
     required this.controller,
-    required this.game,
-    required this.onOpenShop,
-    required this.onOpenPrestige,
     required this.onOpenSettings,
-    super.key,
   });
 
   final GameController controller;
-  final TapTapDonerGame game;
-  final VoidCallback onOpenShop;
-  final VoidCallback onOpenPrestige;
   final VoidCallback onOpenSettings;
+
+  @override
+  State<_KitchenTabPage> createState() => _KitchenTabPageState();
+}
+
+class _KitchenTabPageState extends State<_KitchenTabPage> {
+  late final TapTapDonerGame _game;
+
+  @override
+  void initState() {
+    super.initState();
+    _game = TapTapDonerGame(controller: widget.controller);
+  }
 
   @override
   Widget build(BuildContext context) {
     final metrics = _ShellMetrics.fromContext(context);
-    final padding = MediaQuery.paddingOf(context);
 
-    return SizedBox.expand(
-      child: Padding(
-        padding: EdgeInsets.only(top: padding.top, bottom: padding.bottom),
-        child: Column(
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GameWidget<TapTapDonerGame>(game: _game),
+        Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             GameHudOverlay(
-              controller: controller,
-              onOpenSettings: onOpenSettings,
+              controller: widget.controller,
+              onOpenSettings: widget.onOpenSettings,
             ),
             SizedBox(height: metrics.mainTopGap),
             Expanded(
@@ -46,41 +173,47 @@ class GameShellOverlay extends StatelessWidget {
                 children: [
                   Positioned.fill(
                     child: TapZoneOverlay(
-                      controller: controller,
-                      game: game,
+                      controller: widget.controller,
+                      game: _game,
                       applySafeArea: false,
                     ),
                   ),
                   Positioned(
                     top: metrics.rushButtonTopInset,
                     right: metrics.rushButtonSideInset,
-                    child: AnimatedBuilder(
-                      animation: controller,
-                      builder: (context, _) {
+                    child: ValueListenableBuilder<RushSnapshot>(
+                      valueListenable: widget.controller.rushSnapshotListenable,
+                      builder: (context, snapshot, _) {
                         return RushShortcutButton(
                           scale: metrics.scale,
-                          enabled: controller.canStartRush,
-                          onPressed: controller.canStartRush
-                              ? () => controller.startRush()
+                          enabled: snapshot.canStart,
+                          onPressed: snapshot.canStart
+                              ? () => widget.controller.startRush()
                               : null,
                         );
                       },
+                    ),
+                  ),
+                  Positioned(
+                    top: metrics.fpsTopInset,
+                    left: metrics.fpsSideInset,
+                    child: IgnorePointer(
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _game.fpsListenable,
+                        builder: (context, fps, _) {
+                          return _FpsBadge(scale: metrics.scale, fps: fps);
+                        },
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
             SizedBox(height: metrics.mainBottomGap),
-            ActionDockOverlay(controller: controller),
-            GameBottomNavBar(
-              activeTab: GameBottomNavTab.kitchen,
-              onOpenKitchen: () {},
-              onOpenShop: onOpenShop,
-              onOpenPrestige: onOpenPrestige,
-            ),
+            ActionDockOverlay(controller: widget.controller),
           ],
         ),
-      ),
+      ],
     );
   }
 }
@@ -96,8 +229,47 @@ class _ShellMetrics {
 
   final double scale;
 
-  double get mainTopGap => 32 * scale;
+  double get mainTopGap => 16 * scale;
   double get mainBottomGap => 0;
-  double get rushButtonTopInset => 10 * scale;
-  double get rushButtonSideInset => 24 * scale;
+  double get rushButtonTopInset => 8 * scale;
+  double get rushButtonSideInset => 22 * scale;
+  double get fpsTopInset => 16 * scale;
+  double get fpsSideInset => 24 * scale;
+}
+
+class _FpsBadge extends StatelessWidget {
+  const _FpsBadge({required this.scale, required this.fps});
+
+  final double scale;
+  final int fps;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: DonerColors.panelDark.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: DonerColors.borderPrimary, width: 1),
+        boxShadow: DonerShadows.soft,
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: 10 * scale,
+          vertical: 5 * scale,
+        ),
+        child: Text(
+          'FPS ${fps.clamp(0, 999)}',
+          key: const ValueKey('fps-badge'),
+          style: DonerTypography.body(
+            Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+              color: DonerColors.goldBright,
+              fontSize: 12 * scale,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

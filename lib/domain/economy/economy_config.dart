@@ -1,5 +1,4 @@
-import 'package:taptapdoner/domain/stations/station_catalog.dart';
-import 'package:taptapdoner/domain/stations/upgrade_catalog.dart';
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
 class EconomyConfig {
   EconomyConfig({
@@ -10,7 +9,6 @@ class EconomyConfig {
     required this.offlineCap,
     required this.prestigeThreshold,
     required this.prestigeBonusPerPoint,
-    required this.stations,
     required this.upgrades,
   });
 
@@ -23,7 +21,6 @@ class EconomyConfig {
       offlineCap: const Duration(hours: 24),
       prestigeThreshold: 1000000,
       prestigeBonusPerPoint: 0.05,
-      stations: defaultStationDefinitions(),
       upgrades: defaultUpgradeDefinitions(),
     );
   }
@@ -35,12 +32,7 @@ class EconomyConfig {
   final Duration offlineCap;
   final int prestigeThreshold;
   final double prestigeBonusPerPoint;
-  final List<StationDefinition> stations;
   final List<UpgradeDefinition> upgrades;
-
-  StationDefinition station(StationId id) {
-    return stations.firstWhere((definition) => definition.id == id);
-  }
 
   UpgradeDefinition upgrade(UpgradeId id) {
     return upgrades.firstWhere((definition) => definition.id == id);

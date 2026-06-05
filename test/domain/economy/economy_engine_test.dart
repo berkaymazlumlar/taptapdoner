@@ -2,85 +2,199 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/economy/economy_engine.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
-import 'package:taptapdoner/domain/stations/station_catalog.dart';
-import 'package:taptapdoner/domain/stations/upgrade_catalog.dart';
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
 void main() {
   final config = EconomyConfig.standard();
   final engine = EconomyEngine(config);
   final nowUtc = DateTime.utc(2026, 4, 1, 12);
 
-  test('tap upgrades increase tap income', () {
-    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 500);
+  test('knife levels increase tap income and unlock the next item', () {
+    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 50000);
 
     expect(engine.tapValue(state, nowUtc: nowUtc), 1);
 
-    state = engine.buyUpgrade(state, UpgradeId.tapGloves).state;
-    state = engine.buyUpgrade(state, UpgradeId.sharpKnife).state;
+    for (var i = 1; i < UpgradeDefinition.maxItemLevel; i += 1) {
+      state = engine.buyUpgrade(state, UpgradeId.knife).state;
+    }
 
-    expect(engine.tapValue(state, nowUtc: nowUtc), 4);
-  });
+    final knife = config.upgrade(UpgradeId.knife);
+    final levelTwentyFiveEffect = engine.upgradeEffect(state, UpgradeId.knife);
+    expect(state.upgrade(UpgradeId.knife).itemIndex, 0);
+    expect(state.upgrade(UpgradeId.knife).level, 25);
+    expect(knife.itemForLevel(24).key, 'rusty_knife');
+    expect(engine.tapValue(state, nowUtc: nowUtc), 3);
 
-  test('station purchase spends cash and increases income', () {
-    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 100);
+    state = engine.buyUpgrade(state, UpgradeId.knife).state;
 
-    final purchase = engine.buyStationLevel(state, StationId.donerSpit);
-    expect(purchase.success, isTrue);
-
-    final updated = purchase.state;
-    expect(updated.station(StationId.donerSpit).level, 1);
-    expect(updated.cash, 90);
-    expect(engine.passiveIncomePerSecond(updated), greaterThan(0));
+    expect(state.upgrade(UpgradeId.knife).itemIndex, 1);
+    expect(state.upgrade(UpgradeId.knife).level, 1);
+    expect(knife.itemForLevel(25).key, 'sharp_knife');
     expect(
-      engine.stationCost(
-        config.station(StationId.donerSpit),
-        updated.station(StationId.donerSpit),
-      ),
-      greaterThan(10),
+      engine.upgradeEffect(state, UpgradeId.knife),
+      greaterThan(levelTwentyFiveEffect),
     );
   });
 
-  test('rush multiplies passive income while active', () {
-    final boostedState = GameState.initial(config, nowUtc: nowUtc).copyWith(
-      stations: {
-        for (final definition in config.stations)
-          definition.id: StationState(
-            id: definition.id,
-            level: definition.id == StationId.donerSpit ? 2 : 0,
-          ),
-      },
+  test('each next item starts stronger than the previous item cap', () {
+    for (final upgrade in config.upgrades) {
+      for (var index = 0; index < upgrade.items.length - 1; index += 1) {
+        final currentCap = upgrade.items[index].effectForItemLevel(
+          UpgradeDefinition.maxItemLevel,
+        );
+        final nextStart = upgrade.items[index + 1].effectForItemLevel(1);
+
+        expect(
+          nextStart,
+          greaterThan(currentCap),
+          reason:
+              '${upgrade.id.key} item ${upgrade.items[index + 1].key} should beat previous Lv25',
+        );
+      }
+    }
+  });
+
+  test(
+    'staff, oven, and menu drive passive income through central formula',
+    () {
+      var state = GameState.initial(
+        config,
+        nowUtc: nowUtc,
+      ).copyWith(cash: 5000);
+
+      state = engine.buyUpgrade(state, UpgradeId.staff).state;
+      expect(engine.passiveIncomePerSecond(state, nowUtc: nowUtc), 1.45);
+
+      state = engine.buyUpgrade(state, UpgradeId.oven).state;
+      state = engine.buyUpgrade(state, UpgradeId.menu).state;
+
+      expect(
+        engine.passiveIncomePerSecond(state, nowUtc: nowUtc),
+        closeTo(1.45 * 1.04 * 1.035, 0.0001),
+      );
+    },
+  );
+
+  test('turbo multiplies tap income while passive income stays stable', () {
+    final activeTurboState = GameState.initial(config, nowUtc: nowUtc).copyWith(
       rush: TimedEffectState(
         endsAtUtc: nowUtc.add(const Duration(seconds: 10)),
         cooldownEndsAtUtc: nowUtc.add(const Duration(seconds: 80)),
       ),
     );
 
-    final passive = engine.passiveIncomePerSecond(
-      boostedState.copyWith(rush: const TimedEffectState()),
-      nowUtc: nowUtc,
-    );
-    final rushed = engine.passiveIncomePerSecond(boostedState, nowUtc: nowUtc);
+    final idleState = activeTurboState.copyWith(rush: const TimedEffectState());
 
-    expect(rushed, passive * config.rushIncomeMultiplier);
+    expect(
+      engine.tapValue(activeTurboState, nowUtc: nowUtc),
+      engine.tapValue(idleState, nowUtc: nowUtc) * 3,
+    );
+    expect(
+      engine.passiveIncomePerSecond(activeTurboState, nowUtc: nowUtc),
+      engine.passiveIncomePerSecond(idleState, nowUtc: nowUtc),
+    );
   });
 
-  test('rush training only extends duration when purchased', () {
-    var state = GameState.initial(config, nowUtc: nowUtc);
+  test('turbo track raises the active turbo multiplier', () {
+    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 5000);
+    state = engine.buyUpgrade(state, UpgradeId.turbo).state;
+    state = engine.startRush(state, nowUtc: nowUtc);
 
-    final baseRush = engine.startRush(state, nowUtc: nowUtc);
-    expect(baseRush.rush.endsAtUtc, nowUtc.add(const Duration(seconds: 15)));
+    expect(engine.tapValue(state, nowUtc: nowUtc), 3);
+    expect(engine.upgradeEffect(state, UpgradeId.turbo), 3.12);
+  });
 
-    state = state.copyWith(
-      upgrades: {
-        for (final definition in config.upgrades)
-          definition.id: UpgradeState(
-            id: definition.id,
-            purchased: definition.id == UpgradeId.rushTraining,
-          ),
-      },
+  test('turbo upgrade leaves idle tap multiplier at one', () {
+    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 5000);
+    final idleTap = engine.tapValue(state, nowUtc: nowUtc);
+
+    state = engine.buyUpgrade(state, UpgradeId.turbo).state;
+
+    expect(engine.tapValue(state, nowUtc: nowUtc), idleTap);
+  });
+
+  test('offline track effect changes offline reward', () {
+    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 5000);
+    final baseline = engine.offlineIncome(state, const Duration(hours: 1));
+
+    state = engine.buyUpgrade(state, UpgradeId.offline).state;
+
+    expect(baseline, 720);
+    expect(
+      engine.upgradeEffect(state, UpgradeId.offline),
+      closeTo(0.208, 0.0001),
+    );
+    expect(engine.offlineIncome(state, const Duration(hours: 1)), 748);
+  });
+
+  test('prestige multiplier applies to tap and passive income', () {
+    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 50000);
+    for (var i = 1; i < UpgradeDefinition.maxItemLevel; i += 1) {
+      state = engine.buyUpgrade(state, UpgradeId.knife).state;
+    }
+    state = engine.buyUpgrade(state, UpgradeId.staff).state;
+
+    final baseTap = engine.tapValue(state, nowUtc: nowUtc);
+    final basePassive = engine.passiveIncomePerSecond(state, nowUtc: nowUtc);
+    final prestigeState = state.copyWith(
+      prestige: const PrestigeState(reputation: 10, runCashEarned: 0),
     );
 
-    final trainedRush = engine.startRush(state, nowUtc: nowUtc);
-    expect(trainedRush.rush.endsAtUtc, nowUtc.add(const Duration(seconds: 20)));
+    expect(
+      engine.tapValue(prestigeState, nowUtc: nowUtc),
+      greaterThan(baseTap),
+    );
+    expect(
+      engine.passiveIncomePerSecond(prestigeState, nowUtc: nowUtc),
+      closeTo(basePassive * 1.5, 0.0001),
+    );
   });
+
+  test('prestige points use the square-root total-earned curve', () {
+    final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      prestige: const PrestigeState(reputation: 16, runCashEarned: 125000000),
+    );
+
+    expect(engine.availablePrestigePoints(state), 11);
+    expect(engine.prestigeMultiplier(state), closeTo(1.8, 0.0001));
+    expect(engine.prestigeMultiplierForPoints(27), closeTo(2.35, 0.0001));
+  });
+
+  test(
+    'prestige resets upgrade tracks and rush while preserving permanent stats',
+    () {
+      var state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+        cash: 50000,
+        lifetimeCash: 2_500_000,
+        pendingOfflineCash: 1200,
+        prestige: const PrestigeState(reputation: 2, runCashEarned: 1_000_000),
+        rush: TimedEffectState(
+          endsAtUtc: nowUtc.add(const Duration(seconds: 10)),
+          cooldownEndsAtUtc: nowUtc.add(const Duration(seconds: 60)),
+        ),
+      );
+
+      for (var i = 0; i < UpgradeDefinition.maxItemLevel; i += 1) {
+        state = engine.buyUpgrade(state, UpgradeId.knife).state;
+      }
+
+      expect(state.upgrade(UpgradeId.knife).itemIndex, 1);
+      expect(state.upgrade(UpgradeId.knife).level, 1);
+      expect(state.rush.isActiveAt(nowUtc), isTrue);
+
+      final prestiged = engine.applyPrestige(state, nowUtc: nowUtc);
+
+      expect(prestiged.cash, 0);
+      expect(prestiged.pendingOfflineCash, 0);
+      expect(prestiged.lifetimeCash, state.lifetimeCash);
+      expect(prestiged.prestige.reputation, 3);
+      expect(prestiged.prestige.runCashEarned, 0);
+      expect(prestiged.rush.endsAtUtc, isNull);
+      expect(prestiged.rush.cooldownEndsAtUtc, isNull);
+      for (final upgrade in prestiged.upgrades.values) {
+        expect(upgrade.itemIndex, 0, reason: upgrade.id.key);
+        expect(upgrade.level, 1, reason: upgrade.id.key);
+      }
+    },
+  );
 }

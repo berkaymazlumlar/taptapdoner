@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/app/game_controller.dart';
+import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
+import 'package:taptapdoner/ui/widgets/doner_game_primitives.dart';
 import 'package:taptapdoner/ui/widgets/stitch_bottom_sheet_primitives.dart';
+import 'package:taptapdoner/ui/widgets/value_formatters.dart';
+
+enum PrestigePagePresentation { sheet, tab }
 
 class PrestigePage extends StatelessWidget {
   const PrestigePage({
@@ -13,6 +19,7 @@ class PrestigePage extends StatelessWidget {
     this.onOpenShop,
     this.onBack,
     this.onPrestigeApplied,
+    this.presentation = PrestigePagePresentation.sheet,
   });
 
   final GameController controller;
@@ -20,9 +27,12 @@ class PrestigePage extends StatelessWidget {
   final VoidCallback? onOpenShop;
   final VoidCallback? onBack;
   final Future<void> Function()? onPrestigeApplied;
+  final PrestigePagePresentation presentation;
 
   @override
   Widget build(BuildContext context) {
+    final isTab = presentation == PrestigePagePresentation.tab;
+
     return Material(
       key: const ValueKey('prestige-sheet-surface'),
       color: Colors.transparent,
@@ -30,42 +40,49 @@ class PrestigePage extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const Positioned.fill(child: _PrestigeBackdropGlow()),
             StitchBottomSheetSurface(
-              backgroundGradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF34190F),
-                  Color(0xFF2A140D),
-                  Color(0xFF1F0F09),
-                ],
-              ),
-              child: AnimatedBuilder(
-                animation: controller,
-                builder: (context, _) {
+              maxWidth: isTab ? double.infinity : null,
+              maxHeight: isTab ? double.infinity : null,
+              backgroundGradient: DonerGradients.sheet,
+              borderRadius: isTab ? BorderRadius.zero : null,
+              showBorder: !isTab,
+              showShadow: !isTab,
+              child: ValueListenableBuilder<PrestigeSnapshot>(
+                valueListenable: controller.prestigeSnapshotListenable,
+                builder: (context, snapshot, _) {
                   final strings = AppStrings.of(context);
-                  final availablePoints = controller.availablePrestigePoints;
-                  final reputation = controller.state.prestige.reputation;
-                  final runCashEarned = controller.state.prestige.runCashEarned;
-                  final threshold = controller.config.prestigeThreshold;
-                  final progress = threshold <= 0
-                      ? 0.0
-                      : ((runCashEarned % threshold) / threshold).clamp(
-                          0.0,
-                          1.0,
-                        );
+                  final availablePoints = snapshot.availablePoints;
+                  final progress = _prestigeProgress(snapshot);
                   final progressPercent = (progress * 100).round();
                   final canPrestige = availablePoints > 0;
+                  final Future<void> Function()? prestigeAction = canPrestige
+                      ? () async {
+                          final applied = await controller.applyPrestige();
+                          if (!applied) {
+                            return;
+                          }
+                          if (onPrestigeApplied != null) {
+                            await onPrestigeApplied!();
+                          } else if (context.mounted) {
+                            Navigator.of(context).maybePop();
+                          }
+                        }
+                      : null;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const StitchSheetHandle(
-                        key: ValueKey('prestige-sheet-handle'),
-                      ),
+                      if (!isTab)
+                        const StitchSheetHandle(
+                          key: ValueKey('prestige-sheet-handle'),
+                        ),
                       Padding(
-                        padding: EdgeInsets.fromLTRB(24.w, 2.h, 24.w, 0),
+                        padding: EdgeInsets.fromLTRB(
+                          20.w,
+                          isTab ? 12.h : 0,
+                          20.w,
+                          0,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
@@ -76,100 +93,87 @@ class PrestigePage extends StatelessWidget {
                               style: TextStyle(
                                 fontFamily:
                                     RoastedTypography.headlineFontFamily,
-                                fontSize: 36.sp,
-                                fontWeight: FontWeight.w800,
+                                fontSize: 30.sp,
+                                fontWeight: FontWeight.w900,
                                 height: 1,
-                                letterSpacing: -1.1,
-                                color: RoastedColors.primary,
+                                letterSpacing: 0,
+                                color: DonerColors.goldPrimary,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withValues(alpha: 0.52),
+                                    blurRadius: 8.r,
+                                    offset: Offset(0, 2.h),
+                                  ),
+                                ],
                               ),
                             ),
-                            SizedBox(height: 6.h),
+                            SizedBox(height: 4.h),
                             Text(
                               strings.prestigeConfirm.toUpperCase(),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontFamily: RoastedTypography.bodyFontFamily,
-                                fontSize: 14.sp,
+                                fontSize: 11.sp,
                                 fontWeight: FontWeight.w800,
                                 height: 1.2,
-                                letterSpacing: 2.3,
-                                color: RoastedColors.secondary,
+                                letterSpacing: 1.5,
+                                color: DonerColors.bodyText,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      SizedBox(height: 18.h),
+                      SizedBox(height: 12.h),
                       Expanded(
                         child: SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(
+                          physics: const ClampingScrollPhysics(
                             parent: AlwaysScrollableScrollPhysics(),
                           ),
-                          padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+                          padding: EdgeInsets.symmetric(horizontal: 20.w),
                           child: Column(
+                            key: const ValueKey('prestige-card-stack'),
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              SizedBox(height: 12.h),
                               _PrestigeHeroCard(
-                                availablePoints: availablePoints,
-                                reputation: reputation,
+                                snapshot: snapshot,
                                 progress: progress,
                                 progressPercent: progressPercent,
+                                showInlineAction: isTab,
+                                actionEnabled: canPrestige,
+                                onPrestigePressed: prestigeAction,
                               ),
-                              SizedBox(height: 18.h),
-                              _PrestigeInfoCard(
-                                title: 'Permanent Boost',
-                                body:
-                                    'Each prestige point permanently boosts global income.',
-                                icon: Icons.trending_up_rounded,
-                                accent: RoastedColors.primary,
-                              ),
-                              SizedBox(height: 14.h),
-                              _PrestigeInfoCard(
+                              SizedBox(height: 12.h),
+                              _PrestigeChecklistCard(
+                                key: const ValueKey('prestige-resets-card'),
                                 title: 'What Resets',
-                                body: 'Stations, cash, and upgrades reset.',
-                                icon: Icons.restart_alt_rounded,
-                                accent: const Color(0xFFFFB4AB),
+                                items: snapshot.resetItems,
+                                icon: DonerIcons.reset,
+                                accent: DonerColors.orangeAccent,
                               ),
-                              SizedBox(height: 14.h),
-                              _PrestigeInfoCard(
+                              SizedBox(height: 12.h),
+                              _PrestigeChecklistCard(
+                                key: const ValueKey('prestige-stays-card'),
                                 title: 'What Stays',
-                                body:
-                                    'Your total reputation is kept permanently.',
-                                icon: Icons.shield_rounded,
-                                accent: RoastedColors.secondary,
+                                items: snapshot.keptItems,
+                                icon: DonerIcons.shield,
+                                accent: DonerColors.tealBright,
                               ),
-                              SizedBox(height: 24.h),
-                              _PrestigePrimaryButton(
-                                key: const ValueKey('prestige-action-button'),
-                                enabled: canPrestige,
-                                onPressed: canPrestige
-                                    ? () async {
-                                        final applied = await controller
-                                            .applyPrestige();
-                                        if (!applied) {
-                                          return;
-                                        }
-                                        if (onPrestigeApplied != null) {
-                                          await onPrestigeApplied!();
-                                        } else if (context.mounted) {
-                                          Navigator.of(context).maybePop();
-                                        }
-                                      }
-                                    : null,
-                              ),
-                              SizedBox(height: 14.h),
-                              _PrestigeCloseButton(
-                                key: const ValueKey('prestige-close-button'),
-                                onPressed:
-                                    onBack ??
-                                    onOpenKitchen ??
-                                    onOpenShop ??
-                                    () => Navigator.of(context).maybePop(),
-                              ),
+                              SizedBox(height: 12.h),
                             ],
                           ),
                         ),
                       ),
+                      if (!isTab)
+                        _PrestigeActionFooter(
+                          enabled: canPrestige,
+                          onPrestigePressed: prestigeAction,
+                          onClosePressed:
+                              onBack ??
+                              onOpenKitchen ??
+                              onOpenShop ??
+                              () => Navigator.of(context).maybePop(),
+                        ),
                     ],
                   );
                 },
@@ -184,191 +188,249 @@ class PrestigePage extends StatelessWidget {
 
 class _PrestigeHeroCard extends StatelessWidget {
   const _PrestigeHeroCard({
-    required this.availablePoints,
-    required this.reputation,
+    required this.snapshot,
     required this.progress,
     required this.progressPercent,
+    required this.showInlineAction,
+    required this.actionEnabled,
+    required this.onPrestigePressed,
   });
 
-  final int availablePoints;
-  final int reputation;
+  final PrestigeSnapshot snapshot;
   final double progress;
   final int progressPercent;
+  final bool showInlineAction;
+  final bool actionEnabled;
+  final Future<void> Function()? onPrestigePressed;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       key: const ValueKey('prestige-summary-card'),
-      padding: EdgeInsets.fromLTRB(24.w, 24.h, 24.w, 22.h),
+      padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 12.h),
       decoration: BoxDecoration(
-        color: const Color(0xFF3A2015),
-        borderRadius: BorderRadius.circular(36.r),
+        gradient: DonerGradients.card,
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: RoastedColors.primary.withValues(alpha: 0.12),
+          color: DonerColors.borderPrimary.withValues(alpha: 0.86),
+          width: 1.5,
         ),
+        boxShadow: DonerShadows.soft,
       ),
-      child: Stack(
-        clipBehavior: Clip.none,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Positioned(
-            right: -18.w,
-            top: -18.h,
-            child: Icon(
-              Icons.workspace_premium_rounded,
-              size: 154.sp,
-              color: RoastedColors.tertiaryFixed.withValues(alpha: 0.11),
-            ),
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(height: 4.h),
-                Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 30.w,
-                          height: 30.w,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: RoastedColors.primary.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.workspace_premium_rounded,
-                            size: 18.sp,
-                            color: RoastedColors.primary,
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Text(
-                          availablePoints.toString(),
-                          style: TextStyle(
-                            fontFamily: RoastedTypography.headlineFontFamily,
-                            fontSize: 52.sp,
-                            fontWeight: FontWeight.w900,
-                            height: 1,
-                            color: const Color(0xFFFFE8DE),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 38.w,
+                height: 38.w,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: DonerColors.goldPrimary.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: DonerColors.borderPrimary),
                 ),
-                SizedBox(height: 10.h),
-                Center(
-                  child: Text(
-                    'REPUTATION READY',
-                    style: TextStyle(
-                      fontFamily: RoastedTypography.bodyFontFamily,
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.w900,
-                      height: 1.2,
-                      letterSpacing: 3.w,
-                      color: RoastedColors.primary,
-                    ),
-                  ),
+                child: FaIcon(
+                  DonerIcons.prestige,
+                  size: 18.sp,
+                  color: DonerColors.goldPrimary,
                 ),
-                SizedBox(height: 26.h),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'PROGRESS TO NEXT POINT',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: RoastedTypography.bodyFontFamily,
-                              fontSize: 9.sp,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.3,
-                              color: RoastedColors.outlineVariant.withValues(
-                                alpha: 0.95,
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 8.w),
-                        Text(
-                          '$progressPercent%',
-                          style: TextStyle(
-                            fontFamily: RoastedTypography.bodyFontFamily,
-                            fontSize: 10.sp,
-                            fontWeight: FontWeight.w900,
-                            color: RoastedColors.secondary,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'POINTS TO GAIN',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: RoastedTypography.bodyFontFamily,
+                        fontSize: 9.sp,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                        letterSpacing: 1.0,
+                        color: DonerColors.goldPrimary,
+                      ),
                     ),
-                    SizedBox(height: 8.h),
-                    _PrestigeProgressBar(value: progress),
+                    SizedBox(height: 3.h),
+                    Text(
+                      _signedPoints(snapshot.pointsToGain),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: RoastedTypography.headlineFontFamily,
+                        fontSize: 32.sp,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                        color: DonerColors.creamText,
+                      ),
+                    ),
                   ],
                 ),
-                SizedBox(height: 24.h),
-                Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 22.w,
-                        vertical: 14.h,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF5A3D32),
-                        borderRadius: BorderRadius.circular(999.r),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.05),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.star_rounded,
-                            size: 18.sp,
-                            color: RoastedColors.secondary,
-                          ),
-                          SizedBox(width: 10.w),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'CURRENT TOTAL',
-                                style: TextStyle(
-                                  fontFamily: RoastedTypography.bodyFontFamily,
-                                  fontSize: 10.sp,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.0,
-                                  color: RoastedColors.tertiary,
-                                ),
-                              ),
-                              SizedBox(height: 1.h),
-                              Text(
-                                reputation.toString(),
-                                style: TextStyle(
-                                  fontFamily: RoastedTypography.headlineFontFamily,
-                                  fontSize: 20.sp,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1,
-                                  color: const Color(0xFFFFE8DE),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+              ),
+            ],
+          ),
+          if (showInlineAction) ...[
+            SizedBox(height: 8.h),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 132.w),
+                child: _PrestigePrimaryButton(
+                  key: const ValueKey('prestige-action-button'),
+                  enabled: actionEnabled,
+                  onPressed: onPrestigePressed,
+                  height: 40.h,
+                  fontSize: 12.sp,
+                  iconSize: 15.sp,
+                  horizontalPadding: 10.w,
+                ),
+              ),
+            ),
+          ],
+          SizedBox(height: 12.h),
+          _PrestigeCompactMetricStrip(
+            metrics: [
+              _PrestigeMetricData(
+                label: 'Earned',
+                value: formatCompactCurrency(
+                  context,
+                  snapshot.currentTotalEarned,
+                ),
+              ),
+              _PrestigeMetricData(
+                label: 'Current',
+                value: _multiplier(snapshot.currentMultiplier),
+              ),
+              _PrestigeMetricData(
+                label: 'After',
+                value: _multiplier(snapshot.newMultiplier),
+              ),
+            ],
+          ),
+          SizedBox(height: 10.h),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'PROGRESS TO NEXT POINT',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: RoastedTypography.bodyFontFamily,
+                    fontSize: 9.sp,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    color: DonerColors.bodyText.withValues(alpha: 0.95),
                   ),
                 ),
-              ],
+              ),
+              SizedBox(width: 8.w),
+              Text(
+                '$progressPercent%',
+                style: TextStyle(
+                  fontFamily: RoastedTypography.bodyFontFamily,
+                  fontSize: 9.sp,
+                  fontWeight: FontWeight.w900,
+                  color: DonerColors.goldBright,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          _PrestigeProgressBar(value: progress),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrestigeMetricData {
+  const _PrestigeMetricData({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _PrestigeCompactMetricStrip extends StatelessWidget {
+  const _PrestigeCompactMetricStrip({required this.metrics});
+
+  final List<_PrestigeMetricData> metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final spacing = 6.w;
+        final itemWidth = (constraints.maxWidth - (spacing * 2)) / 3;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: 6.h,
+          children: [
+            for (final metric in metrics)
+              SizedBox(
+                width: itemWidth,
+                child: _PrestigeCompactMetricChip(metric: metric),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PrestigeCompactMetricChip extends StatelessWidget {
+  const _PrestigeCompactMetricChip({required this.metric});
+
+  final _PrestigeMetricData metric;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(minHeight: 44.h),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 7.h),
+      decoration: BoxDecoration(
+        color: DonerColors.panelDark.withValues(alpha: 0.70),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(
+          color: DonerColors.borderSoft.withValues(alpha: 0.46),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            metric.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.bodyFontFamily,
+              fontSize: 8.sp,
+              fontWeight: FontWeight.w800,
+              height: 1,
+              letterSpacing: 0.5,
+              color: DonerColors.bodyText,
+            ),
+          ),
+          SizedBox(height: 4.h),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              metric.value,
+              maxLines: 1,
+              style: TextStyle(
+                fontFamily: RoastedTypography.headlineFontFamily,
+                fontSize: 15.sp,
+                fontWeight: FontWeight.w800,
+                height: 1,
+                color: DonerColors.creamText,
+              ),
             ),
           ),
         ],
@@ -384,106 +446,140 @@ class _PrestigeProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 12.h,
-      decoration: BoxDecoration(
-        color: const Color(0xFF24120D),
-        borderRadius: BorderRadius.circular(999.r),
-        border: Border.all(
-          color: RoastedColors.outlineVariant.withValues(alpha: 0.20),
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(999.r),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: FractionallySizedBox(
-            widthFactor: value.clamp(0.0, 1.0),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [RoastedColors.primary, RoastedColors.secondary],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: RoastedColors.primary.withValues(alpha: 0.40),
-                    blurRadius: 10.r,
-                    offset: Offset.zero,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    return DonerProgressBar(value: value);
   }
 }
 
-class _PrestigeInfoCard extends StatelessWidget {
-  const _PrestigeInfoCard({
+class _PrestigeChecklistCard extends StatelessWidget {
+  const _PrestigeChecklistCard({
     required this.title,
-    required this.body,
+    required this.items,
     required this.icon,
     required this.accent,
+    super.key,
   });
 
   final String title;
-  final String body;
-  final IconData icon;
+  final List<String> items;
+  final FaIconData icon;
   final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF4A2D22),
-        borderRadius: BorderRadius.circular(30.r),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        gradient: DonerGradients.card,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: DonerColors.borderPrimary.withValues(alpha: 0.78),
+          width: 1.5,
+        ),
+        boxShadow: DonerShadows.soft,
       ),
-      padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 18.h),
-      child: Row(
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 56.w,
-            height: 56.w,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 24.sp, color: accent),
-          ),
-          SizedBox(width: 18.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            children: [
+              Container(
+                width: 34.w,
+                height: 34.w,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: accent.withValues(alpha: 0.42)),
+                ),
+                alignment: Alignment.center,
+                child: FaIcon(icon, size: 16.sp, color: accent),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
                   title,
                   style: TextStyle(
                     fontFamily: RoastedTypography.headlineFontFamily,
-                    fontSize: 17.sp,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w800,
                     height: 1.15,
-                    color: accent,
+                    color: DonerColors.goldPrimary,
                   ),
                 ),
-                SizedBox(height: 4.h),
-                Text(
-                  body,
-                  style: TextStyle(
-                    fontFamily: RoastedTypography.bodyFontFamily,
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w500,
-                    height: 1.2,
-                    color: RoastedColors.onSurfaceVariant,
-                  ),
-                ),
-              ],
+              ),
+            ],
+          ),
+          SizedBox(height: 10.h),
+          for (var index = 0; index < items.length; index += 1) ...[
+            _PrestigeChecklistRow(item: items[index], accent: accent),
+            if (index != items.length - 1) SizedBox(height: 6.h),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PrestigeChecklistRow extends StatelessWidget {
+  const _PrestigeChecklistRow({required this.item, required this.accent});
+
+  final String item;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(top: 3.h),
+          child: FaIcon(DonerIcons.diamond, size: 8.sp, color: accent),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            item,
+            style: TextStyle(
+              fontFamily: RoastedTypography.bodyFontFamily,
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w600,
+              height: 1.22,
+              color: DonerColors.bodyText,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PrestigeActionFooter extends StatelessWidget {
+  const _PrestigeActionFooter({
+    required this.enabled,
+    required this.onPrestigePressed,
+    required this.onClosePressed,
+  });
+
+  final bool enabled;
+  final Future<void> Function()? onPrestigePressed;
+  final VoidCallback onClosePressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20.w, 10.h, 20.w, 16.h),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PrestigePrimaryButton(
+            key: const ValueKey('prestige-action-button'),
+            enabled: enabled,
+            onPressed: onPrestigePressed,
+          ),
+          SizedBox(height: 8.h),
+          _PrestigeCloseButton(
+            key: const ValueKey('prestige-close-button'),
+            onPressed: onClosePressed,
           ),
         ],
       ),
@@ -496,61 +592,35 @@ class _PrestigePrimaryButton extends StatelessWidget {
     required this.enabled,
     required this.onPressed,
     super.key,
+    this.height,
+    this.fontSize,
+    this.iconSize,
+    this.horizontalPadding,
   });
 
   final bool enabled;
   final Future<void> Function()? onPressed;
+  final double? height;
+  final double? fontSize;
+  final double? iconSize;
+  final double? horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: enabled ? 1 : 0.55,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled
-              ? () async {
-                  await onPressed?.call();
-                }
-              : null,
-          borderRadius: BorderRadius.circular(999.r),
-          child: Ink(
-            height: 60.h,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [RoastedColors.primary, RoastedColors.primaryContainer],
-              ),
-              borderRadius: BorderRadius.circular(999.r),
-              border: Border.all(
-                color: RoastedColors.primaryFixed.withValues(alpha: 0.5),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: RoastedColors.primary.withValues(alpha: 0.28),
-                  blurRadius: 24.r,
-                  offset: Offset(0, 10.h),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                'PRESTIGE',
-                style: TextStyle(
-                  fontFamily: RoastedTypography.headlineFontFamily,
-                  fontSize: 24.sp,
-                  fontWeight: FontWeight.w900,
-                  height: 1,
-                  letterSpacing: 2.4,
-                  color: RoastedColors.onPrimary,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return DonerGameButton(
+      label: 'PRESTIGE',
+      icon: DonerIcons.prestige,
+      enabled: enabled,
+      onPressed: enabled
+          ? () async {
+              await onPressed?.call();
+            }
+          : null,
+      height: height ?? 52.h,
+      pill: true,
+      fontSize: fontSize,
+      iconSize: iconSize,
+      horizontalPadding: horizontalPadding,
     );
   }
 }
@@ -565,15 +635,16 @@ class _PrestigeCloseButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        splashFactory: InkRipple.splashFactory,
         onTap: onPressed,
         borderRadius: BorderRadius.circular(999.r),
         child: Ink(
-          height: 48.h,
+          height: 42.h,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.02),
+            color: DonerColors.panelDark.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(999.r),
             border: Border.all(
-              color: RoastedColors.outlineVariant.withValues(alpha: 0.30),
+              color: DonerColors.borderSoft.withValues(alpha: 0.58),
             ),
           ),
           child: Center(
@@ -585,7 +656,7 @@ class _PrestigeCloseButton extends StatelessWidget {
                 fontWeight: FontWeight.w800,
                 height: 1,
                 letterSpacing: 2.0,
-                color: RoastedColors.onSurfaceVariant,
+                color: DonerColors.bodyText,
               ),
             ),
           ),
@@ -595,51 +666,26 @@ class _PrestigeCloseButton extends StatelessWidget {
   }
 }
 
-class _PrestigeBackdropGlow extends StatelessWidget {
-  const _PrestigeBackdropGlow();
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(
-        children: [
-          Positioned(
-            top: 96.h,
-            left: -70.w,
-            child: _GlowBlob(
-              size: 220.w,
-              color: RoastedColors.primary.withValues(alpha: 0.10),
-            ),
-          ),
-          Positioned(
-            top: 220.h,
-            right: -54.w,
-            child: _GlowBlob(
-              size: 200.w,
-              color: RoastedColors.secondary.withValues(alpha: 0.08),
-            ),
-          ),
-        ],
-      ),
-    );
+double _prestigeProgress(PrestigeSnapshot snapshot) {
+  final threshold = snapshot.threshold;
+  if (threshold <= 0) {
+    return 0;
   }
+
+  final points = snapshot.pointsToGain;
+  final currentPointCash = points * points * threshold;
+  final nextPoints = points + 1;
+  final nextPointCash = nextPoints * nextPoints * threshold;
+  if (nextPointCash <= currentPointCash) {
+    return 0;
+  }
+
+  return ((snapshot.currentTotalEarned - currentPointCash) /
+          (nextPointCash - currentPointCash))
+      .clamp(0.0, 1.0)
+      .toDouble();
 }
 
-class _GlowBlob extends StatelessWidget {
-  const _GlowBlob({required this.size, required this.color});
+String _signedPoints(int points) => points > 0 ? '+$points' : '0';
 
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(colors: [color, Colors.transparent]),
-      ),
-    );
-  }
-}
+String _multiplier(double value) => 'x${value.toStringAsFixed(2)}';

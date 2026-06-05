@@ -1,9 +1,9 @@
 import 'dart:math';
 
+import 'package:taptapdoner/domain/economy/economy_calculator.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
-import 'package:taptapdoner/domain/stations/station_catalog.dart';
-import 'package:taptapdoner/domain/stations/upgrade_catalog.dart';
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
 class PurchaseResult {
   const PurchaseResult({
@@ -46,29 +46,57 @@ class EconomyEngine {
 
   final EconomyConfig config;
 
-  int stationCost(StationDefinition definition, StationState state) {
-    final price = definition.baseCost * pow(definition.costGrowth, state.level);
-    return price.floor();
+  int upgradeCost(UpgradeDefinition definition, UpgradeState state) {
+    return definition.costForLevel(_upgradeTotalLevel(definition, state));
   }
 
-  bool isStationUnlocked(GameState state, StationDefinition definition) {
-    return state.lifetimeCash >= definition.unlockAtLifetimeCash ||
-        state.station(definition.id).level > 0;
+  bool isUpgradeMaxed(UpgradeDefinition definition, UpgradeState state) {
+    return definition.isMaxLevel(_upgradeTotalLevel(definition, state));
+  }
+
+  double upgradeEffect(GameState state, UpgradeId id) {
+    return getTrackEffectById(_activeUpgradeTracks(state), id.key);
+  }
+
+  double nextUpgradeEffect(GameState state, UpgradeId id) {
+    final definition = config.upgrade(id);
+    final totalLevel = upgradeTotalLevel(state, id);
+    if (definition.isMaxLevel(totalLevel)) {
+      return definition.effectForLevel(totalLevel);
+    }
+    return definition.effectForLevel(totalLevel + 1);
+  }
+
+  int upgradeItemLevel(GameState state, UpgradeId id) {
+    return config
+        .upgrade(id)
+        .itemLevelForTotalLevel(upgradeTotalLevel(state, id));
+  }
+
+  UpgradeItemDefinition currentUpgradeItem(GameState state, UpgradeId id) {
+    final definition = config.upgrade(id);
+    return definition.itemForLevel(upgradeTotalLevel(state, id));
+  }
+
+  UpgradeItemDefinition? nextUpgradeItem(GameState state, UpgradeId id) {
+    final definition = config.upgrade(id);
+    return definition.nextItemForLevel(upgradeTotalLevel(state, id));
+  }
+
+  int upgradeTotalLevel(GameState state, UpgradeId id) {
+    final definition = config.upgrade(id);
+    return _upgradeTotalLevel(definition, state.upgrade(id));
   }
 
   int tapValue(GameState state, {DateTime? nowUtc}) {
-    final now = (nowUtc ?? DateTime.now()).toUtc();
-    final tapBonus = _flatTapBonus(state);
-    final tapMultiplier = _tapMultiplier(state);
-    final globalMultiplier = _globalIncomeMultiplier(state);
-    final rushMultiplier = state.rush.isActiveAt(now)
-        ? config.rushIncomeMultiplier
-        : 1.0;
-    final total =
-        (config.baseTapValue + tapBonus) *
-        tapMultiplier *
-        globalMultiplier *
-        rushMultiplier;
+    final total = calculateTapIncome(
+      baseTap: config.baseTapValue.toDouble(),
+      knifeEffect: _knifeEffect(state),
+      ovenEffect: _ovenEffect(state),
+      menuEffect: _menuEffect(state),
+      prestigeMultiplier: _prestigeMultiplier(state),
+      turboMultiplier: _activeTurboMultiplier(state, nowUtc: nowUtc),
+    );
     return max(1, total.round());
   }
 
@@ -77,68 +105,57 @@ class EconomyEngine {
     DateTime? nowUtc,
     bool includeRush = true,
   }) {
-    final now = (nowUtc ?? DateTime.now()).toUtc();
-    final passiveMultiplier = _passiveIncomeMultiplier(state);
-    final globalMultiplier = _globalIncomeMultiplier(state);
-    final rushMultiplier = includeRush && state.rush.isActiveAt(now)
-        ? config.rushIncomeMultiplier
-        : 1;
-
-    var total = 0.0;
-    for (final definition in config.stations) {
-      final level = state.station(definition.id).level;
-      if (level <= 0) {
-        continue;
-      }
-      total +=
-          level *
-          definition.baseIncomePerSecond *
-          passiveMultiplier *
-          globalMultiplier *
-          rushMultiplier;
-    }
-    return total;
+    return calculatePassiveIncomePerSecond(
+      staffEffect: _staffEffect(state),
+      ovenEffect: _ovenEffect(state),
+      menuEffect: _menuEffect(state),
+      prestigeMultiplier: _prestigeMultiplier(state),
+    );
   }
 
-  double stationIncomePerSecond(
-    GameState state,
-    StationId id, {
-    DateTime? nowUtc,
-    bool includeRush = true,
-  }) {
-    final definition = config.station(id);
-    final level = state.station(id).level;
-    if (level <= 0) {
+  double offlineEfficiency(GameState state) {
+    return upgradeEffect(state, UpgradeId.offline);
+  }
+
+  int offlineIncome(GameState state, Duration elapsed) {
+    if (elapsed <= Duration.zero) {
       return 0;
     }
-    final now = (nowUtc ?? DateTime.now()).toUtc();
-    final passiveMultiplier = _passiveIncomeMultiplier(state);
-    final globalMultiplier = _globalIncomeMultiplier(state);
-    final rushMultiplier = includeRush && state.rush.isActiveAt(now)
-        ? config.rushIncomeMultiplier
-        : 1;
-    return level *
-        definition.baseIncomePerSecond *
-        passiveMultiplier *
-        globalMultiplier *
-        rushMultiplier;
+    final seconds = elapsed.inMilliseconds / 1000;
+    final value = calculateOfflineIncome(
+      passiveIncomePerSecond: passiveIncomePerSecond(state, includeRush: false),
+      offlineSeconds: seconds,
+      offlineEfficiency: offlineEfficiency(state),
+    );
+    return max(0, value.floor());
   }
 
   int availablePrestigePoints(GameState state) {
-    return state.prestige.runCashEarned ~/ config.prestigeThreshold;
+    if (config.prestigeThreshold <= 0) {
+      return 0;
+    }
+    return sqrt(
+      state.prestige.runCashEarned / config.prestigeThreshold,
+    ).floor();
   }
 
   GameState applyTap(GameState state, {DateTime? nowUtc}) {
     return _addCoins(state, tapValue(state, nowUtc: nowUtc));
   }
 
-  PurchaseResult buyStationLevel(GameState state, StationId id) {
-    final definition = config.station(id);
-    if (!isStationUnlocked(state, definition)) {
-      return PurchaseResult(success: false, state: state, reason: 'locked');
+  PurchaseResult buyUpgrade(GameState state, UpgradeId id) {
+    final definition = config.upgrade(id);
+    final current = state.upgrade(id);
+    final currentTotalLevel = _upgradeTotalLevel(definition, current);
+    final cost = definition.costForLevel(currentTotalLevel);
+    if (definition.isMaxLevel(currentTotalLevel)) {
+      return PurchaseResult(
+        success: false,
+        state: state,
+        cost: cost,
+        reason: 'max_level',
+      );
     }
-    final station = state.station(id);
-    final cost = stationCost(definition, station);
     if (state.cash < cost) {
       return PurchaseResult(
         success: false,
@@ -147,43 +164,16 @@ class EconomyEngine {
         reason: 'insufficient_funds',
       );
     }
-    final updatedStations = Map<StationId, StationState>.from(state.stations)
-      ..[id] = station.copyWith(level: station.level + 1);
-    return PurchaseResult(
-      success: true,
-      state: state.copyWith(cash: state.cash - cost, stations: updatedStations),
-      cost: cost,
-    );
-  }
-
-  PurchaseResult buyUpgrade(GameState state, UpgradeId id) {
-    final definition = config.upgrade(id);
-    final current = state.upgrade(id);
-    if (current.purchased) {
-      return PurchaseResult(
-        success: false,
-        state: state,
-        cost: definition.cost,
-        reason: 'already_purchased',
-      );
-    }
-    if (state.cash < definition.cost) {
-      return PurchaseResult(
-        success: false,
-        state: state,
-        cost: definition.cost,
-        reason: 'insufficient_funds',
-      );
-    }
+    final nextTotalLevel = currentTotalLevel + 1;
     final updatedUpgrades = Map<UpgradeId, UpgradeState>.from(state.upgrades)
-      ..[id] = current.copyWith(purchased: true);
+      ..[id] = UpgradeState.fromTotalLevel(
+        definition: definition,
+        totalLevel: nextTotalLevel,
+      );
     return PurchaseResult(
       success: true,
-      state: state.copyWith(
-        cash: state.cash - definition.cost,
-        upgrades: updatedUpgrades,
-      ),
-      cost: definition.cost,
+      state: state.copyWith(cash: state.cash - cost, upgrades: updatedUpgrades),
+      cost: cost,
     );
   }
 
@@ -197,19 +187,10 @@ class EconomyEngine {
     if (!canStartRush(state, nowUtc: now)) {
       return state;
     }
-    final upgrade = config.upgrade(UpgradeId.rushTraining);
-    final hasRushTraining = state.upgrade(UpgradeId.rushTraining).purchased;
-    final duration = hasRushTraining
-        ? config.rushDuration + upgrade.rushDurationBonus
-        : config.rushDuration;
-    final cooldownReduction = hasRushTraining
-        ? upgrade.rushCooldownReduction
-        : Duration.zero;
-    final cooldown = config.rushCooldown - cooldownReduction;
     return state.copyWith(
       rush: TimedEffectState(
-        endsAtUtc: now.add(duration),
-        cooldownEndsAtUtc: now.add(cooldown),
+        endsAtUtc: now.add(config.rushDuration),
+        cooldownEndsAtUtc: now.add(config.rushCooldown),
       ),
     );
   }
@@ -282,43 +263,53 @@ class EconomyEngine {
   }
 
   int rushTapBonus(GameState state, {DateTime? nowUtc}) {
+    return _activeTurboMultiplier(state, nowUtc: nowUtc).round();
+  }
+
+  double prestigeMultiplier(GameState state) {
+    return prestigeMultiplierForPoints(state.prestige.reputation);
+  }
+
+  double prestigeMultiplierForPoints(int prestigePoints) {
+    return 1 + (max(0, prestigePoints) * config.prestigeBonusPerPoint);
+  }
+
+  double _knifeEffect(GameState state) {
+    return upgradeEffect(state, UpgradeId.knife);
+  }
+
+  double _ovenEffect(GameState state) {
+    return upgradeEffect(state, UpgradeId.oven);
+  }
+
+  double _menuEffect(GameState state) {
+    return upgradeEffect(state, UpgradeId.menu);
+  }
+
+  double _staffEffect(GameState state) {
+    return upgradeEffect(state, UpgradeId.staff);
+  }
+
+  double _activeTurboMultiplier(GameState state, {DateTime? nowUtc}) {
     final now = (nowUtc ?? DateTime.now()).toUtc();
-    return state.rush.isActiveAt(now) ? config.rushIncomeMultiplier.round() : 1;
+    if (!state.rush.isActiveAt(now)) {
+      return 1;
+    }
+    return upgradeEffect(state, UpgradeId.turbo);
   }
 
-  double _tapMultiplier(GameState state) {
-    var multiplier = 1.0;
-    if (state.upgrade(UpgradeId.sharpKnife).purchased) {
-      multiplier *= config.upgrade(UpgradeId.sharpKnife).tapMultiplier;
-    }
-    return multiplier;
+  List<UpgradeTrack> _activeUpgradeTracks(GameState state) {
+    return config.upgrades
+        .map((definition) {
+          return definition.trackForLevel(
+            _upgradeTotalLevel(definition, state.upgrade(definition.id)),
+          );
+        })
+        .toList(growable: false);
   }
 
-  int _flatTapBonus(GameState state) {
-    if (!state.upgrade(UpgradeId.tapGloves).purchased) {
-      return 0;
-    }
-    return config.upgrade(UpgradeId.tapGloves).flatTapBonus;
-  }
-
-  double _passiveIncomeMultiplier(GameState state) {
-    var multiplier = 1.0;
-    if (state.upgrade(UpgradeId.greaseMaintenance).purchased) {
-      multiplier *= config
-          .upgrade(UpgradeId.greaseMaintenance)
-          .passiveMultiplier;
-    }
-    return multiplier;
-  }
-
-  double _globalIncomeMultiplier(GameState state) {
-    var multiplier = 1.0;
-    if (state.upgrade(UpgradeId.brandBoard).purchased) {
-      multiplier *= config.upgrade(UpgradeId.brandBoard).globalIncomeMultiplier;
-    }
-    multiplier *=
-        1 + (state.prestige.reputation * config.prestigeBonusPerPoint);
-    return multiplier;
+  double _prestigeMultiplier(GameState state) {
+    return prestigeMultiplier(state);
   }
 
   GameState _addCoins(GameState state, int coins) {
@@ -328,6 +319,13 @@ class EconomyEngine {
       prestige: state.prestige.copyWith(
         runCashEarned: state.prestige.runCashEarned + coins,
       ),
+    );
+  }
+
+  int _upgradeTotalLevel(UpgradeDefinition definition, UpgradeState state) {
+    return definition.totalLevelForPosition(
+      itemIndex: state.itemIndex,
+      itemLevel: state.level,
     );
   }
 }

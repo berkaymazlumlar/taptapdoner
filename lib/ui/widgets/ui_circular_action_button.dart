@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
 enum UiCircularActionButtonTone { primary, secondary, neutral }
@@ -17,7 +18,7 @@ class UiCircularActionButton extends StatefulWidget {
     this.showLabel = true,
   });
 
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback? onPressed;
   final String? label;
   final String? badge;
@@ -180,7 +181,7 @@ class _UiCircularActionButtonState extends State<UiCircularActionButton> {
                       ),
                     ),
                     Center(
-                      child: Icon(
+                      child: FaIcon(
                         widget.icon,
                         size: iconSize,
                         color: foregroundColor,
@@ -270,6 +271,7 @@ class _UiCircularActionButtonState extends State<UiCircularActionButton> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          splashFactory: InkRipple.splashFactory,
           onTap: widget.onPressed,
           onTapDown: enabled ? (_) => _setPressed(true) : null,
           onTapUp: enabled ? (_) => _setPressed(false) : null,

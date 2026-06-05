@@ -1,12 +1,19 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/app/game_controller.dart';
-import 'package:taptapdoner/domain/stations/station_catalog.dart';
-import 'package:taptapdoner/domain/stations/upgrade_catalog.dart';
+import 'package:taptapdoner/app/game_view_models.dart';
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
+import 'package:taptapdoner/ui/widgets/doner_game_primitives.dart';
 import 'package:taptapdoner/ui/widgets/stitch_bottom_sheet_primitives.dart';
 import 'package:taptapdoner/ui/widgets/value_formatters.dart';
+
+enum ShopPagePresentation { sheet, tab }
 
 class ShopPage extends StatelessWidget {
   const ShopPage({
@@ -15,15 +22,18 @@ class ShopPage extends StatelessWidget {
     required this.onOpenPrestige,
     super.key,
     this.onBack,
+    this.presentation = ShopPagePresentation.sheet,
   });
 
   final GameController controller;
   final VoidCallback onOpenKitchen;
   final VoidCallback onOpenPrestige;
   final VoidCallback? onBack;
+  final ShopPagePresentation presentation;
 
   @override
   Widget build(BuildContext context) {
+    final isTab = presentation == ShopPagePresentation.tab;
     final closeAction = onBack ?? onOpenKitchen;
 
     return Material(
@@ -32,12 +42,15 @@ class ShopPage extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const Positioned.fill(child: _SheetGlow()),
           StitchBottomSheetSurface(
-            child: AnimatedBuilder(
-              animation: controller,
-              builder: (context, _) {
-                final strings = AppStrings.of(context);
+            maxWidth: isTab ? double.infinity : null,
+            maxHeight: isTab ? double.infinity : null,
+            borderRadius: isTab ? BorderRadius.zero : null,
+            showBorder: !isTab,
+            showShadow: !isTab,
+            child: ValueListenableBuilder<ShopSnapshot>(
+              valueListenable: controller.shopSnapshotListenable,
+              builder: (context, snapshot, _) {
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final compact =
@@ -48,99 +61,15 @@ class ShopPage extends StatelessWidget {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const StitchSheetHandle(),
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            horizontalPadding,
-                            0,
-                            horizontalPadding,
-                            compact ? 8.h : 10.h,
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      strings.shopTitle.toUpperCase(),
-                                      key: const ValueKey('shop-sheet-title'),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontFamily: RoastedTypography.headlineFontFamily,
-                                        fontSize: compact ? 28.sp : 30.sp,
-                                        fontWeight: FontWeight.w800,
-                                        height: 1,
-                                        letterSpacing: -0.4,
-                                        color: RoastedColors.primary,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4.h),
-                                    Text(
-                                      'STATIONS AND UPGRADES',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontFamily: RoastedTypography.bodyFontFamily,
-                                        fontSize: compact ? 11.sp : 12.sp,
-                                        fontWeight: FontWeight.w700,
-                                        height: 1,
-                                        letterSpacing: 2.2,
-                                        color: RoastedColors.secondary.withValues(alpha: 0.60),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(width: 12.w),
-                              KeyedSubtree(
-                                key: const ValueKey('shop-sheet-close-button'),
-                                child: StitchSheetCloseButton(onPressed: closeAction),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                          child: SizedBox(
-                            height: compact ? 56.h : 60.h,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  _StatChip(
-                                    icon: Icons.payments_rounded,
-                                    label: strings.cashLabel,
-                                    value: _cash(context, controller.state.cash),
-                                  ),
-                                  SizedBox(width: 12.w),
-                                  _StatChip(
-                                    icon: Icons.timer_rounded,
-                                    label: 'Idle/Sec',
-                                    value:
-                                        '${formatCompactDecimal(context, controller.passiveIncomePerSecond)}/s',
-                                    iconColor: RoastedColors.secondary,
-                                  ),
-                                  SizedBox(width: 12.w),
-                                  _StatChip(
-                                    icon: Icons.military_tech_rounded,
-                                    label: strings.reputationLabel,
-                                    value: controller.state.prestige.reputation.toString(),
-                                    iconColor: RoastedColors.tertiary,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: compact ? 10.h : 12.h),
+                        if (!isTab) const StitchSheetHandle(),
                         Expanded(
                           child: _ShopContent(
                             controller: controller,
+                            snapshot: snapshot,
                             horizontalPadding: horizontalPadding,
                             compact: compact,
+                            isTab: isTab,
+                            onClose: closeAction,
                           ),
                         ),
                       ],
@@ -159,85 +88,67 @@ class ShopPage extends StatelessWidget {
 class _ShopContent extends StatelessWidget {
   const _ShopContent({
     required this.controller,
+    required this.snapshot,
     required this.horizontalPadding,
     required this.compact,
+    required this.isTab,
+    required this.onClose,
   });
 
   final GameController controller;
+  final ShopSnapshot snapshot;
   final double horizontalPadding;
   final bool compact;
+  final bool isTab;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    final strings = AppStrings.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SingleChildScrollView(
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            0,
-            horizontalPadding,
-            88.h,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const StitchSheetSectionDivider(label: 'Stations'),
-              SizedBox(height: 16.h),
-              for (final station in controller.stations)
-                Padding(
-                  padding: EdgeInsets.only(bottom: 16.h),
-                  child: _StationCard(
-                    controller: controller,
-                    station: station,
-                  ),
-                ),
-              SizedBox(height: 10.h),
-              const StitchSheetSectionDivider(label: 'Upgrades'),
-              SizedBox(height: 16.h),
-              for (final upgrade in controller.upgrades)
-                Padding(
-                  padding: EdgeInsets.only(bottom: 16.h),
-                  child: _UpgradeCard(
-                    controller: controller,
-                    upgrade: upgrade,
-                  ),
-                ),
-            ],
-          ),
+        _ShopScrollHeader(
+          snapshot: snapshot,
+          strings: strings,
+          horizontalPadding: horizontalPadding,
+          compact: compact,
+          isTab: isTab,
+          onClose: onClose,
         ),
-        IgnorePointer(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              height: 78.h,
-              alignment: Alignment.bottomCenter,
-              padding: EdgeInsets.only(bottom: 16.h),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    RoastedColors.surface.withValues(alpha: 0),
-                    RoastedColors.surfaceContainer.withValues(alpha: 0.90),
-                    RoastedColors.surfaceContainer,
-                  ],
-                ),
-              ),
-              child: Text(
-                'TAP TAP DONER',
-                style: TextStyle(
-                  fontFamily: RoastedTypography.headlineFontFamily,
-                  fontSize: compact ? 16.sp : 18.sp,
-                  fontWeight: FontWeight.w900,
-                  height: 1,
-                  letterSpacing: 6,
-                  color: RoastedColors.primary.withValues(alpha: 0.18),
-                ),
-              ),
+        Expanded(
+          child: CustomScrollView(
+            physics: const ClampingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
             ),
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  0,
+                  horizontalPadding,
+                  88.h,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      StitchSheetSectionDivider(label: strings.upgradesTitle),
+                      SizedBox(height: 8.h),
+                      for (final upgrade in controller.upgrades)
+                        Padding(
+                          padding: EdgeInsets.only(bottom: 8.h),
+                          child: _UpgradeCard(
+                            controller: controller,
+                            shopSnapshot: snapshot,
+                            upgrade: upgrade,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -245,177 +156,351 @@ class _ShopContent extends StatelessWidget {
   }
 }
 
-class _StationCard extends StatelessWidget {
-  const _StationCard({required this.controller, required this.station});
+class _ShopScrollHeader extends StatelessWidget {
+  const _ShopScrollHeader({
+    required this.snapshot,
+    required this.strings,
+    required this.horizontalPadding,
+    required this.compact,
+    required this.isTab,
+    required this.onClose,
+  });
 
-  final GameController controller;
-  final StationDefinition station;
+  final ShopSnapshot snapshot;
+  final AppStrings strings;
+  final double horizontalPadding;
+  final bool compact;
+  final bool isTab;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
-    final unlocked = controller.isStationUnlocked(station.id);
-    final state = controller.state.station(station.id);
-    final cost = controller.stationCost(station.id);
-    final canAfford = unlocked && controller.state.cash >= cost;
-    final income = controller.stationIncomePerSecond(station.id);
+    final titleHeight = compact ? 28.sp : 32.sp;
+    final titleRowHeight = isTab ? titleHeight : math.max(40.w, titleHeight);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 292;
-        final showTopLevelBadge = unlocked && !compact;
-        final body = _CardShell(
-          locked: !unlocked,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final headerBody = DecoratedBox(
+      decoration: _shopHeaderDecoration(),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          isTab ? (compact ? 12.h : 16.h) : 0,
+          horizontalPadding,
+          compact ? 10.h : 12.h,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: titleRowHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _StationIconBadge(
-                    icon: _stationIcon(station.id),
-                    locked: !unlocked,
-                  ),
-                  SizedBox(width: 16.w),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          strings.stationName(station.id),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _titleStyle(
-                            unlocked
-                                ? RoastedColors.onSurface
-                                : const Color(0xFF91837A),
+                    child: Text(
+                      strings.shopTitle.toUpperCase(),
+                      key: const ValueKey('shop-sheet-title'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: RoastedTypography.headlineFontFamily,
+                        fontSize: titleHeight,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                        letterSpacing: 0,
+                        color: DonerColors.goldPrimary,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withValues(alpha: 0.52),
+                            blurRadius: 8.r,
+                            offset: Offset(0, 2.h),
                           ),
-                        ),
-                        if (showTopLevelBadge) ...[
-                          SizedBox(height: 8.h),
-                          _LevelBadge(level: state.level),
                         ],
-                        SizedBox(height: 4.h),
-                        Text(
-                          strings.stationDescription(station.id),
-                          maxLines: compact ? 3 : 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: _bodyStyle(
-                            unlocked
-                                ? RoastedColors.onSurfaceVariant
-                                : const Color(0xFF6A5C54),
-                          ),
-                        ),
-                      ],
+                      ),
+                    ),
+                  ),
+                  if (!isTab) SizedBox(width: 52.w),
+                ],
+              ),
+            ),
+            SizedBox(height: compact ? 8.h : 10.h),
+            SizedBox(
+              key: const ValueKey('shop-stat-row'),
+              height: _shopStatRowHeight(compact),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _StatChip(
+                      icon: DonerIcons.cash,
+                      label: strings.cashLabel,
+                      value: _cash(context, snapshot.hud.cash),
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: _StatChip(
+                      icon: DonerIcons.idleIncome,
+                      label: strings.idleIncomeLabel,
+                      value:
+                          '${formatCompactDecimal(context, snapshot.hud.passiveIncomePerSecond)}/s',
+                      iconColor: DonerColors.orangeAccent,
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: _StatChip(
+                      icon: DonerIcons.reputation,
+                      label: strings.reputationLabel,
+                      value: snapshot.hud.reputation.toString(),
+                      iconColor: DonerColors.tealBright,
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: 14.h),
-              if (unlocked)
-                Wrap(
-                  spacing: 10.w,
-                  runSpacing: 10.h,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (!showTopLevelBadge) _LevelBadge(level: state.level),
-                    Text('+${_rate(context, income)}', style: _minorStyle()),
-                    _GoldButton(
-                      label:
-                          '${strings.buyLabel.toUpperCase()} ${_cash(context, cost)}',
-                      enabled: canAfford,
-                      onTap: canAfford
-                          ? () => controller.buyStation(station.id)
-                          : null,
-                    ),
-                  ],
-                )
-              else
-                _LockedPill(label: _lockText(context, strings, station)),
-            ],
-          ),
-        );
+            ),
+          ],
+        ),
+      ),
+    );
 
-        return KeyedSubtree(
-          key: ValueKey('shop-station-card-${station.id.key}'),
-          child: unlocked
-              ? body
-              : Opacity(
-                  opacity: 0.82,
-                  child: ColorFiltered(
-                    colorFilter: const ColorFilter.matrix(_grayscaleMatrix),
-                    child: body,
-                  ),
-                ),
-        );
-      },
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IgnorePointer(child: headerBody),
+        if (!isTab)
+          Positioned(
+            top: 0,
+            right: horizontalPadding,
+            child: KeyedSubtree(
+              key: const ValueKey('shop-sheet-close-button'),
+              child: StitchSheetCloseButton(onPressed: onClose),
+            ),
+          ),
+      ],
     );
   }
 }
 
 class _UpgradeCard extends StatelessWidget {
-  const _UpgradeCard({required this.controller, required this.upgrade});
+  const _UpgradeCard({
+    required this.controller,
+    required this.shopSnapshot,
+    required this.upgrade,
+  });
 
   final GameController controller;
+  final ShopSnapshot shopSnapshot;
   final UpgradeDefinition upgrade;
 
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
-    final state = controller.state.upgrade(upgrade.id);
-    final owned = state.purchased;
-    final canAfford = !owned && controller.state.cash >= upgrade.cost;
+    final upgradeSnapshot = shopSnapshot.upgrades[upgrade.id]!;
+    final maxed = upgradeSnapshot.maxed;
+    final canAfford = upgradeSnapshot.canAfford;
+    final currentItemName = strings.upgradeItemName(
+      upgrade.id,
+      upgradeSnapshot.currentItemKey,
+    );
+    final unlocksNextItem =
+        upgradeSnapshot.unlocksNextItem && upgradeSnapshot.nextItemKey != null;
+    final nextItemName = upgradeSnapshot.nextItemKey == null
+        ? null
+        : strings.upgradeItemName(upgrade.id, upgradeSnapshot.nextItemKey!);
+    final nextMilestoneItemName = upgradeSnapshot.nextMilestoneItemKey == null
+        ? null
+        : strings.upgradeItemName(
+            upgrade.id,
+            upgradeSnapshot.nextMilestoneItemKey!,
+          );
+    final nextMilestoneText =
+        nextMilestoneItemName == null ||
+            upgradeSnapshot.nextMilestoneLevel == null
+        ? strings.upgradeMaxLevelLabel
+        : strings.upgradeMilestonePreview(
+            nextMilestoneItemName,
+            upgradeSnapshot.nextMilestoneLevel!,
+          );
+    final nextItemPreviewValue = nextItemName == null
+        ? strings.upgradeMaxLevelLabel
+        : '$nextItemName Lv. 1';
+    final nextItemPreviewEffect = upgradeSnapshot.nextItemEffect == null
+        ? null
+        : _effect(context, upgrade, upgradeSnapshot.nextItemEffect!);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 292;
-        final trailing = owned
-            ? Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-                decoration: BoxDecoration(
-                  color: RoastedColors.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(999.r),
-                ),
-                child: Text(
-                  strings.boughtLabel.toUpperCase(),
-                  style: _badgeStyle(),
-                ),
+        final compact = constraints.maxWidth < 360;
+        final isSpecialState = maxed || unlocksNextItem;
+        final actionLabel = maxed
+            ? 'MAX'
+            : !canAfford
+            ? strings.insufficientFundsLabel
+            : unlocksNextItem
+            ? strings.upgradeTierUpAction
+            : strings.upgradeLevelUpAction;
+        final levelText =
+            'Lv. ${upgradeSnapshot.itemLevel}/${upgradeSnapshot.maxItemLevel}';
+        final tierText =
+            '${strings.upgradeTierLabel} ${upgradeSnapshot.currentItemTier}';
+        final titleBlock = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              strings.upgradeName(upgrade.id),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _titleStyle(
+                isSpecialState
+                    ? DonerColors.goldPrimary
+                    : DonerColors.creamText,
+                size: compact ? 14 : 15,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              currentItemName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _bodyStyle(
+                DonerColors.goldBright,
+                size: compact ? 10 : 11,
+              ).copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '$tierText - $levelText',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _bodyStyle(
+                DonerColors.bodyText.withValues(alpha: 0.92),
+                size: compact ? 9.5 : 10,
+              ).copyWith(fontWeight: FontWeight.w800),
+            ),
+          ],
+        );
+        final nextBlock = maxed
+            ? _MaxStateBlock(
+                key: ValueKey('shop-upgrade-max-${upgrade.id.key}'),
+                label: strings.upgradeMaxLevelLabel,
               )
-            : _BrownButton(
-                label: _cash(context, upgrade.cost),
-                enabled: canAfford,
-                onTap: canAfford
-                    ? () => controller.buyUpgrade(upgrade.id)
-                    : null,
+            : unlocksNextItem && nextItemName != null
+            ? _NextTierPreview(
+                key: ValueKey('shop-upgrade-next-item-${upgrade.id.key}'),
+                icon: _upgradeIcon(upgrade.id),
+                label: '${strings.upgradeNextTierLabel}:',
+                itemName: '$nextItemName Lv. 1',
+                effect: _effect(context, upgrade, upgradeSnapshot.nextEffect),
+              )
+            : _EffectBlock(
+                label: '${strings.upgradeNextLevelLabel}:',
+                value: _effect(context, upgrade, upgradeSnapshot.nextEffect),
+                subdued: true,
               );
 
         return Container(
           key: ValueKey('shop-upgrade-card-${upgrade.id.key}'),
-          padding: EdgeInsets.all(16.w),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: RoastedColors.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(24.r),
+            gradient: DonerGradients.card,
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: owned
-                  ? RoastedColors.primary.withValues(alpha: 0.20)
-                  : RoastedColors.outlineVariant.withValues(alpha: 0.10),
+              color: isSpecialState
+                  ? DonerColors.goldPrimary.withValues(alpha: 0.70)
+                  : upgradeSnapshot.purchased
+                  ? DonerColors.goldPrimary.withValues(alpha: 0.38)
+                  : DonerColors.borderSoft.withValues(alpha: 0.72),
+              width: 1.2,
             ),
+            boxShadow: isSpecialState ? DonerShadows.goldGlow : null,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _UpgradeIcon(icon: _upgradeIcon(upgrade.id), owned: owned),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: _UpgradeText(upgrade: upgrade, owned: owned),
+                  _UpgradeIcon(
+                    icon: _upgradeIcon(upgrade.id),
+                    owned: upgradeSnapshot.purchased || isSpecialState,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: titleBlock),
+                  const SizedBox(width: 8),
+                  _UpgradeActionButton(
+                    key: ValueKey('shop-upgrade-button-${upgrade.id.key}'),
+                    label: actionLabel,
+                    enabled: canAfford,
+                    maxed: maxed,
+                    highlighted: unlocksNextItem,
+                    width: compact ? 82 : 104,
+                    onTap: canAfford
+                        ? () {
+                            unawaited(
+                              _buyUpgradeWithFeedback(
+                                context,
+                                controller,
+                                upgrade,
+                              ),
+                            );
+                          }
+                        : null,
                   ),
                 ],
               ),
-              SizedBox(height: compact ? 12.h : 14.h),
-              trailing,
+              const SizedBox(height: 7),
+              Row(
+                children: [
+                  Expanded(
+                    child: _EffectBlock(
+                      label: '${strings.upgradeEffectName(upgrade.id)}:',
+                      value: _effect(
+                        context,
+                        upgrade,
+                        upgradeSnapshot.currentEffect,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(child: nextBlock),
+                  if (!maxed) ...[
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _CostBlock(
+                        label: '${strings.upgradeCostLabel}:',
+                        value: _cash(context, upgradeSnapshot.cost),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: _InfoBlock(
+                      key: ValueKey(
+                        'shop-upgrade-next-milestone-${upgrade.id.key}',
+                      ),
+                      label: '${strings.upgradeNextMilestoneLabel}:',
+                      value: nextMilestoneText,
+                      highlighted: !maxed,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _InfoBlock(
+                      key: ValueKey(
+                        'shop-upgrade-next-preview-${upgrade.id.key}',
+                      ),
+                      label: '${strings.upgradeNextItemPreviewLabel}:',
+                      value: nextItemPreviewValue,
+                      detail: nextItemPreviewEffect,
+                      highlighted: unlocksNextItem,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -424,130 +509,222 @@ class _UpgradeCard extends StatelessWidget {
   }
 }
 
-class _CardShell extends StatelessWidget {
-  const _CardShell({required this.child, required this.locked});
-
-  final Widget child;
-  final bool locked;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: locked
-            ? RoastedColors.surfaceContainerLow
-            : RoastedColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(24.r),
-        border: Border.all(
-          color: locked
-              ? Colors.white.withValues(alpha: 0.05)
-              : RoastedColors.outlineVariant.withValues(alpha: 0.10),
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _UpgradeText extends StatelessWidget {
-  const _UpgradeText({required this.upgrade, required this.owned});
-
-  final UpgradeDefinition upgrade;
-  final bool owned;
-
-  @override
-  Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          strings.upgradeName(upgrade.id),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: _titleStyle(
-            owned ? RoastedColors.primary : RoastedColors.onSurface,
-            size: 16,
-          ),
-        ),
-        SizedBox(height: 3.h),
-        Text(
-          strings.upgradeDescription(upgrade.id),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: _bodyStyle(
-            owned
-                ? RoastedColors.primary.withValues(alpha: 0.62)
-                : RoastedColors.onSurfaceVariant,
-            size: 11,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.icon,
+class _InfoBlock extends StatelessWidget {
+  const _InfoBlock({
     required this.label,
     required this.value,
-    this.iconColor = RoastedColors.primary,
+    super.key,
+    this.detail,
+    this.highlighted = false,
   });
 
-  final IconData icon;
   final String label;
   final String value;
-  final Color iconColor;
+  final String? detail;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: BoxConstraints(minHeight: 44.h),
-      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
       decoration: BoxDecoration(
-        color: RoastedColors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18.r),
+        color: highlighted
+            ? DonerColors.goldPrimary.withValues(alpha: 0.12)
+            : DonerColors.panelDark.withValues(alpha: 0.80),
+        borderRadius: BorderRadius.circular(9),
         border: Border.all(
-          color: RoastedColors.outlineVariant.withValues(alpha: 0.10),
+          color: highlighted
+              ? DonerColors.goldPrimary.withValues(alpha: 0.36)
+              : DonerColors.borderSoft.withValues(alpha: 0.48),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.bodyFontFamily,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: DonerColors.bodyText.withValues(alpha: 0.82),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.headlineFontFamily,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: highlighted
+                  ? DonerColors.goldBright
+                  : DonerColors.creamText,
+            ),
+          ),
+          if (detail != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              detail!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: RoastedTypography.bodyFontFamily,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                height: 1,
+                color: DonerColors.goldPrimary,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EffectBlock extends StatelessWidget {
+  const _EffectBlock({
+    required this.label,
+    required this.value,
+    this.subdued = false,
+  });
+
+  final String label;
+  final String value;
+  final bool subdued;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 36),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      decoration: BoxDecoration(
+        color: subdued
+            ? DonerColors.panelDark.withValues(alpha: 0.74)
+            : DonerColors.panelDark.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: DonerColors.borderSoft.withValues(alpha: 0.48),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.bodyFontFamily,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: DonerColors.bodyText.withValues(alpha: 0.82),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.headlineFontFamily,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: subdued ? DonerColors.goldBright : DonerColors.goldPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NextTierPreview extends StatelessWidget {
+  const _NextTierPreview({
+    required this.icon,
+    required this.label,
+    required this.itemName,
+    required this.effect,
+    super.key,
+  });
+
+  final FaIconData icon;
+  final String label;
+  final String itemName;
+  final String effect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      decoration: BoxDecoration(
+        color: DonerColors.goldPrimary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: DonerColors.goldPrimary.withValues(alpha: 0.36),
         ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18.r, color: iconColor),
-          SizedBox(width: 8.w),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
+          _MiniUpgradeIcon(icon: icon),
+          const SizedBox(width: 6),
+          Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label.toUpperCase(),
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: RoastedTypography.bodyFontFamily,
-                    fontSize: 8.sp,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w900,
                     height: 1,
-                    color: RoastedColors.onSurfaceVariant.withValues(
-                      alpha: 0.72,
-                    ),
+                    color: DonerColors.goldPrimary.withValues(alpha: 0.92),
                   ),
                 ),
-                SizedBox(height: 1.h),
+                const SizedBox(height: 2),
                 Text(
-                  value,
+                  itemName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: RoastedTypography.headlineFontFamily,
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w900,
                     height: 1,
-                    color: RoastedColors.onSurface,
+                    color: DonerColors.creamText,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  effect,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: RoastedTypography.bodyFontFamily,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                    color: DonerColors.goldBright,
                   ),
                 ),
               ],
@@ -559,80 +736,8 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _StationIconBadge extends StatelessWidget {
-  const _StationIconBadge({required this.icon, required this.locked});
-
-  final IconData icon;
-  final bool locked;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 64.w,
-      height: 64.w,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: RoastedColors.surfaceContainerLowest.withValues(
-          alpha: locked ? 0.90 : 1,
-        ),
-        borderRadius: BorderRadius.circular(18.r),
-      ),
-      child: Icon(
-        icon,
-        size: 30.sp,
-        color: locked ? const Color(0xFF766760) : RoastedColors.primary,
-      ),
-    );
-  }
-}
-
-class _UpgradeIcon extends StatelessWidget {
-  const _UpgradeIcon({required this.icon, required this.owned});
-
-  final IconData icon;
-  final bool owned;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 48.w,
-      height: 48.w,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: owned
-            ? RoastedColors.primary.withValues(alpha: 0.14)
-            : RoastedColors.secondaryContainer,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        icon,
-        size: 22.sp,
-        color: owned ? RoastedColors.primary : RoastedColors.secondary,
-      ),
-    );
-  }
-}
-
-class _LevelBadge extends StatelessWidget {
-  const _LevelBadge({required this.level});
-
-  final int level;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-      decoration: BoxDecoration(
-        color: RoastedColors.primary.withValues(alpha: 0.20),
-        borderRadius: BorderRadius.circular(999.r),
-      ),
-      child: Text('LV $level', style: _badgeStyle()),
-    );
-  }
-}
-
-class _LockedPill extends StatelessWidget {
-  const _LockedPill({required this.label});
+class _MaxStateBlock extends StatelessWidget {
+  const _MaxStateBlock({required this.label, super.key});
 
   final String label;
 
@@ -640,26 +745,30 @@ class _LockedPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 9.h),
+      constraints: const BoxConstraints(minHeight: 36),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
       decoration: BoxDecoration(
-        color: RoastedColors.surfaceContainerHighest.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(12.r),
+        color: DonerColors.goldPrimary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: DonerColors.goldPrimary.withValues(alpha: 0.32),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.lock_rounded, size: 16.sp, color: RoastedColors.secondary),
-          SizedBox(width: 8.w),
+          FaIcon(DonerIcons.prestige, size: 13, color: DonerColors.goldPrimary),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(
-              label.toUpperCase(),
-              maxLines: 2,
+              label,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontFamily: RoastedTypography.bodyFontFamily,
-                fontSize: 10.sp,
-                fontWeight: FontWeight.w800,
-                height: 1.1,
-                color: RoastedColors.secondary,
+                fontFamily: RoastedTypography.headlineFontFamily,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                height: 1,
+                color: DonerColors.goldPrimary,
               ),
             ),
           ),
@@ -669,261 +778,418 @@ class _LockedPill extends StatelessWidget {
   }
 }
 
-class _GoldButton extends StatelessWidget {
-  const _GoldButton({
-    required this.label,
-    required this.enabled,
-    required this.onTap,
-  });
+class _CostBlock extends StatelessWidget {
+  const _CostBlock({required this.label, required this.value});
 
   final String label;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ButtonShell(
-      enabled: enabled,
-      onTap: onTap,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [RoastedColors.primary, RoastedColors.primaryContainer],
-        ),
-        borderRadius: BorderRadius.circular(999.r),
-        boxShadow: [
-          BoxShadow(
-            color: RoastedColors.primary.withValues(alpha: 0.20),
-            blurRadius: 16.r,
-            offset: Offset(0, 6.h),
-          ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: RoastedTypography.headlineFontFamily,
-          fontSize: 12.sp,
-          fontWeight: FontWeight.w900,
-          height: 1,
-          color: RoastedColors.onPrimary,
-        ),
-      ),
-    );
-  }
-}
-
-class _BrownButton extends StatelessWidget {
-  const _BrownButton({
-    required this.label,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ButtonShell(
-      enabled: enabled,
-      onTap: onTap,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [RoastedColors.secondary, RoastedColors.onSecondaryContainer],
-        ),
-        borderRadius: BorderRadius.circular(999.r),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: RoastedTypography.headlineFontFamily,
-          fontSize: 10.sp,
-          fontWeight: FontWeight.w900,
-          height: 1,
-          color: RoastedColors.onSecondaryFixed,
-        ),
-      ),
-    );
-  }
-}
-
-class _ButtonShell extends StatelessWidget {
-  const _ButtonShell({
-    required this.enabled,
-    required this.onTap,
-    required this.decoration,
-    required this.child,
-  });
-
-  final bool enabled;
-  final VoidCallback? onTap;
-  final BoxDecoration decoration;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: enabled ? 1 : 0.52,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(999.r),
-          child: Ink(
-            decoration: decoration,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-              child: child,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SheetGlow extends StatelessWidget {
-  const _SheetGlow();
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(
-        children: [
-          Positioned(
-            top: 160.h,
-            right: -42.w,
-            child: _GlowBlob(
-              size: 180.w,
-              color: RoastedColors.secondary.withValues(alpha: 0.14),
-            ),
-          ),
-          Positioned(
-            bottom: 240.h,
-            left: -54.w,
-            child: _GlowBlob(
-              size: 200.w,
-              color: RoastedColors.primary.withValues(alpha: 0.10),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GlowBlob extends StatelessWidget {
-  const _GlowBlob({required this.size, required this.color});
-
-  final double size;
-  final Color color;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 36),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(colors: [color, Colors.transparent]),
+        color: DonerColors.panelDark.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: DonerColors.borderSoft.withValues(alpha: 0.54),
+        ),
       ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.bodyFontFamily,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: DonerColors.bodyText.withValues(alpha: 0.82),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.headlineFontFamily,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: DonerColors.creamText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpgradeActionButton extends StatelessWidget {
+  const _UpgradeActionButton({
+    required this.label,
+    required this.enabled,
+    required this.maxed,
+    required this.highlighted,
+    required this.onTap,
+    super.key,
+    this.width = double.infinity,
+  });
+
+  final String label;
+  final bool enabled;
+  final bool maxed;
+  final bool highlighted;
+  final VoidCallback? onTap;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    final actionable = enabled && !maxed;
+    final textColor = actionable
+        ? DonerColors.creamText
+        : DonerColors.disabledText;
+    final radius = BorderRadius.circular(10);
+
+    return SizedBox(
+      width: width,
+      child: Opacity(
+        opacity: actionable ? 1 : 0.78,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            splashFactory: InkRipple.splashFactory,
+            onTap: actionable ? onTap : null,
+            borderRadius: radius,
+            child: Ink(
+              height: 32,
+              decoration: BoxDecoration(
+                gradient: actionable || highlighted
+                    ? DonerGradients.activeButton
+                    : DonerGradients.disabledButton,
+                borderRadius: radius,
+                border: Border.all(
+                  color: actionable
+                      ? DonerColors.goldPrimary
+                      : const Color(0xFF6B5447),
+                  width: actionable ? 1.2 : 1,
+                ),
+                boxShadow: actionable ? DonerShadows.goldGlow : null,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label.toUpperCase(),
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: RoastedTypography.bodyFontFamily,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.7,
+                        height: 1,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniUpgradeIcon extends StatelessWidget {
+  const _MiniUpgradeIcon({required this.icon});
+
+  final FaIconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: DonerColors.panelDark.withValues(alpha: 0.80),
+        shape: BoxShape.circle,
+        border: Border.all(color: DonerColors.borderSoft),
+      ),
+      child: Center(
+        child: FaIcon(icon, size: 11, color: DonerColors.goldPrimary),
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.iconColor = DonerColors.tealPrimary,
+  });
+
+  final FaIconData icon;
+  final String label;
+  final String value;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(minHeight: 48.h),
+      padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        gradient: DonerGradients.card,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(
+          color: DonerColors.borderSoft.withValues(alpha: 0.78),
+          width: 1.2,
+        ),
+        boxShadow: DonerShadows.soft,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          FaIcon(icon, size: 14.r, color: iconColor),
+          SizedBox(width: 5.w),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: RoastedTypography.bodyFontFamily,
+                      fontSize: 7.5.sp,
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                      color: DonerColors.bodyText.withValues(alpha: 0.72),
+                    ),
+                  ),
+                  SizedBox(height: 1.h),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontFamily: RoastedTypography.headlineFontFamily,
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                      color: DonerColors.creamText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpgradeIcon extends StatelessWidget {
+  const _UpgradeIcon({required this.icon, required this.owned});
+
+  final FaIconData icon;
+  final bool owned;
+
+  @override
+  Widget build(BuildContext context) {
+    return DonerIconMedallion(
+      icon: icon,
+      size: 42,
+      iconSize: 18,
+      backgroundColor: owned ? DonerColors.tealPrimary : DonerColors.panelDark,
+      iconColor: owned ? DonerColors.goldBright : DonerColors.bodyText,
     );
   }
 }
 
 TextStyle _titleStyle(Color color, {double size = 18}) => TextStyle(
   fontFamily: RoastedTypography.headlineFontFamily,
-  fontSize: size.sp,
-  fontWeight: FontWeight.w700,
+  fontSize: size,
+  fontWeight: FontWeight.w900,
   height: 1.1,
+  letterSpacing: 0,
   color: color,
 );
 
 TextStyle _bodyStyle(Color color, {double size = 12}) => TextStyle(
   fontFamily: RoastedTypography.bodyFontFamily,
-  fontSize: size.sp,
-  fontWeight: FontWeight.w500,
+  fontSize: size,
+  fontWeight: FontWeight.w600,
   height: 1.2,
   color: color,
 );
 
-TextStyle _minorStyle() => TextStyle(
-  fontFamily: RoastedTypography.bodyFontFamily,
-  fontSize: 12.sp,
-  fontWeight: FontWeight.w700,
-  height: 1,
-  color: RoastedColors.secondary,
-);
-
-TextStyle _badgeStyle() => TextStyle(
-  fontFamily: RoastedTypography.bodyFontFamily,
-  fontSize: 10.sp,
-  fontWeight: FontWeight.w900,
-  height: 1,
-  color: RoastedColors.primary,
-);
-
-String _lockText(
-  BuildContext context,
-  AppStrings strings,
-  StationDefinition station,
-) {
-  if (station.id == StationId.cashDesk) {
-    return 'Requires ${AppStrings.of(context).stationName(StationId.prepStation)} ${strings.levelLabel} 10';
-  }
-  return strings.lockedUntil(_cash(context, station.unlockAtLifetimeCash));
-}
-
 String _cash(BuildContext context, num value) =>
-    '\$${formatCompactNumber(context, value)}';
+    formatCompactCurrency(context, value);
 
-String _rate(BuildContext context, num value) {
-  final text = value.abs() < 10
-      ? value.toStringAsFixed(value % 1 == 0 ? 0 : 1)
-      : formatCompactNumber(context, value.round());
-  return '\$$text/s';
+String _effect(BuildContext context, UpgradeDefinition upgrade, double value) {
+  final strings = AppStrings.of(context);
+  final effectName = strings.upgradeEffectName(upgrade.id).toLowerCase();
+  return switch (upgrade.id) {
+    UpgradeId.staff =>
+      '+${_compactEffectNumber(context, value)}${strings.isTurkish ? '/sn' : '/s'} $effectName',
+    UpgradeId.offline => '%${(value * 100).round()} $effectName',
+    _ => '${_multiplier(value)} $effectName',
+  };
 }
 
-IconData _stationIcon(StationId id) => switch (id) {
-  StationId.donerSpit => Icons.restaurant_rounded,
-  StationId.prepStation => Icons.ramen_dining_rounded,
-  StationId.drinkFridge => Icons.kitchen_rounded,
-  StationId.cashDesk => Icons.point_of_sale_rounded,
-  StationId.courierScooter => Icons.moped_rounded,
+String _multiplier(double value) => 'x${value.toStringAsFixed(2)}';
+
+String _compactEffectNumber(BuildContext context, double value) {
+  if (value.abs() < 10) {
+    return value.toStringAsFixed(value % 1 == 0 ? 0 : 1);
+  }
+  return formatCompactNumber(context, value.round());
+}
+
+Future<void> _buyUpgradeWithFeedback(
+  BuildContext context,
+  GameController controller,
+  UpgradeDefinition upgrade,
+) async {
+  final strings = AppStrings.of(context);
+  final before = controller.state.upgrade(upgrade.id);
+  final beforeItemIndex = before.itemIndex
+      .clamp(0, upgrade.items.length - 1)
+      .toInt();
+  final previousItemName = strings.upgradeItemName(
+    upgrade.id,
+    upgrade.items[beforeItemIndex].key,
+  );
+
+  final bought = await controller.buyUpgrade(upgrade.id);
+  if (!bought || !context.mounted) {
+    return;
+  }
+
+  final after = controller.state.upgrade(upgrade.id);
+  if (after.itemIndex <= before.itemIndex) {
+    return;
+  }
+
+  final afterItemIndex = after.itemIndex
+      .clamp(0, upgrade.items.length - 1)
+      .toInt();
+  final afterSnapshot =
+      controller.shopSnapshotListenable.value.upgrades.containsKey(upgrade.id)
+      ? controller.shopSnapshotListenable.value.upgrades[upgrade.id]
+      : null;
+  final unlockedItemName = strings.upgradeItemName(
+    upgrade.id,
+    afterSnapshot?.currentItemKey ?? upgrade.items[afterItemIndex].key,
+  );
+  final newEffect = _effect(
+    context,
+    upgrade,
+    afterSnapshot?.currentEffect ??
+        upgrade.items[afterItemIndex].effectForItemLevel(after.level),
+  );
+
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (messenger == null) {
+    return;
+  }
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: DonerColors.panelPrimary,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              strings.upgradeUnlockTitle,
+              style: TextStyle(
+                fontFamily: RoastedTypography.headlineFontFamily,
+                fontWeight: FontWeight.w900,
+                color: DonerColors.goldPrimary,
+              ),
+            ),
+            SizedBox(height: 6.h),
+            Text(
+              strings.upgradeItemTransition(previousItemName, unlockedItemName),
+              style: TextStyle(
+                fontFamily: RoastedTypography.bodyFontFamily,
+                fontWeight: FontWeight.w800,
+                color: DonerColors.creamText,
+              ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              strings.upgradeNewEffectLabel,
+              style: TextStyle(
+                fontFamily: RoastedTypography.bodyFontFamily,
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w800,
+                color: DonerColors.bodyText,
+              ),
+            ),
+            SizedBox(height: 3.h),
+            Text(
+              newEffect,
+              style: TextStyle(
+                fontFamily: RoastedTypography.headlineFontFamily,
+                fontWeight: FontWeight.w900,
+                color: DonerColors.goldBright,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+}
+
+FaIconData _upgradeIcon(UpgradeId id) => switch (id) {
+  UpgradeId.knife => DonerIcons.upgradeKnife,
+  UpgradeId.oven => DonerIcons.upgradeOven,
+  UpgradeId.staff => DonerIcons.upgradeStaff,
+  UpgradeId.menu => DonerIcons.upgradeMenu,
+  UpgradeId.turbo => DonerIcons.upgradeTurbo,
+  UpgradeId.offline => DonerIcons.upgradeOffline,
 };
 
-IconData _upgradeIcon(UpgradeId id) => switch (id) {
-  UpgradeId.tapGloves => Icons.pan_tool_alt_rounded,
-  UpgradeId.sharpKnife => Icons.content_cut_rounded,
-  UpgradeId.greaseMaintenance => Icons.oil_barrel_rounded,
-  UpgradeId.brandBoard => Icons.campaign_rounded,
-  UpgradeId.rushTraining => Icons.bolt_rounded,
-};
+double _shopStatRowHeight(bool compact) => compact ? 52.h : 56.h;
 
-const List<double> _grayscaleMatrix = [
-  0.2126,
-  0.7152,
-  0.0722,
-  0,
-  0,
-  0.2126,
-  0.7152,
-  0.0722,
-  0,
-  0,
-  0.2126,
-  0.7152,
-  0.0722,
-  0,
-  0,
-  0,
-  0,
-  0,
-  1,
-  0,
-];
+BoxDecoration _shopHeaderDecoration() => BoxDecoration(
+  gradient: const LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      DonerColors.panelSecondary,
+      DonerColors.panelPrimary,
+      DonerColors.panelDark,
+    ],
+  ),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.28),
+      blurRadius: 18.r,
+      offset: Offset(0, 8.h),
+    ),
+  ],
+);

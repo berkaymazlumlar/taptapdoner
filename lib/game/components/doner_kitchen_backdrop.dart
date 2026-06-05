@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
+import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/theme/ui_asset_paths.dart';
 
 class DonerKitchenBackdrop extends Component
@@ -82,13 +83,8 @@ class DonerKitchenBackdrop extends Component
   void render(Canvas canvas) {
     final size = game.size.toSize();
     final rect = Offset.zero & size;
+    final backgroundShader = DonerGradients.screen.createShader(rect);
 
-    final backgroundShader = const LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [Color(0xFF321A12), Color(0xFF24100A), Color(0xFF1F0F09)],
-      stops: [0.0, 0.52, 1.0],
-    ).createShader(rect);
     canvas.drawRect(rect, Paint()..shader = backgroundShader);
 
     for (final drop in _drops) {
@@ -120,17 +116,6 @@ class DonerKitchenBackdrop extends Component
       );
       canvas.restore();
     }
-
-    final vignette = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          const Color(0x00322116),
-          const Color(0x001F0F09),
-          const Color(0xFF1F0F09).withValues(alpha: 0.94),
-        ],
-        stops: const [0.0, 0.62, 1.0],
-      ).createShader(rect);
-    canvas.drawRect(rect, vignette);
   }
 
   _MoneyDrop _createDrop() {

@@ -46,7 +46,14 @@ void main() {
     expect(targetRect.bottom, greaterThan(squareRect.bottom));
     expect(calloutRect.center.dx, closeTo(squareRect.center.dx, 14));
     expect(calloutRect.center.dy, closeTo(squareRect.center.dy, 14));
-    expect(find.image(const AssetImage(UiAssetPaths.tapDoner)), findsOneWidget);
+    final calloutImage = tester.widget<Image>(
+      find.byKey(const ValueKey('tap-zone-callout')),
+    );
+    expect(calloutImage.image, isA<ResizeImage>());
+    expect(
+      (calloutImage.image as ResizeImage).imageProvider,
+      const AssetImage(UiAssetPaths.tapDoner),
+    );
 
     final initialCash = controller.state.cash;
     final topTapPosition = Offset(targetRect.center.dx, targetRect.top + 12);
@@ -96,6 +103,40 @@ void main() {
       find.byKey(const ValueKey('tap-zone-falling-slice-1')),
       findsNothing,
     );
+  });
+
+  testWidgets('tap zone cuts on contact even when the pointer moves', (
+    tester,
+  ) async {
+    final controller = _controller(config, nowUtc);
+    final game = TapTapDonerGame(controller: controller);
+
+    await tester.pumpWidget(
+      _SizedHost(
+        size: const Size(390, 844),
+        child: TapZoneOverlay(controller: controller, game: game),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final targetRect = tester.getRect(
+      find.byKey(const ValueKey('tap-zone-target')),
+    );
+    final initialCash = controller.state.cash;
+
+    final gesture = await tester.startGesture(targetRect.center);
+    await tester.pump();
+    await gesture.moveBy(const Offset(36, 18));
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 130));
+
+    expect(controller.state.cash, greaterThan(initialCash));
+    expect(
+      find.byKey(const ValueKey('tap-zone-falling-slice-0')),
+      findsOneWidget,
+    );
+
+    await tester.pumpAndSettle();
   });
 }
 

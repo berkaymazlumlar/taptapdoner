@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/ui/layout/stitch_sheet_metrics.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
 enum StitchSheetActionTone { primary, secondary, subtle }
@@ -17,6 +20,9 @@ class StitchBottomSheetSurface extends StatelessWidget {
     this.backgroundGradient,
     this.shadowColor,
     this.borderRadius,
+    this.alignment = Alignment.bottomCenter,
+    this.showBorder = true,
+    this.showShadow = true,
   });
 
   final Widget child;
@@ -26,6 +32,9 @@ class StitchBottomSheetSurface extends StatelessWidget {
   final Gradient? backgroundGradient;
   final Color? shadowColor;
   final BorderRadius? borderRadius;
+  final AlignmentGeometry alignment;
+  final bool showBorder;
+  final bool showShadow;
 
   @override
   Widget build(BuildContext context) {
@@ -42,47 +51,55 @@ class StitchBottomSheetSurface extends StatelessWidget {
           final viewport = Size(constraints.maxWidth, constraints.maxHeight);
           final sheetConstraints = StitchSheetMetrics.sheetConstraints(
             viewport,
-            widthFactor: maxWidth == null ? 1 : maxWidth! / viewport.width,
+            widthFactor: maxWidth == null
+                ? 1
+                : math.min(maxWidth! / viewport.width, 1),
             heightFactor: maxHeight == null
                 ? 0.95
-                : maxHeight! / viewport.height,
+                : math.min(maxHeight! / viewport.height, 1),
           );
+          final effectiveWidth = maxWidth == null
+              ? sheetConstraints.maxWidth
+              : math.min(maxWidth!, viewport.width);
+          final effectiveHeight = maxHeight == null
+              ? sheetConstraints.maxHeight
+              : math.min(maxHeight!, viewport.height);
 
           return Align(
-            alignment: Alignment.bottomCenter,
+            alignment: alignment,
             child: Padding(
               padding: margin,
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxWidth: maxWidth ?? sheetConstraints.maxWidth,
-                  maxHeight: maxHeight ?? sheetConstraints.maxHeight,
+                  maxWidth: effectiveWidth,
+                  maxHeight: effectiveHeight,
                 ),
                 child: SizedBox(
-                  width: maxWidth ?? sheetConstraints.maxWidth,
-                  height: maxHeight ?? sheetConstraints.maxHeight,
+                  width: effectiveWidth,
+                  height: effectiveHeight,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       borderRadius: radius,
-                      gradient:
-                          backgroundGradient ??
-                          const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0xFF30160D),
-                              Color(0xFF23110A),
-                              Color(0xFF1B0B05),
-                            ],
-                          ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (shadowColor ?? Colors.black).withValues(
-                            alpha: 0.38,
-                          ),
-                          blurRadius: 32,
-                          offset: const Offset(0, -10),
-                        ),
-                      ],
+                      gradient: backgroundGradient ?? DonerGradients.sheet,
+                      border: showBorder
+                          ? Border.all(
+                              color: DonerColors.borderPrimary.withValues(
+                                alpha: 0.78,
+                              ),
+                              width: 1.5,
+                            )
+                          : null,
+                      boxShadow: showShadow
+                          ? [
+                              BoxShadow(
+                                color: (shadowColor ?? Colors.black).withValues(
+                                  alpha: 0.38,
+                                ),
+                                blurRadius: 32,
+                                offset: const Offset(0, -10),
+                              ),
+                            ]
+                          : null,
                     ),
                     child: ClipRRect(borderRadius: radius, child: child),
                   ),
@@ -97,7 +114,7 @@ class StitchBottomSheetSurface extends StatelessWidget {
 }
 
 class StitchSheetHandle extends StatelessWidget {
-  const StitchSheetHandle({super.key, this.color = const Color(0xFF453028)});
+  const StitchSheetHandle({super.key, this.color = DonerColors.goldPrimary});
 
   final Color color;
 
@@ -123,13 +140,13 @@ class StitchSheetCloseButton extends StatelessWidget {
   const StitchSheetCloseButton({
     super.key,
     required this.onPressed,
-    this.icon = Icons.close_rounded,
+    this.icon = DonerIcons.close,
     this.backgroundColor = RoastedColors.surfaceContainerHigh,
     this.iconColor = RoastedColors.onSurface,
   });
 
   final VoidCallback onPressed;
-  final IconData icon;
+  final FaIconData icon;
   final Color backgroundColor;
   final Color iconColor;
 
@@ -141,6 +158,7 @@ class StitchSheetCloseButton extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkResponse(
+          splashFactory: InkRipple.splashFactory,
           onTap: onPressed,
           radius: StitchSheetMetrics.closeButtonSize / 2,
           splashColor: RoastedColors.primary.withValues(alpha: 0.08),
@@ -149,17 +167,19 @@ class StitchSheetCloseButton extends StatelessWidget {
             height: StitchSheetMetrics.closeButtonSize,
             decoration: BoxDecoration(
               color: backgroundColor,
+              gradient: DonerGradients.activeButton,
               shape: BoxShape.circle,
+              border: Border.all(color: DonerColors.goldPrimary, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.14),
+                  color: DonerColors.orangeAccent.withValues(alpha: 0.24),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
             alignment: Alignment.center,
-            child: Icon(icon, size: 22.r, color: iconColor),
+            child: FaIcon(icon, size: 22.r, color: iconColor),
           ),
         ),
       ),
@@ -296,22 +316,43 @@ class StitchSheetSectionDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lineColor = RoastedColors.outlineVariant.withValues(alpha: 0.20);
+    final lineColor = DonerColors.borderSoft.withValues(alpha: 0.62);
     return Row(
       children: [
         Expanded(
           child: Container(height: 1.h, color: lineColor),
         ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12.w),
-          child: Text(
-            label.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontFamily: RoastedTypography.bodyFontFamily,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 3,
-              color: labelColor.withValues(alpha: 0.86),
-              fontSize: StitchSheetMetrics.sectionLabelSize,
+        Flexible(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.w),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                children: [
+                  FaIcon(
+                    DonerIcons.diamond,
+                    size: 9.r,
+                    color: DonerColors.tealBright,
+                  ),
+                  SizedBox(width: 8.w),
+                  Text(
+                    label.toUpperCase(),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontFamily: RoastedTypography.bodyFontFamily,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.4,
+                      color: DonerColors.goldPrimary,
+                      fontSize: StitchSheetMetrics.sectionLabelSize,
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  FaIcon(
+                    DonerIcons.diamond,
+                    size: 9.r,
+                    color: DonerColors.tealBright,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -334,7 +375,7 @@ class StitchStatChip extends StatelessWidget {
     this.valueColor = RoastedColors.onSurface,
   });
 
-  final IconData icon;
+  final FaIconData icon;
   final String label;
   final String value;
   final Color iconColor;
@@ -346,17 +387,17 @@ class StitchStatChip extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
       decoration: BoxDecoration(
-        color: backgroundColor,
+        gradient: DonerGradients.card,
         borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: RoastedColors.outlineVariant.withValues(alpha: 0.10),
+          color: DonerColors.borderSoft.withValues(alpha: 0.72),
         ),
         boxShadow: RoastedShadows.surface,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20.r, color: iconColor),
+          FaIcon(icon, size: 20.r, color: iconColor),
           SizedBox(width: 8.w),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,10 +452,10 @@ class StitchSurfaceCard extends StatelessWidget {
     final radius = borderRadius ?? BorderRadius.circular(RoastedRadii.card.r);
     final content = DecoratedBox(
       decoration: BoxDecoration(
-        color: backgroundColor,
+        gradient: DonerGradients.card,
         borderRadius: radius,
         border: Border.all(
-          color: RoastedColors.outlineVariant.withValues(alpha: 0.10),
+          color: DonerColors.borderSoft.withValues(alpha: 0.72),
         ),
         boxShadow: RoastedShadows.surface,
       ),
@@ -450,7 +491,7 @@ class StitchActionButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final StitchSheetActionTone tone;
-  final IconData? icon;
+  final FaIconData? icon;
   final bool expand;
   final double? height;
 
@@ -575,7 +616,7 @@ class _ActionButtonVisual extends StatelessWidget {
 
   final String label;
   final StitchSheetActionTone tone;
-  final IconData? icon;
+  final FaIconData? icon;
   final double height;
 
   @override
@@ -583,37 +624,29 @@ class _ActionButtonVisual extends StatelessWidget {
     final isPrimary = tone == StitchSheetActionTone.primary;
     final isSecondary = tone == StitchSheetActionTone.secondary;
     final background = isPrimary
-        ? const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFE9C400), Color(0xFFAE9200)],
-          )
+        ? DonerGradients.activeButton
         : isSecondary
-        ? const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF764400), Color(0xFF5D3400)],
-          )
+        ? DonerGradients.turbo
         : null;
 
     final textColor = isPrimary
-        ? RoastedColors.onPrimary
+        ? DonerColors.creamText
         : isSecondary
-        ? RoastedColors.onSecondaryFixed
+        ? DonerColors.creamText
         : RoastedColors.onSurface;
 
     final borderColor = isPrimary
-        ? RoastedColors.primaryFixed.withValues(alpha: 0.50)
+        ? DonerColors.goldPrimary.withValues(alpha: 0.72)
         : isSecondary
-        ? RoastedColors.secondaryFixed.withValues(alpha: 0.20)
-        : RoastedColors.outlineVariant.withValues(alpha: 0.30);
+        ? DonerColors.goldPrimary.withValues(alpha: 0.46)
+        : DonerColors.borderSoft.withValues(alpha: 0.50);
 
     return Container(
       constraints: BoxConstraints(minHeight: height),
       decoration: BoxDecoration(
         gradient: background,
         color: tone == StitchSheetActionTone.subtle
-            ? RoastedColors.surfaceContainerHigh
+            ? DonerColors.panelPrimary
             : null,
         borderRadius: BorderRadius.circular(StitchSheetMetrics.buttonRadius),
         border: Border.all(color: borderColor),
@@ -634,7 +667,7 @@ class _ActionButtonVisual extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 18.r, color: textColor),
+              FaIcon(icon, size: 18.r, color: textColor),
               SizedBox(width: 8.w),
             ],
             Flexible(

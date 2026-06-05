@@ -26,40 +26,11 @@ class BackgroundProductionCalculator {
       );
     }
 
-    final passiveIncomePerSecond = engine.passiveIncomePerSecond(
-      state,
-      includeRush: false,
-    );
-    final rushElapsed = _rushOverlap(state, effectiveElapsed);
-    final normalElapsed = effectiveElapsed - rushElapsed;
-    final normalGain =
-        passiveIncomePerSecond * normalElapsed.inMilliseconds / 1000;
-    final rushGain =
-        passiveIncomePerSecond *
-        config.rushIncomeMultiplier *
-        rushElapsed.inMilliseconds /
-        1000;
-
     return ProductionGrant(
-      coins: (normalGain + rushGain).floor(),
+      coins: engine.offlineIncome(state, effectiveElapsed),
       rawElapsed: rawElapsed,
       effectiveElapsed: effectiveElapsed,
-      rushElapsed: rushElapsed,
+      rushElapsed: Duration.zero,
     );
-  }
-
-  Duration _rushOverlap(GameState state, Duration effectiveElapsed) {
-    final rushEndsAtUtc = state.rush.endsAtUtc;
-    if (rushEndsAtUtc == null) {
-      return Duration.zero;
-    }
-    final cappedEnd = state.lastActiveAtUtc.add(effectiveElapsed);
-    final overlapEnd = rushEndsAtUtc.isBefore(cappedEnd)
-        ? rushEndsAtUtc
-        : cappedEnd;
-    if (!overlapEnd.isAfter(state.lastActiveAtUtc)) {
-      return Duration.zero;
-    }
-    return overlapEnd.difference(state.lastActiveAtUtc);
   }
 }

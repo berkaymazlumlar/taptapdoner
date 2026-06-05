@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
 enum UiActionButtonTone { primary, secondary }
@@ -17,7 +18,7 @@ class UiActionButton extends StatefulWidget {
   });
 
   final String label;
-  final IconData? icon;
+  final FaIconData? icon;
   final VoidCallback? onPressed;
   final UiActionButtonTone tone;
   final String? badge;
@@ -114,6 +115,7 @@ class _UiActionButtonState extends State<UiActionButton> {
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
+                    splashFactory: InkRipple.splashFactory,
                     onTap: widget.onPressed,
                     onTapDown: enabled ? (_) => _setPressed(true) : null,
                     onTapUp: enabled ? (_) => _setPressed(false) : null,
@@ -173,7 +175,7 @@ class _UiActionButtonState extends State<UiActionButton> {
                               mainAxisSize: MainAxisSize.max,
                               children: [
                                 if (widget.icon != null) ...[
-                                  Icon(
+                                  FaIcon(
                                     widget.icon,
                                     size: widget.spec.isCompactHeight ? 18 : 20,
                                     color: foregroundColor,

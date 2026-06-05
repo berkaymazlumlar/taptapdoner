@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
+import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/theme/ui_asset_paths.dart';
 import 'package:taptapdoner/ui/widgets/value_formatters.dart';
 
@@ -46,7 +47,6 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
   late final AnimationController _rushAuraController;
   bool _isRushAuraActive = false;
   bool _didPrecacheFallingSlices = false;
-  Offset? _pendingTapPosition;
 
   @override
   void initState() {
@@ -55,7 +55,7 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
       vsync: this,
       duration: _rushAuraDuration,
     );
-    widget.controller.addListener(_handleControllerUpdate);
+    widget.controller.rushSnapshotListenable.addListener(_handleRushUpdate);
     _syncRushAura(force: true);
   }
 
@@ -65,8 +65,10 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
     if (oldWidget.controller == widget.controller) {
       return;
     }
-    oldWidget.controller.removeListener(_handleControllerUpdate);
-    widget.controller.addListener(_handleControllerUpdate);
+    oldWidget.controller.rushSnapshotListenable.removeListener(
+      _handleRushUpdate,
+    );
+    widget.controller.rushSnapshotListenable.addListener(_handleRushUpdate);
     _syncRushAura(force: true);
   }
 
@@ -85,17 +87,18 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
 
   @override
   void dispose() {
-    widget.controller.removeListener(_handleControllerUpdate);
+    widget.controller.rushSnapshotListenable.removeListener(_handleRushUpdate);
     _rushAuraController.dispose();
     super.dispose();
   }
 
-  void _handleControllerUpdate() {
+  void _handleRushUpdate() {
     _syncRushAura();
   }
 
   void _syncRushAura({bool force = false}) {
-    final shouldAnimate = widget.controller.isRushActive;
+    final shouldAnimate =
+        widget.controller.rushSnapshotListenable.value.isActive;
     if (!force && shouldAnimate == _isRushAuraActive) {
       return;
     }
@@ -114,14 +117,26 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
     }
   }
 
-  void _handleTapDown(TapDownDetails details) {
-    _pendingTapPosition = details.localPosition;
+  void _handleTapTargetPointerDown(
+    PointerDownEvent event,
+    double squareSize,
+    double tapTargetSize,
+  ) {
+    unawaited(
+      _handleTap(
+        tapPosition: event.localPosition,
+        squareSize: squareSize,
+        tapTargetSize: tapTargetSize,
+      ),
+    );
   }
 
-  Future<void> _handleTap(double squareSize, double tapTargetSize) async {
+  Future<void> _handleTap({
+    required Offset tapPosition,
+    required double squareSize,
+    required double tapTargetSize,
+  }) async {
     final tapBurstValue = widget.controller.tapValue;
-    final tapPosition =
-        _pendingTapPosition ?? Offset(tapTargetSize / 2, tapTargetSize / 2);
     _enqueueTapBurst(tapBurstValue, tapPosition, squareSize, tapTargetSize);
     _enqueueFallingSlice(tapPosition, squareSize, tapTargetSize);
     setState(() => _scale = 0.95);
@@ -301,43 +316,45 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
         final spec = ResponsiveLayoutSpec.fromSize(size);
         final squareSize = _squareSize(size, spec);
         final tapTargetSize = squareSize * _tapVisualScale;
+        final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+        final tapImageCacheWidth = (tapTargetSize * devicePixelRatio).round();
         final tapBurstFontSize = math.min(36.0, squareSize * 0.112);
-        final tapBurstStrokeStyle = Theme.of(context).textTheme.headlineMedium
-            ?.copyWith(
-              fontFamily: 'Plus Jakarta Sans',
-              fontWeight: FontWeight.w900,
-              fontSize: tapBurstFontSize,
-              letterSpacing: 0.4,
-              foreground: Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = math.max(2.2, tapBurstFontSize * 0.08)
-                ..color = const Color(0xFF5D2208).withValues(alpha: 0.95),
-            );
-        final tapBurstFillStyle = Theme.of(context).textTheme.headlineMedium
-            ?.copyWith(
-              color: const Color(0xFFE9C400),
-              fontFamily: 'Plus Jakarta Sans',
-              fontWeight: FontWeight.w900,
-              fontSize: tapBurstFontSize,
-              letterSpacing: 0.4,
-              shadows: [
-                Shadow(
-                  color: const Color(0xFFE9C400).withValues(alpha: 0.75),
-                  blurRadius: 18,
-                  offset: const Offset(0, 3),
-                ),
-                Shadow(
-                  color: const Color(0xFFFFF0A8).withValues(alpha: 0.45),
-                  blurRadius: 10,
-                  offset: const Offset(0, 0),
-                ),
-                Shadow(
-                  color: const Color(0xFF3C1706).withValues(alpha: 0.65),
-                  blurRadius: 3,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            );
+        final tapBurstStrokeStyle = DonerTypography.body(
+          Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            fontSize: tapBurstFontSize,
+            letterSpacing: 0.4,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = math.max(2.2, tapBurstFontSize * 0.08)
+              ..color = DonerColors.panelDark.withValues(alpha: 0.95),
+          ),
+        );
+        final tapBurstFillStyle = DonerTypography.body(
+          Theme.of(context).textTheme.headlineMedium?.copyWith(
+            color: DonerColors.goldBright,
+            fontWeight: FontWeight.w900,
+            fontSize: tapBurstFontSize,
+            letterSpacing: 0.4,
+            shadows: [
+              Shadow(
+                color: DonerColors.goldPrimary.withValues(alpha: 0.75),
+                blurRadius: 18,
+                offset: const Offset(0, 3),
+              ),
+              Shadow(
+                color: const Color(0xFFFFF0A8).withValues(alpha: 0.45),
+                blurRadius: 10,
+                offset: const Offset(0, 0),
+              ),
+              Shadow(
+                color: DonerColors.panelDark.withValues(alpha: 0.65),
+                blurRadius: 3,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        );
 
         return Padding(
           padding: EdgeInsets.fromLTRB(
@@ -374,18 +391,18 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
                         gradient: RadialGradient(
                           colors: [
                             const Color(
-                              0xFFE9C400,
+                              0xFFE8B35A,
                             ).withValues(alpha: coreAlpha),
                             const Color(
-                              0xFFFFB870,
+                              0xFFD97A24,
                             ).withValues(alpha: outerAlpha),
-                            const Color(0x001F0F09),
+                            const Color(0x00160605),
                           ],
                           stops: const [0.0, 0.58, 1.0],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFE9C400).withValues(
+                            color: DonerColors.goldPrimary.withValues(
                               alpha: _isRushAuraActive
                                   ? 0.10 + (pulse * 0.12)
                                   : 0.10,
@@ -403,148 +420,146 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
               ),
               Align(
                 alignment: Alignment.center,
-                child: Stack(
-                  children: [
-                    AnimatedBuilder(
-                      animation: widget.controller,
-                      builder: (context, _) {
-                        return SizedBox.square(
-                          key: const ValueKey('tap-zone-target'),
-                          dimension: tapTargetSize,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            clipBehavior: Clip.none,
-                            children: [
-                              IgnorePointer(
-                                child: SizedBox.square(
-                                  key: const ValueKey('tap-zone-square'),
-                                  dimension: squareSize,
+                child: RepaintBoundary(
+                  child: SizedBox.square(
+                    key: const ValueKey('tap-zone-target'),
+                    dimension: tapTargetSize,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
+                      children: [
+                        IgnorePointer(
+                          child: SizedBox.square(
+                            key: const ValueKey('tap-zone-square'),
+                            dimension: squareSize,
+                          ),
+                        ),
+                        Positioned.fill(
+                          child: AnimatedScale(
+                            scale: _scale,
+                            duration: const Duration(milliseconds: 120),
+                            curve: Curves.easeOutBack,
+                            child: Listener(
+                              behavior: HitTestBehavior.opaque,
+                              onPointerDown: (event) =>
+                                  _handleTapTargetPointerDown(
+                                    event,
+                                    squareSize,
+                                    tapTargetSize,
+                                  ),
+                              child: IgnorePointer(
+                                child: Center(
+                                  child: Image.asset(
+                                    key: const ValueKey('tap-zone-callout'),
+                                    UiAssetPaths.tapDoner,
+                                    fit: BoxFit.contain,
+                                    cacheWidth: tapImageCacheWidth,
+                                  ),
                                 ),
                               ),
-                              Positioned.fill(
-                                child: AnimatedScale(
-                                  scale: _scale,
-                                  duration: const Duration(milliseconds: 120),
-                                  curve: Curves.easeOutBack,
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTapDown: _handleTapDown,
-                                    onTap: () =>
-                                        _handleTap(squareSize, tapTargetSize),
-                                    child: IgnorePointer(
-                                      child: Center(
-                                        child: Image.asset(
-                                          key: const ValueKey('tap-zone-callout'),
-                                          UiAssetPaths.tapDoner,
-                                          fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                for (final slice in _fallingSlices)
+                                  AnimatedPositioned(
+                                    key: ValueKey(
+                                      'tap-zone-falling-slice-${slice.id}',
+                                    ),
+                                    duration: _fallingSliceTravelDuration,
+                                    curve: Curves.easeIn,
+                                    left:
+                                        slice.origin.dx -
+                                        (slice.size / 2) +
+                                        (slice.isFalling
+                                            ? slice.horizontalDrift
+                                            : 0),
+                                    top:
+                                        slice.origin.dy -
+                                        (slice.size / 2) +
+                                        (slice.isFalling
+                                            ? slice.fallDistance
+                                            : 0),
+                                    child: AnimatedOpacity(
+                                      opacity: slice.isFadingOut ? 0 : 1,
+                                      duration: _fallingSliceFadeDuration,
+                                      curve: Curves.easeIn,
+                                      child: AnimatedRotation(
+                                        turns: slice.isFalling
+                                            ? slice.rotationTurns
+                                            : 0,
+                                        duration: _fallingSliceTravelDuration,
+                                        curve: Curves.easeIn,
+                                        child: AnimatedScale(
+                                          scale: slice.isFalling ? 0.9 : 1,
+                                          duration: _fallingSliceTravelDuration,
+                                          curve: Curves.easeIn,
+                                          child: SizedBox.square(
+                                            dimension: slice.size,
+                                            child: Image.asset(
+                                              slice.assetPath,
+                                              fit: BoxFit.contain,
+                                              cacheWidth:
+                                                  (slice.size *
+                                                          devicePixelRatio)
+                                                      .round(),
+                                              filterQuality: FilterQuality.low,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                              Positioned.fill(
-                                child: IgnorePointer(
-                                  child: Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      for (final slice in _fallingSlices)
-                                        AnimatedPositioned(
-                                          key: ValueKey(
-                                            'tap-zone-falling-slice-${slice.id}',
-                                          ),
-                                          duration: _fallingSliceTravelDuration,
-                                          curve: Curves.easeIn,
-                                          left:
-                                              slice.origin.dx -
-                                              (slice.size / 2) +
-                                              (slice.isFalling
-                                                  ? slice.horizontalDrift
-                                                  : 0),
-                                          top:
-                                              slice.origin.dy -
-                                              (slice.size / 2) +
-                                              (slice.isFalling
-                                                  ? slice.fallDistance
-                                                  : 0),
-                                          child: AnimatedOpacity(
-                                            opacity: slice.isFadingOut ? 0 : 1,
-                                            duration: _fallingSliceFadeDuration,
-                                            curve: Curves.easeIn,
-                                            child: AnimatedRotation(
-                                              turns: slice.isFalling
-                                                  ? slice.rotationTurns
-                                                  : 0,
-                                              duration: _fallingSliceTravelDuration,
-                                              curve: Curves.easeIn,
-                                              child: AnimatedScale(
-                                                scale: slice.isFalling ? 0.9 : 1,
-                                                duration:
-                                                    _fallingSliceTravelDuration,
-                                                curve: Curves.easeIn,
-                                                child: SizedBox.square(
-                                                  dimension: slice.size,
-                                                  child: Image.asset(
-                                                    slice.assetPath,
-                                                    fit: BoxFit.contain,
-                                                    filterQuality:
-                                                        FilterQuality.medium,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
+                                for (
+                                  var index = 0;
+                                  index < _tapBursts.length;
+                                  index++
+                                )
+                                  AnimatedPositioned(
+                                    key: ValueKey(
+                                      'tap-zone-cash-splash-${_tapBursts[index].id}',
+                                    ),
+                                    duration: _tapBurstLifetime,
+                                    curve: Curves.easeOut,
+                                    left: _tapBursts[index].origin.dx,
+                                    top:
+                                        _tapBursts[index].origin.dy -
+                                        (_tapBursts[index].isRising
+                                            ? _tapBursts[index].riseDistance
+                                            : 0),
+                                    child: AnimatedOpacity(
+                                      key: index == 0
+                                          ? const ValueKey(
+                                              'tap-zone-cash-splash',
+                                            )
+                                          : null,
+                                      opacity: _tapBursts[index].isFadingOut
+                                          ? 0
+                                          : 1,
+                                      duration: _tapBurstFadeDuration,
+                                      curve: Curves.easeIn,
+                                      child: FractionalTranslation(
+                                        translation: const Offset(-0.5, -0.5),
+                                        child: _TapBurstLabel(
+                                          text:
+                                              '+${formatCompactCurrency(context, _tapBursts[index].value)}',
+                                          fillStyle: tapBurstFillStyle,
+                                          strokeStyle: tapBurstStrokeStyle,
                                         ),
-                                      for (
-                                        var index = 0;
-                                        index < _tapBursts.length;
-                                        index++
-                                      )
-                                        AnimatedPositioned(
-                                          key: ValueKey(
-                                            'tap-zone-cash-splash-${_tapBursts[index].id}',
-                                          ),
-                                          duration: _tapBurstLifetime,
-                                          curve: Curves.easeOut,
-                                          left: _tapBursts[index].origin.dx,
-                                          top:
-                                              _tapBursts[index].origin.dy -
-                                              (_tapBursts[index].isRising
-                                                  ? _tapBursts[index].riseDistance
-                                                  : 0),
-                                          child: AnimatedOpacity(
-                                            key: index == 0
-                                                ? const ValueKey(
-                                                    'tap-zone-cash-splash',
-                                                  )
-                                                : null,
-                                            opacity: _tapBursts[index].isFadingOut
-                                                ? 0
-                                                : 1,
-                                            duration: _tapBurstFadeDuration,
-                                            curve: Curves.easeIn,
-                                            child: FractionalTranslation(
-                                              translation: const Offset(-0.5, -0.5),
-                                              child: _TapBurstLabel(
-                                                text:
-                                                    '+${formatCompactCurrency(context, _tapBursts[index].value)}',
-                                                fillStyle: tapBurstFillStyle,
-                                                strokeStyle: tapBurstStrokeStyle,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        );
-                      },
+                        ),
+                      ],
                     ),
-                    
-                  ],
+                  ),
                 ),
               ),
             ],

@@ -1,19 +1,14 @@
 import 'dart:async';
 
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/app/app_theme.dart';
 import 'package:taptapdoner/app/game_controller.dart';
-import 'package:taptapdoner/app/overlay_ids.dart';
-import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/ui/overlays/game_shell_overlay.dart';
 import 'package:taptapdoner/ui/overlays/offline_reward_overlay.dart';
-import 'package:taptapdoner/ui/overlays/settings_overlay.dart';
-import 'package:taptapdoner/ui/pages/prestige_page.dart';
-import 'package:taptapdoner/ui/pages/shop_page.dart';
+import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
 class TapTapDonerApp extends StatefulWidget {
   const TapTapDonerApp({super.key, this.controller});
@@ -28,11 +23,9 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
   late final GameController _controller;
   late final bool _ownsController;
   AppLifecycleListener? _lifecycleListener;
-  TapTapDonerGame? _game;
   bool _ready = false;
-  bool _overlaysReady = false;
   String _localeCode = 'en';
-  bool _offlineRewardVisible = false;
+  bool _showStartupOfflineReward = false;
 
   @override
   void initState() {
@@ -61,19 +54,25 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
     if (!mounted) {
       return;
     }
-    final game = TapTapDonerGame(controller: _controller);
+    if (_controller.hasPendingOfflineReward) {
+      _controller.stopTicking();
+      setState(() {
+        _ready = true;
+        _showStartupOfflineReward = true;
+        _localeCode = _controller.state.localeCode;
+      });
+      return;
+    }
+    _showGame();
+  }
+
+  void _showGame() {
     setState(() {
-      _game = game;
       _ready = true;
+      _showStartupOfflineReward = false;
       _localeCode = _controller.state.localeCode;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      _overlaysReady = true;
-      _syncOfflineRewardOverlay(force: true);
-    });
+    _controller.startTicking();
   }
 
   String _resolveLocaleCode() {
@@ -82,6 +81,7 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
   }
 
   Future<void> _onPause() async {
+    _controller.stopTicking();
     await _controller.checkpointLifecycle();
   }
 
@@ -90,6 +90,9 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
       return;
     }
     await _controller.reconcileBackground();
+    if (!_showStartupOfflineReward) {
+      _controller.startTicking();
+    }
     _handleControllerUpdate();
   }
 
@@ -103,26 +106,9 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
         _localeCode = nextLocaleCode;
       });
     }
-    _syncOfflineRewardOverlay();
-  }
-
-  void _syncOfflineRewardOverlay({bool force = false}) {
-    if (!_overlaysReady) {
+    if (_showStartupOfflineReward && !_controller.hasPendingOfflineReward) {
+      _showGame();
       return;
-    }
-    final game = _game;
-    if (game == null) {
-      return;
-    }
-    final shouldShowOfflineReward = _controller.hasPendingOfflineReward;
-    if (!force && shouldShowOfflineReward == _offlineRewardVisible) {
-      return;
-    }
-    _offlineRewardVisible = shouldShowOfflineReward;
-    if (shouldShowOfflineReward) {
-      game.showExclusiveOverlay(OverlayIds.offlineReward);
-    } else {
-      game.closeModal(OverlayIds.offlineReward);
     }
   }
 
@@ -130,6 +116,7 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
   void dispose() {
     _lifecycleListener?.dispose();
     _controller.removeListener(_handleControllerUpdate);
+    _controller.stopTicking();
     if (_ownsController) {
       _controller.dispose();
     }
@@ -151,9 +138,11 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
           supportedLocales: AppStrings.supportedLocales,
           localizationsDelegates: AppStrings.localizationsDelegates,
           theme: buildAppTheme(),
-          home: _ready && _game != null
-              ? _GameHome(controller: _controller, game: _game!)
-              : const _LoadingScreen(),
+          home: !_ready
+              ? const _LoadingScreen()
+              : _showStartupOfflineReward
+              ? _StartupOfflineRewardScreen(controller: _controller)
+              : _GameHome(controller: _controller),
         );
       },
     );
@@ -161,133 +150,85 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
 }
 
 class _GameHome extends StatelessWidget {
-  const _GameHome({required this.controller, required this.game});
+  const _GameHome({required this.controller});
 
   final GameController controller;
-  final TapTapDonerGame game;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GameWidget<TapTapDonerGame>(
-        game: game,
-        initialActiveOverlays: OverlayIds.persistent,
-        overlayBuilderMap: {
-          OverlayIds.gameShell: (context, game) => GameShellOverlay(
-            controller: controller,
-            game: game,
-            onOpenShop: () => unawaited(_showShopSheet(context, controller)),
-            onOpenPrestige: () =>
-                unawaited(_showPrestigeSheet(context, controller)),
-            onOpenSettings: () => game.toggleModal(OverlayIds.settings),
-          ),
-          OverlayIds.settings: (context, game) => SettingsOverlay(
-            controller: controller,
-            onClose: () => game.closeModal(OverlayIds.settings),
-          ),
-          OverlayIds.offlineReward: (context, game) =>
-              OfflineRewardOverlay(controller: controller),
+      body: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              GameShellOverlay(controller: controller),
+              if (controller.hasPendingOfflineReward)
+                OfflineRewardOverlay(controller: controller),
+            ],
+          );
         },
       ),
     );
   }
 }
 
-Future<void> _showShopSheet(
-  BuildContext context,
-  GameController controller,
-) async {
-  final navigator = Navigator.of(context);
-  await showModalBottomSheet<void>(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    enableDrag: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.58),
-    constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * 0.96,
-    ),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-    ),
-    builder: (sheetContext) {
-      return KeyedSubtree(
-        key: const ValueKey('shop-sheet-root'),
-        child: ShopPage(
-          controller: controller,
-          onOpenKitchen: () => navigator.maybePop(),
-          onOpenPrestige: () {
-            navigator.maybePop();
-            unawaited(
-              Future<void>.delayed(
-                Duration.zero,
-                () {
-                  if (!context.mounted) {
-                    return;
-                  }
-                  unawaited(_showPrestigeSheet(context, controller));
-                },
-              ),
-            );
-          },
-          onBack: () => navigator.maybePop(),
-        ),
-      );
-    },
-  );
+class _StartupOfflineRewardScreen extends StatelessWidget {
+  const _StartupOfflineRewardScreen({required this.controller});
+
+  final GameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const _StartupSplashBackdrop(),
+          OfflineRewardOverlay(controller: controller),
+        ],
+      ),
+    );
+  }
 }
 
-Future<void> _showPrestigeSheet(
-  BuildContext context,
-  GameController controller,
-) async {
-  final navigator = Navigator.of(context);
-  await showModalBottomSheet<void>(
-    context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    enableDrag: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.58),
-    constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * 0.96,
-    ),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-    ),
-    builder: (sheetContext) {
-      return KeyedSubtree(
-        key: const ValueKey('prestige-sheet-root'),
-        child: PrestigePage(
-          controller: controller,
-          onOpenKitchen: () => navigator.maybePop(),
-          onOpenShop: () {
-            navigator.maybePop();
-            unawaited(
-              Future<void>.delayed(
-                Duration.zero,
-                () {
-                  if (!context.mounted) {
-                    return;
-                  }
-                  unawaited(_showShopSheet(context, controller));
-                },
-              ),
-            );
-          },
-          onBack: () => navigator.maybePop(),
-          onPrestigeApplied: () async {
-            if (context.mounted) {
-              navigator.maybePop();
-            }
-          },
+class _StartupSplashBackdrop extends StatelessWidget {
+  const _StartupSplashBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF8C1710), Color(0xFF5A0D09), Color(0xFF2A0604)],
         ),
-      );
-    },
-  );
+      ),
+      child: Center(
+        child: Text(
+          AppStrings.of(context).appTitle.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: RoastedTypography.headlineFontFamily,
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+            color: DonerColors.goldPrimary,
+            shadows: [
+              Shadow(
+                color: Colors.black.withValues(alpha: 0.50),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _LoadingScreen extends StatelessWidget {

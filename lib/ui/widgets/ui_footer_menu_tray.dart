@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
 class UiFooterMenuTrayItem {
@@ -13,7 +14,7 @@ class UiFooterMenuTrayItem {
   });
 
   final Key? key;
-  final IconData icon;
+  final FaIconData icon;
   final String label;
   final VoidCallback? onPressed;
   final String? badge;
@@ -43,20 +44,10 @@ class UiFooterMenuTray extends StatelessWidget {
         key: const ValueKey('ui-footer-menu-tray-fallback-shell'),
         decoration: BoxDecoration(
           borderRadius: radius,
-          gradient: const LinearGradient(
-            colors: [
-              RoastedColors.surfaceContainerLow,
-              RoastedColors.surfaceContainer,
-              RoastedColors.surfaceContainerHigh,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            stops: [0.0, 0.52, 1.0],
-          ),
+          gradient: DonerGradients.header,
           border: Border.all(
-            color: RoastedColors.outlineVariant.withValues(
-              alpha: RoastedOpacity.ghostEdge,
-            ),
+            color: DonerColors.borderPrimary.withValues(alpha: 0.86),
+            width: 1.5,
           ),
           boxShadow: RoastedShadows.surface,
         ),
@@ -97,20 +88,13 @@ class UiFooterMenuTray extends StatelessWidget {
                       children: [
                         for (var index = 0; index < items.length; index++) ...[
                           Expanded(
-                          child: _UiFooterMenuTraySegment(
-                            key: items[index].key,
-                            item: items[index],
-                            index: index,
-                            isLast: index == items.length - 1,
+                            child: _UiFooterMenuTraySegment(
+                              key: items[index].key,
+                              item: items[index],
+                              index: index,
+                              isLast: index == items.length - 1,
                             ),
                           ),
-                          if (index != items.length - 1)
-                            _UiFooterMenuTrayDivider(
-                              height: height,
-                              key: ValueKey(
-                                'ui-footer-menu-tray-divider-$index',
-                              ),
-                            ),
                         ],
                         if (!hasItems) const SizedBox.shrink(),
                       ],
@@ -119,27 +103,6 @@ class UiFooterMenuTray extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _UiFooterMenuTrayDivider extends StatelessWidget {
-  const _UiFooterMenuTrayDivider({required this.height, super.key});
-
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 1,
-        height: height * 0.46,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: RoastedColors.outlineVariant.withValues(alpha: 0.12),
           ),
         ),
       ),
@@ -181,43 +144,29 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
     final item = widget.item;
     final enabled = item.enabled && item.onPressed != null;
     final selected = enabled && item.selected;
-    final labelColor = enabled
-        ? selected
-              ? RoastedColors.onPrimaryFixed
-              : RoastedColors.onSurface
-        : RoastedColors.onTertiaryFixedVariant.withValues(alpha: 0.76);
     final iconColor = enabled
         ? selected
-              ? RoastedColors.onPrimaryFixed
-              : RoastedColors.onSurface
+              ? DonerColors.creamText
+              : DonerColors.bodyText
         : RoastedColors.onTertiaryFixedVariant.withValues(alpha: 0.82);
 
     final shellGradient = enabled
         ? selected
-              ? const [
-                  RoastedColors.primaryFixed,
-                  RoastedColors.primaryContainer,
-                ]
-              : const [
-                  RoastedColors.surfaceContainerHigh,
-                  RoastedColors.surfaceContainerHighest,
-                ]
-        : const [
-            RoastedColors.surfaceContainerLow,
-            RoastedColors.surfaceContainerHigh,
-          ];
+              ? const [Color(0xFFB24F1B), DonerColors.panelSecondary]
+              : const [DonerColors.panelSecondary, DonerColors.panelPrimary]
+        : const [DonerColors.panelDark, DonerColors.disabledBg];
 
     final shellShadow = [
       BoxShadow(
         color: RoastedColors.onSurface.withValues(
-          alpha: selected ? 0.12 : 0.08,
+          alpha: selected ? 0.10 : 0.06,
         ),
         blurRadius: selected ? 16 : 12,
         offset: const Offset(0, 5),
       ),
       if (selected)
         BoxShadow(
-          color: RoastedColors.primary.withValues(alpha: 0.16),
+          color: DonerColors.goldPrimary.withValues(alpha: 0.18),
           blurRadius: 18,
           offset: const Offset(0, 3),
         ),
@@ -235,10 +184,12 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
     return Semantics(
       button: true,
       enabled: enabled,
+      label: item.label,
       selected: item.selected,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          splashFactory: InkRipple.splashFactory,
           onTap: item.onPressed,
           onTapDown: enabled ? (_) => _setPressed(true) : null,
           onTapUp: enabled ? (_) => _setPressed(false) : null,
@@ -248,193 +199,257 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
             scale: _pressed && enabled ? 0.97 : 1,
             duration: const Duration(milliseconds: 90),
             curve: Curves.easeOut,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: itemRadius,
+                      gradient: LinearGradient(
+                        colors: shellGradient,
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                      boxShadow: shellShadow,
+                      border: Border.all(
+                        color: selected
+                            ? DonerColors.goldPrimary.withValues(alpha: 0.72)
+                            : DonerColors.borderSoft.withValues(alpha: 0.56),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         borderRadius: itemRadius,
                         gradient: LinearGradient(
-                          colors: shellGradient,
+                          colors: [
+                            Colors.white.withValues(
+                              alpha: RoastedOpacity.gloss,
+                            ),
+                            Colors.transparent,
+                            RoastedColors.surfaceContainerLowest.withValues(
+                              alpha: 0.12,
+                            ),
+                          ],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                        ),
-                        boxShadow: shellShadow,
-                      ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: itemRadius,
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.white.withValues(
-                                alpha: RoastedOpacity.gloss,
-                              ),
-                              Colors.transparent,
-                              RoastedColors.surfaceContainerLowest.withValues(
-                                alpha: 0.12,
-                              ),
-                            ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: const [0.0, 0.5, 1.0],
-                          ),
+                          stops: const [0.0, 0.5, 1.0],
                         ),
                       ),
                     ),
                   ),
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              key: ValueKey(
-                                'ui-footer-menu-tray-icon-shell-${widget.index}',
-                              ),
-                              width: RoastedFooterTrayMetrics.itemShellSize,
-                              height: RoastedFooterTrayMetrics.itemShellSize,
+                ),
+                Center(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _ShinyFooterIconShell(
+                        key: ValueKey(
+                          'ui-footer-menu-tray-icon-shell-${widget.index}',
+                        ),
+                        icon: item.icon,
+                        iconColor: iconColor,
+                        selected: selected,
+                        enabled: enabled,
+                      ),
+                      if (item.badge != null)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: SizedBox(
+                            key: ValueKey(
+                              'ui-footer-menu-tray-badge-shell-${widget.index}',
+                            ),
+                            width: RoastedFooterTrayMetrics.badgeSize,
+                            height: RoastedFooterTrayMetrics.badgeSize,
+                            child: DecoratedBox(
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: LinearGradient(
-                                  colors: selected
+                                  colors: enabled
                                       ? const [
-                                          RoastedColors.primary,
-                                          RoastedColors.primaryContainer,
+                                          DonerColors.goldBright,
+                                          DonerColors.orangeAccent,
                                         ]
                                       : const [
-                                          RoastedColors.surfaceContainerHighest,
-                                          RoastedColors.surfaceBright,
+                                          RoastedColors.tertiaryFixedDim,
+                                          RoastedColors.tertiaryContainer,
                                         ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
-                                border: Border.all(
-                                  color: selected
-                                      ? RoastedColors.primaryFixed.withValues(
-                                          alpha: 0.26,
-                                        )
-                                      : RoastedColors.outlineVariant.withValues(
-                                          alpha: 0.18,
-                                        ),
-                                ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: RoastedColors.onSurface.withValues(
-                                      alpha: selected ? 0.14 : 0.10,
+                                      alpha: 0.12,
                                     ),
-                                    blurRadius: selected ? 12 : 8,
-                                    offset: const Offset(0, 3),
+                                    blurRadius: 5,
+                                    offset: const Offset(0, 2),
                                   ),
-                                  if (selected)
-                                    BoxShadow(
-                                      color: RoastedColors.primary.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 2),
-                                    ),
                                 ],
                               ),
-                              child: Icon(
-                                item.icon,
-                                size: RoastedFooterTrayMetrics.itemIconSize,
-                                color: iconColor,
-                              ),
-                            ),
-                            if (item.badge != null)
-                              Positioned(
-                                top: -4,
-                                right: -4,
-                                child: SizedBox(
-                                  key: ValueKey(
-                                    'ui-footer-menu-tray-badge-shell-${widget.index}',
-                                  ),
-                                  width: RoastedFooterTrayMetrics.badgeSize,
-                                  height: RoastedFooterTrayMetrics.badgeSize,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: LinearGradient(
-                                        colors: enabled
-                                            ? const [
-                                                Color(0xFFFFD77A),
-                                                Color(0xFFC46A20),
-                                              ]
-                                            : const [
-                                                RoastedColors.tertiaryFixedDim,
-                                                RoastedColors.tertiaryContainer,
-                                              ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
+                              child: Center(
+                                child: Text(
+                                  item.badge!,
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: enabled
+                                            ? Colors.white
+                                            : RoastedColors
+                                                  .onTertiaryFixedVariant
+                                                  .withValues(alpha: 0.88),
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.1,
+                                        fontFamily:
+                                            RoastedTypography.bodyFontFamily,
                                       ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: RoastedColors.onSurface
-                                              .withValues(alpha: 0.12),
-                                          blurRadius: 5,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        item.badge!,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelSmall
-                                            ?.copyWith(
-                                              color: enabled
-                                                  ? Colors.white
-                                                  : RoastedColors
-                                                        .onTertiaryFixedVariant
-                                                        .withValues(
-                                                          alpha: 0.88,
-                                                        ),
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 0.1,
-                                              fontFamily: RoastedTypography
-                                                  .bodyFontFamily,
-                                            ),
-                                      ),
-                                    ),
-                                  ),
                                 ),
                               ),
-                          ],
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.label,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: labelColor,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.7,
-                                fontFamily: RoastedTypography.bodyFontFamily,
-                              ),
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ShinyFooterIconShell extends StatelessWidget {
+  const _ShinyFooterIconShell({
+    required this.icon,
+    required this.iconColor,
+    required this.selected,
+    required this.enabled,
+    super.key,
+  });
+
+  static const _ringWidth = 3.5;
+  static const _innerSize = RoastedFooterTrayMetrics.itemShellSize;
+  static const _outerSize = _innerSize + (_ringWidth * 2);
+
+  final FaIconData icon;
+  final Color iconColor;
+  final bool selected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final innerGradient = selected
+        ? const RadialGradient(
+            center: Alignment(-0.34, -0.40),
+            radius: 1.05,
+            colors: [Color(0xFF178F86), Color(0xFF114641), Color(0xFF160605)],
+            stops: [0.0, 0.58, 1.0],
+          )
+        : const RadialGradient(
+            center: Alignment(-0.34, -0.40),
+            radius: 1.05,
+            colors: [Color(0xFF7A2B18), Color(0xFF34100C), Color(0xFF160605)],
+            stops: [0.0, 0.62, 1.0],
+          );
+
+    return SizedBox.square(
+      dimension: _outerSize,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: SweepGradient(
+                colors: [
+                  const Color(0xFFFFF3B0).withValues(alpha: enabled ? 1 : 0.46),
+                  DonerColors.goldBright.withValues(alpha: enabled ? 1 : 0.50),
+                  DonerColors.orangeAccent.withValues(
+                    alpha: enabled ? 0.92 : 0.42,
+                  ),
+                  const Color(
+                    0xFF7A3A0B,
+                  ).withValues(alpha: enabled ? 0.88 : 0.38),
+                  DonerColors.goldPrimary.withValues(
+                    alpha: enabled ? 0.96 : 0.44,
+                  ),
+                  const Color(0xFFFFF3B0).withValues(alpha: enabled ? 1 : 0.46),
+                ],
+                stops: const [0, 0.18, 0.38, 0.58, 0.78, 1],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: DonerColors.goldPrimary.withValues(
+                    alpha: selected ? 0.34 : 0.18,
+                  ),
+                  blurRadius: selected ? 14 : 9,
+                  offset: const Offset(0, 3),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const SizedBox.expand(),
+          ),
+          Positioned(
+            top: 2,
+            left: 8,
+            right: 8,
+            child: IgnorePointer(
+              child: Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: enabled ? 0.58 : 0.18),
+                      Colors.white.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: _innerSize,
+            height: _innerSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: innerGradient,
+              border: Border.all(
+                color: Colors.black.withValues(alpha: selected ? 0.14 : 0.24),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: RoastedColors.onSurface.withValues(
+                    alpha: selected ? 0.14 : 0.10,
+                  ),
+                  blurRadius: selected ? 12 : 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Center(
+              child: FaIcon(
+                icon,
+                size: RoastedFooterTrayMetrics.itemIconSize,
+                color: iconColor,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

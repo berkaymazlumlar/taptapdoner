@@ -48,10 +48,11 @@ ThemeData buildAppTheme() {
   );
 
   final baseTheme = ThemeData.dark(useMaterial3: true);
-  final bodyTheme = baseTheme.textTheme.apply(
-    bodyColor: RoastedColors.onSurface,
-    displayColor: RoastedColors.onSurface,
-    fontFamily: RoastedTypography.bodyFontFamily,
+  final bodyTheme = DonerTypography.bodyTextTheme(
+    baseTheme.textTheme.apply(
+      bodyColor: RoastedColors.onSurface,
+      displayColor: RoastedColors.onSurface,
+    ),
   );
 
   return ThemeData(
@@ -59,85 +60,87 @@ ThemeData buildAppTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: RoastedColors.background,
     useMaterial3: true,
-    fontFamily: RoastedTypography.bodyFontFamily,
+    fontFamily: DonerTypography.bodyFontFamily,
     textTheme: bodyTheme.copyWith(
-      displayLarge: bodyTheme.displayLarge?.copyWith(
-        fontFamily: RoastedTypography.headlineFontFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -1.1,
-        height: 0.95,
+      displayLarge: DonerTypography.display(
+        bodyTheme.displayLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+          height: 0.95,
+        ),
       ),
-      displayMedium: bodyTheme.displayMedium?.copyWith(
-        fontFamily: RoastedTypography.headlineFontFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.9,
-        height: 0.98,
+      displayMedium: DonerTypography.display(
+        bodyTheme.displayMedium?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+          height: 0.98,
+        ),
       ),
-      displaySmall: bodyTheme.displaySmall?.copyWith(
-        fontFamily: RoastedTypography.headlineFontFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.6,
+      displaySmall: DonerTypography.display(
+        bodyTheme.displaySmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
       ),
-      headlineLarge: bodyTheme.headlineLarge?.copyWith(
-        fontFamily: RoastedTypography.headlineFontFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.6,
+      headlineLarge: DonerTypography.display(
+        bodyTheme.headlineLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
       ),
-      headlineMedium: bodyTheme.headlineMedium?.copyWith(
-        fontFamily: RoastedTypography.headlineFontFamily,
-        fontWeight: FontWeight.w800,
+      headlineMedium: DonerTypography.display(
+        bodyTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
       ),
-      headlineSmall: bodyTheme.headlineSmall?.copyWith(
-        fontFamily: RoastedTypography.headlineFontFamily,
-        fontWeight: FontWeight.w800,
+      headlineSmall: DonerTypography.display(
+        bodyTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
       ),
-      titleLarge: bodyTheme.titleLarge?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.2,
+      titleLarge: DonerTypography.body(
+        bodyTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
       ),
-      titleMedium: bodyTheme.titleMedium?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w700,
+      titleMedium: DonerTypography.body(
+        bodyTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
       ),
-      titleSmall: bodyTheme.titleSmall?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w700,
+      titleSmall: DonerTypography.body(
+        bodyTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
       ),
-      bodyLarge: bodyTheme.bodyLarge?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w500,
+      bodyLarge: DonerTypography.body(
+        bodyTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
       ),
-      bodyMedium: bodyTheme.bodyMedium?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w500,
+      bodyMedium: DonerTypography.body(
+        bodyTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
       ),
-      bodySmall: bodyTheme.bodySmall?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w500,
+      bodySmall: DonerTypography.body(
+        bodyTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
       ),
-      labelLarge: bodyTheme.labelLarge?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.2,
+      labelLarge: DonerTypography.body(
+        bodyTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+        ),
       ),
-      labelMedium: bodyTheme.labelMedium?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.9,
+      labelMedium: DonerTypography.body(
+        bodyTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.9,
+        ),
       ),
-      labelSmall: bodyTheme.labelSmall?.copyWith(
-        fontFamily: RoastedTypography.bodyFontFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.0,
+      labelSmall: DonerTypography.body(
+        bodyTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.0,
+        ),
       ),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: RoastedColors.surfaceContainerHighest,
-      labelStyle: const TextStyle(
-        color: RoastedColors.onSurface,
-        fontWeight: FontWeight.w700,
-        fontFamily: RoastedTypography.bodyFontFamily,
+      labelStyle: DonerTypography.body(
+        const TextStyle(
+          color: RoastedColors.onSurface,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       side: BorderSide.none,
       shape: RoundedRectangleBorder(
@@ -151,10 +154,8 @@ ThemeData buildAppTheme() {
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         elevation: 0,
         shadowColor: Colors.transparent,
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.2,
-          fontFamily: RoastedTypography.bodyFontFamily,
+        textStyle: DonerTypography.body(
+          const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.2),
         ),
       ),
     ),
@@ -162,9 +163,8 @@ ThemeData buildAppTheme() {
       style: FilledButton.styleFrom(
         backgroundColor: RoastedColors.primary,
         foregroundColor: RoastedColors.onPrimary,
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w800,
-          fontFamily: RoastedTypography.bodyFontFamily,
+        textStyle: DonerTypography.body(
+          const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
     ),
@@ -174,9 +174,8 @@ ThemeData buildAppTheme() {
         side: BorderSide(
           color: RoastedColors.outlineVariant.withValues(alpha: 0.18),
         ),
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontFamily: RoastedTypography.bodyFontFamily,
+        textStyle: DonerTypography.body(
+          const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
     ),

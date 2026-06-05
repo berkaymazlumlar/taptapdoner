@@ -1,50 +1,55 @@
+import 'dart:math' as math;
+
 import 'package:taptapdoner/domain/economy/economy_config.dart';
-import 'package:taptapdoner/domain/stations/station_catalog.dart';
-import 'package:taptapdoner/domain/stations/upgrade_catalog.dart';
-
-class StationState {
-  const StationState({required this.id, required this.level});
-
-  final StationId id;
-  final int level;
-
-  StationState copyWith({int? level}) {
-    return StationState(id: id, level: level ?? this.level);
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'id': id.key, 'level': level};
-  }
-
-  factory StationState.fromJson(Map<String, dynamic> json) {
-    final id = stationIdFromKey(json['id'] as String? ?? '');
-    if (id == null) {
-      throw const FormatException('Unknown station id');
-    }
-    return StationState(id: id, level: (json['level'] as num? ?? 0).toInt());
-  }
-}
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
 class UpgradeState {
-  const UpgradeState({required this.id, required this.purchased});
+  const UpgradeState({
+    required this.id,
+    this.itemIndex = 0,
+    required this.level,
+  }) : assert(itemIndex >= 0, 'itemIndex cannot be negative.'),
+       assert(level >= 1, 'level must be at least 1.');
+
+  factory UpgradeState.fromTotalLevel({
+    required UpgradeDefinition definition,
+    required int totalLevel,
+  }) {
+    final normalizedLevel = definition.normalizedLevel(totalLevel);
+    return UpgradeState(
+      id: definition.id,
+      itemIndex: definition.itemIndexForLevel(normalizedLevel),
+      level: definition.itemLevelForTotalLevel(normalizedLevel),
+    );
+  }
 
   final UpgradeId id;
-  final bool purchased;
 
-  UpgradeState copyWith({bool? purchased}) {
-    return UpgradeState(id: id, purchased: purchased ?? this.purchased);
+  /// Current item index in the static upgrade tier chain.
+  final int itemIndex;
+
+  /// Current level of the active item.
+  final int level;
+
+  bool get purchased => itemIndex > 0 || level > 1;
+
+  UpgradeState copyWith({int? itemIndex, int? level, bool? purchased}) {
+    final nextItemIndex =
+        itemIndex ?? (purchased == false ? 0 : this.itemIndex);
+    final nextLevel =
+        level ??
+        (purchased == null
+            ? this.level
+            : (purchased ? (this.purchased ? this.level : 2) : 1));
+    return UpgradeState(
+      id: id,
+      itemIndex: nextItemIndex < 0 ? 0 : nextItemIndex,
+      level: nextLevel < 1 ? 1 : nextLevel,
+    );
   }
 
   Map<String, dynamic> toJson() {
-    return {'id': id.key, 'purchased': purchased};
-  }
-
-  factory UpgradeState.fromJson(Map<String, dynamic> json) {
-    final id = upgradeIdFromKey(json['id'] as String? ?? '');
-    if (id == null) {
-      throw const FormatException('Unknown upgrade id');
-    }
-    return UpgradeState(id: id, purchased: json['purchased'] as bool? ?? false);
+    return {'id': id.key, 'itemIndex': itemIndex, 'level': level};
   }
 }
 
@@ -67,8 +72,8 @@ class PrestigeState {
 
   factory PrestigeState.fromJson(Map<String, dynamic>? json) {
     return PrestigeState(
-      reputation: (json?['reputation'] as num? ?? 0).toInt(),
-      runCashEarned: (json?['runCashEarned'] as num? ?? 0).toInt(),
+      reputation: math.max(0, _intValue(json?['reputation'])),
+      runCashEarned: math.max(0, _intValue(json?['runCashEarned'])),
     );
   }
 }
@@ -124,12 +129,8 @@ class TimedEffectState {
 
   factory TimedEffectState.fromJson(Map<String, dynamic>? json) {
     return TimedEffectState(
-      endsAtUtc: json?['endsAtUtc'] == null
-          ? null
-          : DateTime.tryParse(json!['endsAtUtc'] as String)?.toUtc(),
-      cooldownEndsAtUtc: json?['cooldownEndsAtUtc'] == null
-          ? null
-          : DateTime.tryParse(json!['cooldownEndsAtUtc'] as String)?.toUtc(),
+      endsAtUtc: _dateTimeValue(json?['endsAtUtc']),
+      cooldownEndsAtUtc: _dateTimeValue(json?['cooldownEndsAtUtc']),
     );
   }
 }
@@ -140,7 +141,6 @@ class GameState {
     required this.cash,
     required this.lifetimeCash,
     required this.pendingOfflineCash,
-    required this.stations,
     required this.upgrades,
     required this.prestige,
     required this.rush,
@@ -149,13 +149,12 @@ class GameState {
     required this.localeCode,
   });
 
-  static const currentSchemaVersion = 1;
+  static const currentSchemaVersion = 5;
 
   final int schemaVersion;
   final int cash;
   final int lifetimeCash;
   final int pendingOfflineCash;
-  final Map<StationId, StationState> stations;
   final Map<UpgradeId, UpgradeState> upgrades;
   final PrestigeState prestige;
   final TimedEffectState rush;
@@ -174,13 +173,9 @@ class GameState {
       cash: 0,
       lifetimeCash: 0,
       pendingOfflineCash: 0,
-      stations: {
-        for (final definition in config.stations)
-          definition.id: StationState(id: definition.id, level: 0),
-      },
       upgrades: {
         for (final definition in config.upgrades)
-          definition.id: UpgradeState(id: definition.id, purchased: false),
+          definition.id: UpgradeState(id: definition.id, level: 1),
       },
       prestige: const PrestigeState(reputation: 0, runCashEarned: 0),
       rush: const TimedEffectState(),
@@ -190,8 +185,6 @@ class GameState {
     );
   }
 
-  StationState station(StationId id) => stations[id]!;
-
   UpgradeState upgrade(UpgradeId id) => upgrades[id]!;
 
   GameState copyWith({
@@ -199,7 +192,6 @@ class GameState {
     int? cash,
     int? lifetimeCash,
     int? pendingOfflineCash,
-    Map<StationId, StationState>? stations,
     Map<UpgradeId, UpgradeState>? upgrades,
     PrestigeState? prestige,
     TimedEffectState? rush,
@@ -212,7 +204,6 @@ class GameState {
       cash: cash ?? this.cash,
       lifetimeCash: lifetimeCash ?? this.lifetimeCash,
       pendingOfflineCash: pendingOfflineCash ?? this.pendingOfflineCash,
-      stations: stations ?? this.stations,
       upgrades: upgrades ?? this.upgrades,
       prestige: prestige ?? this.prestige,
       rush: rush ?? this.rush,
@@ -228,7 +219,6 @@ class GameState {
       'cash': cash,
       'lifetimeCash': lifetimeCash,
       'pendingOfflineCash': pendingOfflineCash,
-      'stations': stations.values.map((value) => value.toJson()).toList(),
       'upgrades': upgrades.values.map((value) => value.toJson()).toList(),
       'prestige': prestige.toJson(),
       'rush': rush.toJson(),
@@ -241,72 +231,188 @@ class GameState {
   factory GameState.fromJson(Map<String, dynamic> json, EconomyConfig config) {
     final fallback = GameState.initial(
       config,
-      localeCode: json['localeCode'] as String? ?? 'en',
+      localeCode: _stringValue(json['localeCode'], fallback: 'en'),
     );
-    final schemaVersion =
-        (json['schemaVersion'] as num? ?? currentSchemaVersion).toInt();
+    final schemaVersion = _intValue(
+      json['schemaVersion'],
+      fallback: currentSchemaVersion,
+    );
     if (schemaVersion > currentSchemaVersion) {
       return fallback;
     }
 
-    final parsedStations = <StationId, StationState>{};
-    final stationList = json['stations'];
-    if (stationList is List) {
-      for (final entry in stationList.whereType<Map<dynamic, dynamic>>()) {
-        final map = entry.map((key, value) => MapEntry(key.toString(), value));
-        try {
-          final state = StationState.fromJson(map);
-          parsedStations[state.id] = state;
-        } on FormatException {
-          continue;
-        }
-      }
-    }
-
+    final upgradeDefinitions = {
+      for (final definition in config.upgrades) definition.id: definition,
+    };
     final parsedUpgrades = <UpgradeId, UpgradeState>{};
     final upgradeList = json['upgrades'];
     if (upgradeList is List) {
-      for (final entry in upgradeList.whereType<Map<dynamic, dynamic>>()) {
-        final map = entry.map((key, value) => MapEntry(key.toString(), value));
-        try {
-          final state = UpgradeState.fromJson(map);
-          parsedUpgrades[state.id] = state;
-        } on FormatException {
+      for (final entry in upgradeList) {
+        final map = _stringKeyMap(entry);
+        if (map == null) {
           continue;
         }
+        final state = _upgradeStateFromJson(map, upgradeDefinitions);
+        if (state == null) {
+          continue;
+        }
+        final definition = upgradeDefinitions[state.id];
+        if (definition == null) {
+          continue;
+        }
+        final existing = parsedUpgrades[state.id];
+        parsedUpgrades[state.id] =
+            existing == null ||
+                definition.totalLevelForPosition(
+                      itemIndex: state.itemIndex,
+                      itemLevel: state.level,
+                    ) >
+                    definition.totalLevelForPosition(
+                      itemIndex: existing.itemIndex,
+                      itemLevel: existing.level,
+                    )
+            ? state
+            : existing;
       }
     }
 
     return GameState(
       schemaVersion: schemaVersion,
-      cash: (json['cash'] as num? ?? 0).toInt(),
-      lifetimeCash: (json['lifetimeCash'] as num? ?? 0).toInt(),
-      pendingOfflineCash: (json['pendingOfflineCash'] as num? ?? 0).toInt(),
-      stations: {
-        for (final definition in config.stations)
-          definition.id:
-              parsedStations[definition.id] ??
-              StationState(id: definition.id, level: 0),
-      },
+      cash: _intValue(json['cash']),
+      lifetimeCash: math.max(0, _intValue(json['lifetimeCash'])),
+      pendingOfflineCash: math.max(0, _intValue(json['pendingOfflineCash'])),
       upgrades: {
         for (final definition in config.upgrades)
-          definition.id:
-              parsedUpgrades[definition.id] ??
-              UpgradeState(id: definition.id, purchased: false),
+          definition.id: _clampedUpgradeState(
+            parsedUpgrades[definition.id],
+            definition,
+          ),
       },
-      prestige: PrestigeState.fromJson(
-        json['prestige'] as Map<String, dynamic>?,
-      ),
-      rush: TimedEffectState.fromJson(json['rush'] as Map<String, dynamic>?),
+      prestige: PrestigeState.fromJson(_stringKeyMap(json['prestige'])),
+      rush: TimedEffectState.fromJson(_stringKeyMap(json['rush'])),
       lastActiveAtUtc:
-          DateTime.tryParse(
-            json['lastActiveAtUtc'] as String? ?? '',
-          )?.toUtc() ??
-          fallback.lastActiveAtUtc,
+          _dateTimeValue(json['lastActiveAtUtc']) ?? fallback.lastActiveAtUtc,
       lastSavedAtUtc:
-          DateTime.tryParse(json['lastSavedAtUtc'] as String? ?? '')?.toUtc() ??
-          fallback.lastSavedAtUtc,
-      localeCode: json['localeCode'] as String? ?? fallback.localeCode,
+          _dateTimeValue(json['lastSavedAtUtc']) ?? fallback.lastSavedAtUtc,
+      localeCode: _stringValue(
+        json['localeCode'],
+        fallback: fallback.localeCode,
+      ),
     );
   }
+}
+
+UpgradeState _clampedUpgradeState(
+  UpgradeState? state,
+  UpgradeDefinition definition,
+) {
+  if (state == null) {
+    return UpgradeState(id: definition.id, level: 1);
+  }
+  return UpgradeState.fromTotalLevel(
+    definition: definition,
+    totalLevel: definition.totalLevelForPosition(
+      itemIndex: state.itemIndex,
+      itemLevel: state.level,
+    ),
+  );
+}
+
+UpgradeState? _upgradeStateFromJson(
+  Map<String, dynamic> json,
+  Map<UpgradeId, UpgradeDefinition> definitions,
+) {
+  final rawId = _stringValue(json['id']);
+  final id = upgradeIdFromKey(rawId);
+  if (id == null) {
+    return null;
+  }
+  final definition = definitions[id];
+  if (definition == null || definition.items.isEmpty) {
+    return null;
+  }
+
+  if (json.containsKey('itemIndex')) {
+    final itemIndex = _clampInt(
+      _intValue(json['itemIndex']),
+      min: 0,
+      max: definition.items.length - 1,
+    );
+    final level = _clampInt(
+      _intValue(json['level'], fallback: 1),
+      min: 1,
+      max: definition.items[itemIndex].maxLevel,
+    );
+    return UpgradeState(id: id, itemIndex: itemIndex, level: level);
+  }
+
+  final oldLevel = _nullableIntValue(json['level']);
+  if (oldLevel != null) {
+    return UpgradeState(
+      id: id,
+      itemIndex: 0,
+      level: _clampInt(oldLevel, min: 1, max: definition.items.first.maxLevel),
+    );
+  }
+
+  final oldTotalLevel = legacyUpgradeLevelForKey(
+    rawId,
+    purchased: _boolValue(json['purchased']),
+  );
+  return UpgradeState.fromTotalLevel(
+    definition: definition,
+    totalLevel: oldTotalLevel,
+  );
+}
+
+Map<String, dynamic>? _stringKeyMap(Object? value) {
+  if (value is! Map) {
+    return null;
+  }
+  return value.map((key, value) => MapEntry(key.toString(), value));
+}
+
+String _stringValue(Object? value, {String fallback = ''}) {
+  return value is String ? value : fallback;
+}
+
+int? _nullableIntValue(Object? value) {
+  if (value is num) {
+    return value.toInt();
+  }
+  if (value is String) {
+    return int.tryParse(value);
+  }
+  return null;
+}
+
+int _intValue(Object? value, {int fallback = 0}) {
+  return _nullableIntValue(value) ?? fallback;
+}
+
+bool _boolValue(Object? value) {
+  if (value is bool) {
+    return value;
+  }
+  if (value is String) {
+    return value.toLowerCase() == 'true';
+  }
+  return false;
+}
+
+DateTime? _dateTimeValue(Object? value) {
+  if (value is! String) {
+    return null;
+  }
+  return DateTime.tryParse(value)?.toUtc();
+}
+
+int _clampInt(int value, {required int min, required int max}) {
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
 }

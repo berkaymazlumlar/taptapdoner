@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_controller.dart';
-import 'package:taptapdoner/domain/stations/station_catalog.dart';
-import 'package:taptapdoner/domain/stations/upgrade_catalog.dart';
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/widgets/value_formatters.dart';
 import 'modal_panel_frame.dart';
 
@@ -59,7 +59,7 @@ class ShopOverlay extends StatelessWidget {
                               ),
                               IconButton(
                                 onPressed: onClose,
-                                icon: const Icon(Icons.close),
+                                icon: const FaIcon(DonerIcons.close),
                                 tooltip: strings.closeLabel,
                               ),
                             ],
@@ -68,28 +68,11 @@ class ShopOverlay extends StatelessWidget {
                           Expanded(
                             child: Scrollbar(
                               child: ListView(
+                                physics: const ClampingScrollPhysics(
+                                  parent: AlwaysScrollableScrollPhysics(),
+                                ),
                                 padding: EdgeInsets.zero,
                                 children: [
-                                  Text(
-                                    strings.stationsTitle,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w800),
-                                  ),
-                                  SizedBox(height: spec.inlineGap),
-                                  for (final station in controller.stations)
-                                    Padding(
-                                      padding: EdgeInsets.only(
-                                        bottom: spec.inlineGap,
-                                      ),
-                                      child: _StationCard(
-                                        controller: controller,
-                                        station: station,
-                                        spec: spec,
-                                      ),
-                                    ),
-                                  SizedBox(height: spec.sectionGap),
                                   Text(
                                     strings.upgradesTitle,
                                     style: Theme.of(context)
@@ -127,117 +110,6 @@ class ShopOverlay extends StatelessWidget {
   }
 }
 
-class _StationCard extends StatelessWidget {
-  const _StationCard({
-    required this.controller,
-    required this.station,
-    required this.spec,
-  });
-
-  final GameController controller;
-  final StationDefinition station;
-  final ResponsiveLayoutSpec spec;
-
-  @override
-  Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
-    final unlocked = controller.isStationUnlocked(station.id);
-    final stationState = controller.state.station(station.id);
-    final cost = controller.stationCost(station.id);
-    final canAfford = unlocked && controller.state.cash >= cost;
-    final stationIncome = controller.stationIncomePerSecond(station.id);
-
-    return DecoratedBox(
-      key: ValueKey('shop-station-card-${station.id.key}'),
-      decoration: BoxDecoration(
-        color: unlocked ? const Color(0xFFFFF6E7) : const Color(0xFFF2E6D6),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFF6D2B17).withValues(alpha: 0.08),
-        ),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(spec.isCompactHeight ? 12 : 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              strings.stationName(station.id),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              strings.stationDescription(station.id),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: spec.inlineGap,
-              runSpacing: spec.inlineGap,
-              children: [
-                Chip(
-                  label: Text(
-                    '${strings.levelLabel} ${stationState.level}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Chip(
-                  label: Text(
-                    '${formatCompactDecimal(context, stationIncome)}/s',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (!unlocked)
-                  Chip(
-                    label: Text(
-                      strings.lockedUntil(
-                        formatCompactNumber(
-                          context,
-                          station.unlockAtLifetimeCash,
-                        ),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-            ),
-            SizedBox(height: spec.inlineGap),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  minimumSize: Size.fromHeight(spec.actionButtonHeight),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
-                onPressed: canAfford
-                    ? () => controller.buyStation(station.id)
-                    : null,
-                child: Text(
-                  unlocked
-                      ? '${strings.buyLabel} ${formatCompactNumber(context, cost)}'
-                      : strings.lockedLabel,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _UpgradeCard extends StatelessWidget {
   const _UpgradeCard({
     required this.controller,
@@ -253,7 +125,13 @@ class _UpgradeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
     final state = controller.state.upgrade(upgrade.id);
-    final canAfford = !state.purchased && controller.state.cash >= upgrade.cost;
+    final totalLevel = upgrade.totalLevelForPosition(
+      itemIndex: state.itemIndex,
+      itemLevel: state.level,
+    );
+    final maxed = upgrade.isMaxLevel(totalLevel);
+    final cost = upgrade.costForLevel(totalLevel);
+    final canAfford = !maxed && controller.state.cash >= cost;
 
     return DecoratedBox(
       key: ValueKey('shop-upgrade-card-${upgrade.id.key}'),
@@ -279,6 +157,16 @@ class _UpgradeCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
+              strings.upgradeItemName(
+                upgrade.id,
+                upgrade.itemForLevel(totalLevel).key,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
               strings.upgradeDescription(upgrade.id),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
@@ -296,9 +184,9 @@ class _UpgradeCard extends StatelessWidget {
                     ? () => controller.buyUpgrade(upgrade.id)
                     : null,
                 child: Text(
-                  state.purchased
-                      ? strings.boughtLabel
-                      : '${strings.buyLabel} ${formatCompactNumber(context, upgrade.cost)}',
+                  maxed
+                      ? strings.maxedLabel
+                      : '${strings.buyLabel} ${formatCompactNumber(context, cost)}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,

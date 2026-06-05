@@ -29,14 +29,25 @@ void main() {
     expect(find.byKey(const ValueKey('prestige-summary-card')), findsOneWidget);
     expect(find.text('Prestige'), findsOneWidget);
     expect(find.text('RESET THIS RUN AND COLLECT REPUTATION'), findsOneWidget);
-    expect(find.text('REPUTATION READY'), findsOneWidget);
-    expect(find.text('Permanent Boost'), findsOneWidget);
+    expect(find.text('POINTS TO GAIN'), findsOneWidget);
+    expect(find.text('+1'), findsOneWidget);
+    expect(find.text('Earned'), findsOneWidget);
+    expect(find.text('Current'), findsOneWidget);
+    expect(find.text('After'), findsOneWidget);
+    expect(find.text('x1.10'), findsOneWidget);
+    expect(find.text('x1.15'), findsOneWidget);
     expect(find.text('What Resets'), findsOneWidget);
-    expect(find.text('What Stays'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('prestige-action-button')),
+      find.text(
+        'Current money, all upgrade progress, temporary boosts, and turbo state',
+      ),
       findsOneWidget,
     );
+    expect(find.text('What Stays'), findsOneWidget);
+    expect(find.text('Prestige multiplier'), findsOneWidget);
+    final actionButton = find.byKey(const ValueKey('prestige-action-button'));
+    expect(actionButton, findsOneWidget);
+    expect(tester.getRect(actionButton).bottom, lessThanOrEqualTo(844));
     expect(find.byKey(const ValueKey('prestige-close-button')), findsOneWidget);
     expect(find.text('PRESTIGE'), findsOneWidget);
     expect(find.text('Close'), findsOneWidget);
@@ -63,9 +74,6 @@ void main() {
       },
     );
 
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('prestige-action-button')),
-    );
     await tester.tap(find.byKey(const ValueKey('prestige-action-button')));
     await tester.pumpAndSettle();
 
@@ -73,6 +81,57 @@ void main() {
     expect(controller.state.prestige.reputation, 3);
     expect(controller.state.prestige.runCashEarned, 0);
     expect(controller.availablePrestigePoints, 0);
+  });
+
+  testWidgets('prestige tab keeps the action inside the summary card', (
+    tester,
+  ) async {
+    final controller = _controller(
+      config,
+      nowUtc,
+      state: GameState.initial(config, nowUtc: nowUtc).copyWith(
+        prestige: const PrestigeState(reputation: 2, runCashEarned: 1_250_000),
+      ),
+    );
+
+    await _pumpPage(
+      tester,
+      controller,
+      presentation: PrestigePagePresentation.tab,
+    );
+
+    final actionButton = find.byKey(const ValueKey('prestige-action-button'));
+    final summaryCard = find.byKey(const ValueKey('prestige-summary-card'));
+    final resetCard = find.byKey(const ValueKey('prestige-resets-card'));
+    final staysCard = find.byKey(const ValueKey('prestige-stays-card'));
+    final cardStack = find.byKey(const ValueKey('prestige-card-stack'));
+
+    expect(find.byKey(const ValueKey('prestige-sheet-handle')), findsNothing);
+    expect(find.byKey(const ValueKey('prestige-close-button')), findsNothing);
+    expect(actionButton, findsOneWidget);
+    expect(summaryCard, findsOneWidget);
+    expect(resetCard, findsOneWidget);
+    expect(staysCard, findsOneWidget);
+    expect(cardStack, findsOneWidget);
+
+    final actionRect = tester.getRect(actionButton);
+    final summaryRect = tester.getRect(summaryCard);
+    expect(summaryRect.contains(actionRect.center), isTrue);
+
+    final stackRect = tester.getRect(cardStack);
+    final resetRect = tester.getRect(resetCard);
+    final staysRect = tester.getRect(staysCard);
+    final gaps = [
+      summaryRect.top - stackRect.top,
+      resetRect.top - summaryRect.bottom,
+      staysRect.top - resetRect.bottom,
+      stackRect.bottom - staysRect.bottom,
+    ];
+
+    for (final gap in gaps) {
+      expect(gap, greaterThan(0));
+      expect(gap, closeTo(gaps.first, 1.0));
+    }
   });
 
   testWidgets('close button uses the provided callback', (tester) async {
@@ -108,6 +167,7 @@ Future<void> _pumpPage(
   GameController controller, {
   VoidCallback? onBack,
   Future<void> Function()? onPrestigeApplied,
+  PrestigePagePresentation presentation = PrestigePagePresentation.sheet,
 }) async {
   addTearDown(() async {
     await tester.binding.setSurfaceSize(null);
@@ -130,6 +190,7 @@ Future<void> _pumpPage(
               controller: controller,
               onBack: onBack,
               onPrestigeApplied: onPrestigeApplied,
+              presentation: presentation,
             ),
           ),
         );

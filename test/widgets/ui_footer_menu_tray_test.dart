@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/ui_footer_menu_tray.dart';
 
 void main() {
-  testWidgets('footer tray keeps labels tappable and badges aligned', (
+  testWidgets('footer tray keeps icon actions tappable and badges aligned', (
     tester,
   ) async {
     var shopTapped = 0;
@@ -19,7 +20,8 @@ void main() {
               child: UiFooterMenuTray(
                 items: [
                   UiFooterMenuTrayItem(
-                    icon: Icons.shopping_basket,
+                    key: const ValueKey('shop-footer-action'),
+                    icon: DonerIcons.shop,
                     label: 'Shop',
                     badge: '2',
                     selected: true,
@@ -28,7 +30,8 @@ void main() {
                     },
                   ),
                   UiFooterMenuTrayItem(
-                    icon: Icons.workspace_premium,
+                    key: const ValueKey('prestige-footer-action'),
+                    icon: DonerIcons.prestige,
                     label: 'Prestige',
                     onPressed: () {
                       prestigeTapped++;
@@ -58,17 +61,19 @@ void main() {
     );
     expect(shopBadge.right, greaterThan(shopIconShell.right - 2));
     expect(shopBadge.top, lessThan(shopIconShell.top + 4));
+    expect(find.text('Shop'), findsNothing);
+    expect(find.text('Prestige'), findsNothing);
 
-    await tester.tap(find.text('Shop'));
+    await tester.tap(find.byKey(const ValueKey('shop-footer-action')));
     await tester.pumpAndSettle();
     expect(shopTapped, 1);
 
-    await tester.tap(find.text('Prestige'));
+    await tester.tap(find.byKey(const ValueKey('prestige-footer-action')));
     await tester.pumpAndSettle();
     expect(prestigeTapped, 1);
   });
 
-  testWidgets('disabled tray labels and icons dim coherently', (tester) async {
+  testWidgets('disabled tray icons dim coherently', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -78,12 +83,12 @@ void main() {
               child: UiFooterMenuTray(
                 items: [
                   UiFooterMenuTrayItem(
-                    icon: Icons.shopping_basket,
+                    icon: DonerIcons.shop,
                     label: 'Shop',
                     onPressed: null,
                   ),
                   UiFooterMenuTrayItem(
-                    icon: Icons.workspace_premium,
+                    icon: DonerIcons.prestige,
                     label: 'Prestige',
                     onPressed: null,
                   ),
@@ -96,13 +101,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final label = tester.widget<Text>(find.text('Shop'));
-    final icon = tester.widget<Icon>(find.byIcon(Icons.shopping_basket));
-
-    expect(
-      label.style?.color,
-      RoastedColors.onTertiaryFixedVariant.withValues(alpha: 0.76),
+    final icon = tester.widget<FaIcon>(
+      find.byWidgetPredicate(
+        (widget) => widget is FaIcon && widget.icon == DonerIcons.shop.data,
+      ),
     );
+
+    expect(find.text('Shop'), findsNothing);
     expect(
       icon.color,
       RoastedColors.onTertiaryFixedVariant.withValues(alpha: 0.82),

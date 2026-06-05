@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
 class UiStatPill extends StatelessWidget {
@@ -13,7 +14,7 @@ class UiStatPill extends StatelessWidget {
 
   final String label;
   final String value;
-  final IconData? icon;
+  final FaIconData? icon;
   final ResponsiveLayoutSpec spec;
 
   @override
@@ -68,10 +69,12 @@ class UiStatPill extends StatelessWidget {
                         color: Color(0x24E9C400),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        icon,
-                        size: 16,
-                        color: RoastedColors.primaryFixed,
+                      child: Center(
+                        child: FaIcon(
+                          icon,
+                          size: 16,
+                          color: RoastedColors.primaryFixed,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),

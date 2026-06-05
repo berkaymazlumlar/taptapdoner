@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/theme/ui_asset_paths.dart';
 
@@ -23,33 +24,42 @@ class ChefPortraitAvatar extends StatelessWidget {
         height: diameter,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: RoastedColors.surfaceContainerHighest,
-          border: Border.all(color: RoastedColors.primary, width: 2),
+          color: DonerColors.panelPrimary,
+          border: Border.all(color: DonerColors.tealPrimary, width: 2.5),
           boxShadow: [
             BoxShadow(
-              color: RoastedColors.onSurface.withValues(alpha: 0.18),
+              color: DonerColors.tealPrimary.withValues(alpha: 0.22),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: ClipOval(
-          child: Image.asset(
-            UiAssetPaths.chefPortrait,
-            width: diameter,
-            height: diameter,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                color: RoastedColors.surfaceContainer,
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.person,
-                  color: RoastedColors.primaryFixed,
-                  size: diameter * 0.42,
-                ),
-              );
-            },
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: DonerColors.goldPrimary, width: 2),
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                UiAssetPaths.chefPortrait,
+                width: diameter,
+                height: diameter,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: RoastedColors.surfaceContainer,
+                    alignment: Alignment.center,
+                    child: FaIcon(
+                      DonerIcons.avatarFallback,
+                      color: DonerColors.goldBright,
+                      size: diameter * 0.42,
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ),
       ),

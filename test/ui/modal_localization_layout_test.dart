@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
-import 'package:taptapdoner/domain/stations/station_catalog.dart';
-import 'package:taptapdoner/domain/stations/upgrade_catalog.dart';
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
 import 'package:taptapdoner/services/save/save_repository.dart';
@@ -57,20 +57,14 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(
-        find.byKey(
-          ValueKey('shop-station-card-${controller.stations.last.id.key}'),
-        ),
-        findsOneWidget,
+        find.byKey(const ValueKey('shop-station-card-donerSpit')),
+        findsNothing,
       );
       expect(
         find.byKey(
           ValueKey('shop-upgrade-card-${controller.upgrades.last.id.key}'),
         ),
         findsOneWidget,
-      );
-      expect(
-        find.text(strings.stationName(controller.stations.last.id)),
-        findsWidgets,
       );
       expect(
         find.text(strings.upgradeName(controller.upgrades.last.id)),
@@ -125,7 +119,7 @@ void main() {
       await _expectPanelFits(tester, 'settings-modal-panel', size);
     });
 
-    testWidgets('offline reward modal fits compact width in $localeCode', (
+    testWidgets('offline reward popup fits compact width in $localeCode', (
       tester,
     ) async {
       final controller = _controller(
@@ -142,11 +136,20 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text(strings.offlineTitle), findsWidgets);
-      await _expectPanelFits(tester, 'offline-reward-modal-panel', size);
+      expect(find.text(strings.offlineTitle.toUpperCase()), findsWidgets);
+      expect(
+        find.byKey(const ValueKey('offline-reward-stat-row')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('offline-reward-double-amount-badge')),
+        findsOneWidget,
+      );
+      await _expectPanelFits(tester, 'offline-reward-popup-panel', size);
+      await _expectPanelCentered(tester, 'offline-reward-popup-panel', size);
     });
 
-    testWidgets('offline reward modal shows unavailable copy in $localeCode', (
+    testWidgets('offline reward popup shows ad preview copy in $localeCode', (
       tester,
     ) async {
       final controller = _controller(
@@ -162,9 +165,13 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text(strings.offlineTitle), findsWidgets);
-      expect(find.text(strings.adUnavailable), findsWidgets);
-      await _expectPanelFits(tester, 'offline-reward-modal-panel', size);
+      expect(find.text(strings.offlineTitle.toUpperCase()), findsWidgets);
+      expect(
+        find.text(strings.offlineAdPreviewLabel.toUpperCase()),
+        findsWidgets,
+      );
+      await _expectPanelFits(tester, 'offline-reward-popup-panel', size);
+      await _expectPanelCentered(tester, 'offline-reward-popup-panel', size);
     });
   }
 }
@@ -181,16 +188,27 @@ Future<void> _pumpModal(
   await tester.binding.setSurfaceSize(size);
 
   await tester.pumpWidget(
-    MaterialApp(
-      locale: locale,
-      supportedLocales: AppStrings.supportedLocales,
-      localizationsDelegates: AppStrings.localizationsDelegates,
-      home: MediaQuery(
-        data: MediaQueryData(size: size, padding: EdgeInsets.zero),
-        child: Scaffold(
-          body: SizedBox(width: size.width, height: size.height, child: child),
-        ),
-      ),
+    ScreenUtilInit(
+      designSize: const Size(390, 884),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, _) {
+        return MaterialApp(
+          locale: locale,
+          supportedLocales: AppStrings.supportedLocales,
+          localizationsDelegates: AppStrings.localizationsDelegates,
+          home: MediaQuery(
+            data: MediaQueryData(size: size, padding: EdgeInsets.zero),
+            child: Scaffold(
+              body: SizedBox(
+                width: size.width,
+                height: size.height,
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
     ),
   );
   await tester.pumpAndSettle();
@@ -206,6 +224,16 @@ Future<void> _expectPanelFits(
   expect(rect.top, greaterThanOrEqualTo(0));
   expect(rect.right, lessThanOrEqualTo(size.width + 0.5));
   expect(rect.bottom, lessThanOrEqualTo(size.height + 0.5));
+}
+
+Future<void> _expectPanelCentered(
+  WidgetTester tester,
+  String key,
+  Size size,
+) async {
+  final rect = tester.getRect(find.byKey(ValueKey(key)));
+  expect(rect.center.dx, closeTo(size.width / 2, 1));
+  expect(rect.center.dy, closeTo(size.height / 2, 1));
 }
 
 GameController _controller(

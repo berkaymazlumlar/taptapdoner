@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/ui_circular_action_button.dart';
 
@@ -17,7 +18,7 @@ void main() {
               mainAxisSize: MainAxisSize.min,
               children: [
                 UiCircularActionButton(
-                  icon: Icons.shopping_basket,
+                  icon: DonerIcons.shop,
                   label: 'Shop',
                   badge: '2',
                   selected: true,
@@ -28,7 +29,7 @@ void main() {
                 ),
                 const SizedBox(width: 12),
                 UiCircularActionButton(
-                  icon: Icons.workspace_premium,
+                  icon: DonerIcons.prestige,
                   label: 'Prestige',
                   onPressed: () {
                     tapped += 10;
@@ -37,7 +38,7 @@ void main() {
                 ),
                 const SizedBox(width: 12),
                 UiCircularActionButton(
-                  icon: Icons.bolt,
+                  icon: DonerIcons.rush,
                   label: 'Rush',
                   badge: '1',
                   selected: true,
@@ -87,7 +88,7 @@ void main() {
         home: Scaffold(
           body: Center(
             child: UiCircularActionButton(
-              icon: Icons.workspace_premium,
+              icon: DonerIcons.prestige,
               label: 'Prestige',
               badge: '3',
               tone: UiCircularActionButtonTone.secondary,
@@ -122,7 +123,7 @@ void main() {
         home: Scaffold(
           body: Center(
             child: UiCircularActionButton(
-              icon: Icons.bolt,
+              icon: DonerIcons.rush,
               label: 'Rush',
               tone: UiCircularActionButtonTone.primary,
               onPressed: () {},

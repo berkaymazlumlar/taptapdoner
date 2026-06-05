@@ -1,75 +1,206 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+abstract final class DonerTypography {
+  static const logoFontFamily = 'DM Serif Display';
+  static const displayFontFamily = 'Cinzel';
+  static const bodyFontFamily = 'Montserrat';
+
+  static TextStyle logo(TextStyle? textStyle) {
+    return GoogleFonts.dmSerifDisplay(textStyle: textStyle);
+  }
+
+  static TextStyle display(TextStyle? textStyle) {
+    return GoogleFonts.cinzel(textStyle: textStyle);
+  }
+
+  static TextStyle body(TextStyle? textStyle) {
+    return GoogleFonts.montserrat(textStyle: textStyle);
+  }
+
+  static TextTheme bodyTextTheme(TextTheme textTheme) {
+    return GoogleFonts.montserratTextTheme(textTheme);
+  }
+}
+
+abstract final class DonerColors {
+  static const bgPrimary = Color(0xFF160605);
+  static const bgSecondary = Color(0xFF220907);
+
+  static const panelPrimary = Color(0xFF4A0F0B);
+  static const panelSecondary = Color(0xFF5C140E);
+  static const panelDark = Color(0xFF34100C);
+
+  static const borderPrimary = Color(0xFF8A3A1E);
+  static const borderSoft = Color(0xFF6E2617);
+
+  static const goldPrimary = Color(0xFFE8B35A);
+  static const goldBright = Color(0xFFF6C66B);
+
+  static const creamText = Color(0xFFF6E6CB);
+  static const bodyText = Color(0xFFE2C7A3);
+  static const mutedText = Color(0xFFB98E72);
+
+  static const tealPrimary = Color(0xFF138E88);
+  static const tealBright = Color(0xFF1EB5AE);
+
+  static const orangeAccent = Color(0xFFD97A24);
+
+  static const disabledBg = Color(0xFF5A4339);
+  static const disabledText = Color(0xFFBBA08F);
+}
+
+abstract final class DonerGradients {
+  static const screen = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF240805), Color(0xFF1A0605), Color(0xFF140403)],
+  );
+
+  static const header = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF61150E), Color(0xFF4B0E0A), Color(0xFF3A0B08)],
+  );
+
+  static const card = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF5C140E), Color(0xFF42100B)],
+  );
+
+  static const sheet = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF5C140E), Color(0xFF34100C), Color(0xFF1A0605)],
+  );
+
+  static const activeButton = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFFC56A1D), Color(0xFFA64713), Color(0xFF7F260F)],
+  );
+
+  static const disabledButton = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF5C4638), Color(0xFF4A362C)],
+  );
+
+  static const turbo = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFFB5541A), Color(0xFF8A2F12)],
+  );
+}
+
+abstract final class DonerRadius {
+  static const double xs = 8;
+  static const double sm = 12;
+  static const double md = 16;
+  static const double lg = 22;
+  static const double xl = 28;
+  static const double pill = 9999;
+}
+
+abstract final class DonerSpacing {
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 20;
+  static const double xxl = 24;
+  static const double xxxl = 32;
+}
+
+abstract final class DonerShadows {
+  static const List<BoxShadow> soft = [
+    BoxShadow(color: Color(0x59000000), blurRadius: 14, offset: Offset(0, 4)),
+  ];
+
+  static const List<BoxShadow> goldGlow = [
+    BoxShadow(color: Color(0x2EE8B35A), blurRadius: 10),
+  ];
+
+  static const List<BoxShadow> tealGlow = [
+    BoxShadow(color: Color(0x2E138E88), blurRadius: 8),
+  ];
+
+  static const List<BoxShadow> redGlow = [
+    BoxShadow(color: Color(0x40D97A24), blurRadius: 12),
+  ];
+}
 
 abstract final class RoastedTypography {
-  static const headlineFontFamily = 'Plus Jakarta Sans';
-  static const bodyFontFamily = 'Be Vietnam Pro';
+  static const headlineFontFamily = DonerTypography.displayFontFamily;
+  static const bodyFontFamily = DonerTypography.bodyFontFamily;
 }
 
 abstract final class RoastedColors {
-  static const background = Color(0xFF1F0F09);
-  static const surface = Color(0xFF1F0F09);
-  static const surfaceDim = Color(0xFF1F0F09);
-  static const surfaceContainerLowest = Color(0xFF190A05);
-  static const surfaceContainerLow = Color(0xFF291710);
-  static const surfaceContainer = Color(0xFF2D1B14);
-  static const surfaceContainerHigh = Color(0xFF39251E);
-  static const surfaceContainerHighest = Color(0xFF453028);
-  static const surfaceBright = Color(0xFF49342C);
-  static const outline = Color(0xFF9F8E80);
-  static const outlineVariant = Color(0xFF524439);
+  static const background = DonerColors.bgPrimary;
+  static const surface = DonerColors.bgPrimary;
+  static const surfaceDim = DonerColors.bgSecondary;
+  static const surfaceContainerLowest = Color(0xFF250806);
+  static const surfaceContainerLow = DonerColors.panelDark;
+  static const surfaceContainer = DonerColors.panelPrimary;
+  static const surfaceContainerHigh = DonerColors.panelSecondary;
+  static const surfaceContainerHighest = Color(0xFF6A1A10);
+  static const surfaceBright = Color(0xFF752217);
+  static const outline = DonerColors.borderPrimary;
+  static const outlineVariant = DonerColors.borderSoft;
 
-  static const primary = Color(0xFFE9C400);
-  static const primaryContainer = Color(0xFFAE9200);
-  static const primaryFixed = Color(0xFFFFE16D);
-  static const primaryFixedDim = Color(0xFFE9C400);
-  static const onPrimary = Color(0xFF3A3000);
-  static const onPrimaryContainer = Color(0xFF362C00);
-  static const onPrimaryFixed = Color(0xFF221B00);
-  static const onPrimaryFixedVariant = Color(0xFF544600);
+  static const primary = DonerColors.goldPrimary;
+  static const primaryContainer = DonerColors.orangeAccent;
+  static const primaryFixed = DonerColors.goldBright;
+  static const primaryFixedDim = DonerColors.goldPrimary;
+  static const onPrimary = Color(0xFF34100C);
+  static const onPrimaryContainer = DonerColors.creamText;
+  static const onPrimaryFixed = Color(0xFF34100C);
+  static const onPrimaryFixedVariant = Color(0xFF5A260F);
 
-  static const secondary = Color(0xFFFFB870);
-  static const secondaryContainer = Color(0xFF764400);
-  static const secondaryFixed = Color(0xFFFFDCBE);
-  static const secondaryFixedDim = Color(0xFFFFB870);
-  static const onSecondary = Color(0xFF4A2800);
-  static const onSecondaryContainer = Color(0xFFFBB46B);
-  static const onSecondaryFixed = Color(0xFF2C1600);
-  static const onSecondaryFixedVariant = Color(0xFF693C00);
+  static const secondary = DonerColors.orangeAccent;
+  static const secondaryContainer = Color(0xFF7A2B18);
+  static const secondaryFixed = Color(0xFFFFD0A3);
+  static const secondaryFixedDim = DonerColors.goldPrimary;
+  static const onSecondary = DonerColors.creamText;
+  static const onSecondaryContainer = DonerColors.goldBright;
+  static const onSecondaryFixed = DonerColors.creamText;
+  static const onSecondaryFixedVariant = DonerColors.bodyText;
 
-  static const tertiary = Color(0xFFE0C0B4);
-  static const tertiaryContainer = Color(0xFFAB8E83);
-  static const tertiaryFixed = Color(0xFFFDDBD0);
-  static const tertiaryFixedDim = Color(0xFFE0C0B4);
-  static const onTertiary = Color(0xFF402C24);
-  static const onTertiaryContainer = Color(0xFF3C2821);
-  static const onTertiaryFixed = Color(0xFF291710);
-  static const onTertiaryFixedVariant = Color(0xFF584239);
+  static const tertiary = DonerColors.tealPrimary;
+  static const tertiaryContainer = Color(0xFF0B5B58);
+  static const tertiaryFixed = DonerColors.tealBright;
+  static const tertiaryFixedDim = DonerColors.tealPrimary;
+  static const onTertiary = DonerColors.creamText;
+  static const onTertiaryContainer = DonerColors.creamText;
+  static const onTertiaryFixed = DonerColors.creamText;
+  static const onTertiaryFixedVariant = DonerColors.disabledText;
 
   static const error = Color(0xFFFFB4AB);
   static const errorContainer = Color(0xFF93000A);
   static const onError = Color(0xFF690005);
   static const onErrorContainer = Color(0xFFFFDAD6);
 
-  static const inverseSurface = Color(0xFFFDDBD0);
-  static const inverseOnSurface = Color(0xFF402C24);
-  static const inversePrimary = Color(0xFF705D00);
-  static const onSurface = Color(0xFFFDDBD0);
-  static const onSurfaceVariant = Color(0xFFD6C3B4);
+  static const inverseSurface = DonerColors.creamText;
+  static const inverseOnSurface = DonerColors.panelDark;
+  static const inversePrimary = Color(0xFF9A4C17);
+  static const onSurface = DonerColors.creamText;
+  static const onSurfaceVariant = DonerColors.bodyText;
 }
 
 abstract final class RoastedRadii {
-  static const double chip = 32;
-  static const double card = 48;
-  static const double pill = 9999;
+  static const double chip = DonerRadius.md;
+  static const double card = DonerRadius.lg;
+  static const double pill = DonerRadius.pill;
 }
 
 abstract final class RoastedShadows {
   static const List<BoxShadow> surface = [
-    BoxShadow(color: Color(0x1AFDDBD0), blurRadius: 24, offset: Offset(0, 12)),
+    BoxShadow(color: Color(0x59000000), blurRadius: 18, offset: Offset(0, 8)),
   ];
 
   static const List<BoxShadow> glow = [
-    BoxShadow(color: Color(0x22E9C400), blurRadius: 18, offset: Offset(0, 4)),
+    BoxShadow(color: Color(0x2EE8B35A), blurRadius: 18, offset: Offset(0, 4)),
   ];
 }
 
@@ -80,9 +211,9 @@ abstract final class RoastedOpacity {
 }
 
 abstract final class RoastedFooterTrayMetrics {
-  static const double height = 84;
-  static const double radius = 32;
+  static const double height = 76;
+  static const double radius = 24;
   static const double itemShellSize = 42;
-  static const double itemIconSize = 24;
-  static const double badgeSize = 18;
+  static const double itemIconSize = 22;
+  static const double badgeSize = 16;
 }

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
-import 'package:taptapdoner/domain/stations/station_catalog.dart';
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
 import 'package:taptapdoner/services/save/save_repository.dart';
@@ -15,10 +15,13 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('doner kitchen backdrop stays static without passive income', () async {
-    final game = TapTapDonerGame(controller: _controller());
+    final game = TapTapDonerGame(
+      controller: _controller(config: _zeroPassiveConfig()),
+    );
     game.onGameResize(Vector2(360, 640));
     await game.onLoad();
 
+    expect(game.controller.passiveIncomePerSecond, 0);
     final first = await _renderBackdropBytes(game);
     game.update(1);
     final second = await _renderBackdropBytes(game);
@@ -31,17 +34,10 @@ void main() {
 
   test('money rain scales with passive income', () async {
     final lowGame = TapTapDonerGame(
-      controller: _controller(stationLevels: const {StationId.donerSpit: 1}),
+      controller: _controller(upgradeLevels: const {UpgradeId.staff: 2}),
     );
     final highGame = TapTapDonerGame(
-      controller: _controller(
-        stationLevels: const {
-          StationId.donerSpit: 10,
-          StationId.prepStation: 8,
-          StationId.drinkFridge: 6,
-          StationId.cashDesk: 4,
-        },
-      ),
+      controller: _controller(upgradeLevels: const {UpgradeId.staff: 20}),
     );
 
     lowGame.onGameResize(Vector2(360, 640));
@@ -79,24 +75,63 @@ Future<Uint8List> _renderBackdropBytes(TapTapDonerGame game) async {
   return bytes!.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes);
 }
 
-GameController _controller({Map<StationId, int> stationLevels = const {}}) {
+GameController _controller({
+  EconomyConfig? config,
+  Map<UpgradeId, int> upgradeLevels = const {},
+}) {
   final nowUtc = DateTime.utc(2026, 4, 1, 12);
-  final config = EconomyConfig.standard();
+  final effectiveConfig = config ?? EconomyConfig.standard();
   return GameController(
-    config: config,
+    config: effectiveConfig,
     saveRepository: _MemorySaveRepository(),
     adService: const NoopRewardedAdService(),
     clock: () => nowUtc,
   )..hydrate(
-    GameState.initial(config, nowUtc: nowUtc).copyWith(
-      stations: {
-        for (final definition in config.stations)
-          definition.id: StationState(
-            id: definition.id,
-            level: stationLevels[definition.id] ?? 0,
+    GameState.initial(effectiveConfig, nowUtc: nowUtc).copyWith(
+      upgrades: {
+        for (final definition in effectiveConfig.upgrades)
+          definition.id: UpgradeState.fromTotalLevel(
+            definition: definition,
+            totalLevel: upgradeLevels[definition.id] ?? 0,
           ),
       },
     ),
+  );
+}
+
+EconomyConfig _zeroPassiveConfig() {
+  final config = EconomyConfig.standard();
+  return EconomyConfig(
+    baseTapValue: config.baseTapValue,
+    rushIncomeMultiplier: config.rushIncomeMultiplier,
+    rushDuration: config.rushDuration,
+    rushCooldown: config.rushCooldown,
+    offlineCap: config.offlineCap,
+    prestigeThreshold: config.prestigeThreshold,
+    prestigeBonusPerPoint: config.prestigeBonusPerPoint,
+    upgrades: [
+      for (final upgrade in config.upgrades)
+        if (upgrade.id == UpgradeId.staff)
+          const UpgradeDefinition(
+            id: UpgradeId.staff,
+            effectKind: UpgradeEffectKind.passiveIncome,
+            baseCost: 1,
+            costGrowth: 1,
+            baselineEffect: 0,
+            items: [
+              UpgradeItemDefinition(
+                key: 'zero_staff',
+                tier: 1,
+                effectAtLevel1: 0,
+                effectPerLevel: 0,
+                baseCost: 1,
+                costMultiplier: 1,
+              ),
+            ],
+          )
+        else
+          upgrade,
+    ],
   );
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'modal_panel_frame.dart';
 
 class SettingsOverlay extends StatelessWidget {
@@ -85,7 +86,7 @@ class SettingsOverlay extends StatelessWidget {
                               SizedBox(height: spec.sectionGap),
                               ListTile(
                                 contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.music_note),
+                                leading: const FaIcon(DonerIcons.sound),
                                 title: Text(
                                   strings.soundSoonLabel,
                                   maxLines: 2,
@@ -94,7 +95,7 @@ class SettingsOverlay extends StatelessWidget {
                               ),
                               ListTile(
                                 contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.vibration),
+                                leading: const FaIcon(DonerIcons.haptics),
                                 title: Text(
                                   strings.hapticsSoonLabel,
                                   maxLines: 2,

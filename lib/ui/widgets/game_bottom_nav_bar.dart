@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/ui_footer_menu_tray.dart';
 
@@ -20,32 +22,33 @@ class GameBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final items = <UiFooterMenuTrayItem>[
       UiFooterMenuTrayItem(
         key: const ValueKey('bottom-nav-kitchen-button'),
-        icon: Icons.restaurant_rounded,
-        label: 'Kitchen',
+        icon: DonerIcons.kitchen,
+        label: strings.isTurkish ? 'MUTFAK' : 'Kitchen',
         selected: activeTab == GameBottomNavTab.kitchen,
         onPressed: onOpenKitchen,
       ),
       UiFooterMenuTrayItem(
         key: const ValueKey('bottom-nav-shop-button'),
-        icon: Icons.storefront_rounded,
-        label: 'Shop',
+        icon: DonerIcons.shop,
+        label: strings.isTurkish ? 'DUKKAN' : strings.shopNavLabel,
         selected: activeTab == GameBottomNavTab.shop,
         onPressed: onOpenShop,
       ),
       UiFooterMenuTrayItem(
         key: const ValueKey('bottom-nav-prestige-button'),
-        icon: Icons.workspace_premium_rounded,
-        label: 'Prestige',
+        icon: DonerIcons.prestige,
+        label: strings.prestigeNavLabel,
         selected: activeTab == GameBottomNavTab.prestige,
         onPressed: onOpenPrestige,
       ),
     ];
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.all(8),
       child: Container(
         key: const ValueKey('bottom-nav-shell'),
         decoration: BoxDecoration(
