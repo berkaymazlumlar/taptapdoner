@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/economy/economy_engine.dart';
+import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
+import 'package:taptapdoner/domain/quests/starter_quest_engine.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
@@ -24,17 +27,23 @@ class GameController extends ChangeNotifier {
        _adService = adService ?? const NoopRewardedAdService(),
        _clock = clock ?? _defaultClock {
     _engine = EconomyEngine(this.config);
+    _questEngine = StarterQuestEngine(this.config);
     _backgroundCalculator = BackgroundProductionCalculator(
       config: this.config,
       engine: _engine,
     );
-    _state = GameState.initial(this.config, nowUtc: _clock());
+    _state = _questEngine.refresh(
+      GameState.initial(this.config, nowUtc: _clock()),
+    );
     final nowUtc = _clock();
     _hudSnapshotListenable = ValueNotifier<GameHudSnapshot>(
       _computeHudSnapshot(nowUtc: nowUtc),
     );
     _rushSnapshotListenable = ValueNotifier<RushSnapshot>(
       _computeRushSnapshot(nowUtc: nowUtc),
+    );
+    _questSnapshotListenable = ValueNotifier<QuestSnapshot?>(
+      _computeQuestSnapshot(),
     );
     _shopSnapshotListenable = ValueNotifier<ShopSnapshot>(
       _computeShopSnapshot(nowUtc: nowUtc),
@@ -46,6 +55,9 @@ class GameController extends ChangeNotifier {
 
   static DateTime _defaultClock() => DateTime.now().toUtc();
   static const Duration _activeTickInterval = Duration(milliseconds: 100);
+  static const Duration _comboWindow = Duration(seconds: 2);
+  static const int _criticalTapCadence = 7;
+  static const int _goldenDonerTapCadence = 50;
 
   final EconomyConfig config;
   final SaveRepository _saveRepository;
@@ -53,10 +65,12 @@ class GameController extends ChangeNotifier {
   final Clock _clock;
 
   late final EconomyEngine _engine;
+  late final StarterQuestEngine _questEngine;
   late final BackgroundProductionCalculator _backgroundCalculator;
   late GameState _state;
   late final ValueNotifier<GameHudSnapshot> _hudSnapshotListenable;
   late final ValueNotifier<RushSnapshot> _rushSnapshotListenable;
+  late final ValueNotifier<QuestSnapshot?> _questSnapshotListenable;
   late final ValueNotifier<ShopSnapshot> _shopSnapshotListenable;
   late final ValueNotifier<PrestigeSnapshot> _prestigeSnapshotListenable;
   Future<void> _saveQueue = Future<void>.value();
@@ -66,12 +80,16 @@ class GameController extends ChangeNotifier {
   bool _isInitialized = false;
   double _passiveCarry = 0;
   double _notifyAccumulator = 0;
+  PurchaseResult? _lastPurchaseResult;
 
   GameState get state => _state;
+  PurchaseResult? get lastPurchaseResult => _lastPurchaseResult;
   ValueListenable<GameHudSnapshot> get hudSnapshotListenable =>
       _hudSnapshotListenable;
   ValueListenable<RushSnapshot> get rushSnapshotListenable =>
       _rushSnapshotListenable;
+  ValueListenable<QuestSnapshot?> get questSnapshotListenable =>
+      _questSnapshotListenable;
   ValueListenable<ShopSnapshot> get shopSnapshotListenable =>
       _shopSnapshotListenable;
   ValueListenable<PrestigeSnapshot> get prestigeSnapshotListenable =>
@@ -97,10 +115,8 @@ class GameController extends ChangeNotifier {
     final restored = await _saveRepository.load(config);
     final nowUtc = _clock();
     if (restored == null) {
-      _state = GameState.initial(
-        config,
-        nowUtc: nowUtc,
-        localeCode: localeCode,
+      _state = _questEngine.refresh(
+        GameState.initial(config, nowUtc: nowUtc, localeCode: localeCode),
       );
       _refreshViewModels(nowUtc: nowUtc);
       _isInitialized = true;
@@ -113,7 +129,9 @@ class GameController extends ChangeNotifier {
       state: restored,
       nowUtc: nowUtc,
     );
-    _state = _engine.queueOfflineReward(restored, grant.coins, nowUtc: nowUtc);
+    _state = _questEngine.refresh(
+      _engine.queueOfflineReward(restored, grant.coins, nowUtc: nowUtc),
+    );
     _refreshViewModels(nowUtc: nowUtc);
     _isInitialized = true;
     await _queueSave();
@@ -126,16 +144,25 @@ class GameController extends ChangeNotifier {
     }
     final nowUtc = _clock();
     final wasRushActive = _rushSnapshotListenable.value.isActive;
-    final earned =
-        _hudSnapshotListenable.value.passiveIncomePerSecond *
-        elapsed.inMilliseconds /
-        1000;
+    final passiveRate = _hudSnapshotListenable.value.passiveIncomePerSecond;
+    final earned = passiveRate * elapsed.inMilliseconds / 1000;
     _passiveCarry += earned;
     _notifyAccumulator += elapsed.inMilliseconds / 1000;
 
     final wholeCoins = _passiveCarry.floor();
     var refreshEconomySnapshots = false;
     var notifyLegacyListeners = false;
+    var questStateChanged = false;
+
+    if (passiveRate > 0) {
+      _state = _state.copyWith(
+        stats: _state.stats.copyWith(
+          passiveIncomeActiveSeconds:
+              _state.stats.passiveIncomeActiveSeconds +
+              (elapsed.inMilliseconds / 1000),
+        ),
+      );
+    }
 
     if (wholeCoins > 0) {
       _passiveCarry -= wholeCoins;
@@ -156,13 +183,26 @@ class GameController extends ChangeNotifier {
       refreshEconomySnapshots = true;
     }
 
+    if (!_state.passiveBoost.isActiveAt(nowUtc) &&
+        _state.passiveBoost.endsAtUtc != null) {
+      _state = _state.copyWith(
+        passiveBoost: _state.passiveBoost.copyWith(clearEndsAtUtc: true),
+      );
+      refreshEconomySnapshots = true;
+    }
+
     final isRushActiveNow = _state.rush.isActiveAt(nowUtc);
     if (wasRushActive != isRushActiveNow) {
       refreshEconomySnapshots = true;
     }
 
+    questStateChanged = _refreshQuestState() || questStateChanged;
+
     if (refreshEconomySnapshots) {
       _refreshEconomyViewModels(nowUtc: nowUtc);
+    }
+    if (questStateChanged) {
+      _refreshQuestViewModel();
     }
 
     if (refreshEconomySnapshots || _notifyAccumulator >= 0.2) {
@@ -194,18 +234,33 @@ class GameController extends ChangeNotifier {
   }
 
   Future<void> tap() async {
-    _state = _engine.applyTap(_state, nowUtc: _clock());
+    final nowUtc = _clock();
+    _state = _engine.applyTap(_state, nowUtc: nowUtc);
+    _recordTapStats(nowUtc);
+    final questStateChanged = _refreshQuestState();
     _refreshEconomyViewModels();
+    if (questStateChanged) {
+      _refreshQuestViewModel();
+    }
     notifyListeners();
   }
 
   Future<bool> buyUpgrade(UpgradeId id) async {
     final result = _engine.buyUpgrade(_state, id);
+    _lastPurchaseResult = result;
     if (!result.success) {
       return false;
     }
-    _state = result.state;
+    _state = result.state.copyWith(
+      stats: result.state.stats.copyWith(
+        totalUpgradesPurchased: _state.stats.totalUpgradesPurchased + 1,
+      ),
+    );
+    final questStateChanged = _refreshQuestState();
     _refreshEconomyViewModels();
+    if (questStateChanged) {
+      _refreshQuestViewModel();
+    }
     notifyListeners();
     await _queueSave();
     return true;
@@ -216,9 +271,30 @@ class GameController extends ChangeNotifier {
       return false;
     }
     _state = _engine.startRush(_state, nowUtc: _clock());
+    _state = _state.copyWith(
+      stats: _state.stats.copyWith(
+        turboUsedCount: _state.stats.turboUsedCount + 1,
+      ),
+    );
+    final questStateChanged = _refreshQuestState();
     _refreshViewModels();
+    if (questStateChanged) {
+      _refreshQuestViewModel();
+    }
     notifyListeners();
     unawaited(_queueSave());
+    return true;
+  }
+
+  Future<bool> claimActiveQuestReward() async {
+    final previousState = _state;
+    _state = _questEngine.claimActiveReward(_state, nowUtc: _clock());
+    if (identical(previousState, _state) || previousState == _state) {
+      return false;
+    }
+    _refreshViewModels();
+    notifyListeners();
+    await _queueSave();
     return true;
   }
 
@@ -227,10 +303,26 @@ class GameController extends ChangeNotifier {
       return false;
     }
     _state = _engine.applyPrestige(_state, nowUtc: _clock());
+    _state = _questEngine.refresh(_state);
     _refreshViewModels();
     notifyListeners();
     await _queueSave();
     return true;
+  }
+
+  void markPrestigeScreenOpened() {
+    if (_state.stats.openPrestigeScreenOnce) {
+      return;
+    }
+    _state = _state.copyWith(
+      stats: _state.stats.copyWith(openPrestigeScreenOnce: true),
+    );
+    final questStateChanged = _refreshQuestState();
+    if (questStateChanged) {
+      _refreshQuestViewModel();
+    }
+    notifyListeners();
+    unawaited(_queueSave());
   }
 
   Future<void> setLocaleCode(String localeCode) async {
@@ -259,7 +351,9 @@ class GameController extends ChangeNotifier {
       state: _state,
       nowUtc: nowUtc,
     );
-    _state = _engine.queueOfflineReward(_state, grant.coins, nowUtc: nowUtc);
+    _state = _questEngine.refresh(
+      _engine.queueOfflineReward(_state, grant.coins, nowUtc: nowUtc),
+    );
     _refreshViewModels(nowUtc: nowUtc);
     await _queueSave();
     notifyListeners();
@@ -269,6 +363,7 @@ class GameController extends ChangeNotifier {
     final nowUtc = _clock();
     final reward = _state.pendingOfflineCash * multiplier;
     _state = _engine.applyOfflineReward(_state, reward, nowUtc: nowUtc);
+    _state = _questEngine.refresh(_state);
     _refreshViewModels(nowUtc: nowUtc);
     notifyListeners();
     await _queueSave();
@@ -290,7 +385,7 @@ class GameController extends ChangeNotifier {
   }
 
   void hydrate(GameState nextState) {
-    _state = nextState;
+    _state = _questEngine.refresh(nextState);
     _refreshViewModels();
     _isInitialized = true;
     notifyListeners();
@@ -301,6 +396,7 @@ class GameController extends ChangeNotifier {
     stopTicking();
     _hudSnapshotListenable.dispose();
     _rushSnapshotListenable.dispose();
+    _questSnapshotListenable.dispose();
     _shopSnapshotListenable.dispose();
     _prestigeSnapshotListenable.dispose();
     super.dispose();
@@ -334,6 +430,7 @@ class GameController extends ChangeNotifier {
   void _refreshViewModels({DateTime? nowUtc}) {
     _refreshEconomyViewModels(nowUtc: nowUtc);
     _refreshRushViewModel(nowUtc: nowUtc);
+    _refreshQuestViewModel();
   }
 
   void _refreshEconomyViewModels({DateTime? nowUtc}) {
@@ -357,6 +454,87 @@ class GameController extends ChangeNotifier {
     );
   }
 
+  void _refreshQuestViewModel() {
+    _setSnapshotIfChanged(_questSnapshotListenable, _computeQuestSnapshot());
+  }
+
+  bool _refreshQuestState() {
+    final previousQuests = _state.quests;
+    final nextState = _questEngine.refresh(_state);
+    final questStateChanged = !mapEquals(previousQuests, nextState.quests);
+    final statsChanged = nextState.stats.shopLevel != _state.stats.shopLevel;
+    if (!questStateChanged && !statsChanged) {
+      return false;
+    }
+    _state = nextState;
+    if (_hasNewCompletedQuest(previousQuests, nextState.quests)) {
+      unawaited(_queueSave());
+    }
+    return true;
+  }
+
+  bool _hasNewCompletedQuest(
+    Map<String, QuestProgress> previous,
+    Map<String, QuestProgress> next,
+  ) {
+    for (final entry in next.entries) {
+      if (entry.value.status != QuestStatus.completed ||
+          entry.value.rewardClaimed) {
+        continue;
+      }
+      if (previous[entry.key]?.status != QuestStatus.completed) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _recordTapStats(DateTime nowUtc) {
+    final stats = _state.stats;
+    final nextTapCount = stats.tapCount + 1;
+    var nextCurrentCombo = 0;
+    var nextMaxCombo = stats.maxCombo;
+    if (_state.milestones.hasFeature('combo')) {
+      final lastTapAt = stats.lastTapAtUtc;
+      final keepsCombo =
+          lastTapAt != null && nowUtc.difference(lastTapAt) <= _comboWindow;
+      nextCurrentCombo = keepsCombo ? stats.currentCombo + 1 : 1;
+      nextMaxCombo = math.max(nextMaxCombo, nextCurrentCombo);
+    }
+
+    var nextCriticalCount = stats.criticalCutCount;
+    if (_state.milestones.hasFeature('critical_cut') &&
+        nextTapCount % _criticalTapCadence == 0) {
+      nextCriticalCount += 1;
+    }
+
+    var nextGoldenDonerCollected = stats.goldenDonerCollected;
+    var goldenDonerReward = 0;
+    if (_state.milestones.hasFeature('golden_doner') &&
+        nextTapCount % _goldenDonerTapCadence == 0) {
+      nextGoldenDonerCollected += 1;
+      goldenDonerReward = math.max(
+        50,
+        math.max(tapValue * 25, (passiveIncomePerSecond * 120).round()),
+      );
+    }
+
+    _state = _state.copyWith(
+      stats: stats.copyWith(
+        tapCount: nextTapCount,
+        currentCombo: nextCurrentCombo,
+        maxCombo: nextMaxCombo,
+        criticalCutCount: nextCriticalCount,
+        goldenDonerCollected: nextGoldenDonerCollected,
+        lastTapAtUtc: nowUtc,
+      ),
+    );
+
+    if (goldenDonerReward > 0) {
+      _state = _engine.addCoins(_state, goldenDonerReward);
+    }
+  }
+
   GameHudSnapshot _computeHudSnapshot({required DateTime nowUtc}) {
     return GameHudSnapshot(
       cash: _state.cash,
@@ -377,6 +555,20 @@ class GameController extends ChangeNotifier {
       cooldownRemaining: _displayDuration(
         _state.rush.remainingCooldown(nowUtc),
       ),
+    );
+  }
+
+  QuestSnapshot? _computeQuestSnapshot() {
+    final progress = _questEngine.activeQuest(_state);
+    if (progress == null) {
+      return null;
+    }
+    return QuestSnapshot(
+      questId: progress.questId,
+      status: progress.status,
+      currentValue: progress.currentValue,
+      targetValue: progress.targetValue,
+      rewardClaimed: progress.rewardClaimed,
     );
   }
 
@@ -407,6 +599,7 @@ class GameController extends ChangeNotifier {
         nextItemEffect: nextItem?.effectForItemLevel(1),
         nextMilestoneItemKey: nextMilestoneItem?.key,
         nextMilestoneLevel: nextMilestone?.level,
+        nextMilestoneReward: nextMilestone,
         currentEffect: _engine.upgradeEffect(_state, upgrade.id),
         nextEffect: _engine.nextUpgradeEffect(_state, upgrade.id),
         maxed: maxed,

@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
@@ -34,6 +35,79 @@ void main() {
     expect(find.byType(StitchSheetHandle), findsNothing);
     expect(find.byType(BottomSheet), findsNothing);
     expect(find.byKey(const ValueKey('bottom-nav-shell')), findsOneWidget);
+  });
+
+  testWidgets('kitchen opens the starter quest card from the quest button', (
+    tester,
+  ) async {
+    final controller = _controllerForApp(config, nowUtc);
+
+    await _pumpAppForTabs(tester, controller);
+
+    expect(find.byKey(const ValueKey('shell-quest-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('starter-quest-card')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('shell-quest-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('starter-quest-card')), findsOneWidget);
+    expect(find.text('Cut 10 Doners'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('starter-quest-progress-bar')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('shell-quest-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('starter-quest-card')), findsNothing);
+  });
+
+  testWidgets('quest button shows a numeric badge when a quest is complete', (
+    tester,
+  ) async {
+    final controller = _controllerForApp(config, nowUtc);
+
+    await _pumpAppForTabs(tester, controller);
+
+    for (var index = 0; index < 10; index += 1) {
+      await controller.tap();
+    }
+    await tester.pump();
+
+    final badgeFinder = find.byKey(const ValueKey('shell-quest-button-badge'));
+    expect(badgeFinder, findsOneWidget);
+    expect(
+      find.descendant(of: badgeFinder, matching: find.text('1')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('combo quest shows unlock copy behind the info button', (
+    tester,
+  ) async {
+    final state = _stateWithActiveQuest(
+      config,
+      nowUtc,
+      questId: 'starter_combo_15',
+    );
+    final controller = _controllerForApp(config, nowUtc, state: state);
+
+    await _pumpAppForTabs(tester, controller);
+    await tester.tap(find.byKey(const ValueKey('shell-quest-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reach 15 Combo'), findsOneWidget);
+    expect(find.textContaining('Rusty Knife Lv. 15'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('starter-quest-info-button')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('starter-quest-info-button')));
+    await tester.pump();
+
+    expect(find.text('Combo unlocks at Rusty Knife Lv. 15.'), findsOneWidget);
   });
 
   testWidgets('home bottom nav switches to Prestige without a bottom sheet', (
@@ -138,6 +212,34 @@ GameController _controllerForApp(
     adService: const NoopRewardedAdService(),
     clock: () => nowUtc,
   )..hydrate(state ?? GameState.initial(config, nowUtc: nowUtc));
+}
+
+GameState _stateWithActiveQuest(
+  EconomyConfig config,
+  DateTime nowUtc, {
+  required String questId,
+}) {
+  final progress = Map<String, QuestProgress>.from(
+    StarterQuestCatalog.initialProgress(),
+  );
+  var reachedTarget = false;
+  for (final definition in StarterQuestCatalog.definitions) {
+    if (definition.id == questId) {
+      progress[definition.id] = definition
+          .initialProgress(active: true)
+          .copyWith(status: QuestStatus.active);
+      reachedTarget = true;
+      continue;
+    }
+    progress[definition.id] = definition
+        .initialProgress(active: reachedTarget == false)
+        .copyWith(
+          status: reachedTarget ? QuestStatus.locked : QuestStatus.claimed,
+          currentValue: reachedTarget ? 0 : definition.targetValue,
+          rewardClaimed: reachedTarget == false,
+        );
+  }
+  return GameState.initial(config, nowUtc: nowUtc).copyWith(quests: progress);
 }
 
 class _MemorySaveRepository implements SaveRepository {

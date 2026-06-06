@@ -11,12 +11,30 @@ class PurchaseResult {
     required this.state,
     this.cost = 0,
     this.reason,
+    this.milestoneGrant,
   });
 
   final bool success;
   final GameState state;
   final int cost;
   final String? reason;
+  final MilestoneGrant? milestoneGrant;
+}
+
+class MilestoneGrant {
+  const MilestoneGrant({
+    required this.key,
+    required this.trackId,
+    required this.itemKey,
+    required this.level,
+    required this.reward,
+  });
+
+  final String key;
+  final UpgradeId trackId;
+  final String itemKey;
+  final int level;
+  final MilestoneReward reward;
 }
 
 class ProductionGrant {
@@ -55,16 +73,37 @@ class EconomyEngine {
   }
 
   double upgradeEffect(GameState state, UpgradeId id) {
-    return getTrackEffectById(_activeUpgradeTracks(state), id.key);
+    final baseEffect = getTrackEffectById(_activeUpgradeTracks(state), id.key);
+    final milestones = state.milestones;
+    return switch (id) {
+      UpgradeId.knife =>
+        baseEffect * _bonusMultiplier(milestones.tapBonusPercent),
+      UpgradeId.staff =>
+        baseEffect * _bonusMultiplier(milestones.passiveBonusPercent),
+      UpgradeId.oven =>
+        baseEffect * _bonusMultiplier(milestones.globalBonusPercent),
+      UpgradeId.menu =>
+        baseEffect * _bonusMultiplier(milestones.menuBonusPercent),
+      UpgradeId.turbo =>
+        baseEffect * _bonusMultiplier(milestones.turboBonusPercent),
+      UpgradeId.offline => baseEffect + milestones.offlineEfficiencyBonus,
+    };
   }
 
   double nextUpgradeEffect(GameState state, UpgradeId id) {
     final definition = config.upgrade(id);
     final totalLevel = upgradeTotalLevel(state, id);
     if (definition.isMaxLevel(totalLevel)) {
-      return definition.effectForLevel(totalLevel);
+      return upgradeEffect(state, id);
     }
-    return definition.effectForLevel(totalLevel + 1);
+    final previewState = _applyUpgradeProgress(
+      state,
+      definition,
+      id,
+      nextTotalLevel: totalLevel + 1,
+      claimMilestone: true,
+    );
+    return upgradeEffect(previewState, id);
   }
 
   int upgradeItemLevel(GameState state, UpgradeId id) {
@@ -89,14 +128,16 @@ class EconomyEngine {
   }
 
   int tapValue(GameState state, {DateTime? nowUtc}) {
-    final total = calculateTapIncome(
-      baseTap: config.baseTapValue.toDouble(),
-      knifeEffect: _knifeEffect(state),
-      ovenEffect: _ovenEffect(state),
-      menuEffect: _menuEffect(state),
-      prestigeMultiplier: _prestigeMultiplier(state),
-      turboMultiplier: _activeTurboMultiplier(state, nowUtc: nowUtc),
-    );
+    final total =
+        calculateTapIncome(
+          baseTap: config.baseTapValue.toDouble(),
+          knifeEffect: _knifeEffect(state),
+          ovenEffect: _ovenEffect(state),
+          menuEffect: _menuEffect(state),
+          prestigeMultiplier: _prestigeMultiplier(state),
+          turboMultiplier: _activeTurboMultiplier(state, nowUtc: nowUtc),
+        ) *
+        _criticalExpectedMultiplier(state);
     return max(1, total.round());
   }
 
@@ -105,16 +146,27 @@ class EconomyEngine {
     DateTime? nowUtc,
     bool includeRush = true,
   }) {
-    return calculatePassiveIncomePerSecond(
+    final baseIncome = calculatePassiveIncomePerSecond(
       staffEffect: _staffEffect(state),
       ovenEffect: _ovenEffect(state),
       menuEffect: _menuEffect(state),
       prestigeMultiplier: _prestigeMultiplier(state),
     );
+    final now = (nowUtc ?? DateTime.now()).toUtc();
+    return includeRush && state.passiveBoost.isActiveAt(now)
+        ? baseIncome * 2
+        : baseIncome;
   }
 
   double offlineEfficiency(GameState state) {
     return upgradeEffect(state, UpgradeId.offline);
+  }
+
+  Duration offlineCap(GameState state) {
+    return config.offlineCap +
+        Duration(
+          seconds: max(0, state.milestones.offlineMaxDurationSeconds.round()),
+        );
   }
 
   int offlineIncome(GameState state, Duration elapsed) {
@@ -165,15 +217,27 @@ class EconomyEngine {
       );
     }
     final nextTotalLevel = currentTotalLevel + 1;
-    final updatedUpgrades = Map<UpgradeId, UpgradeState>.from(state.upgrades)
-      ..[id] = UpgradeState.fromTotalLevel(
-        definition: definition,
-        totalLevel: nextTotalLevel,
-      );
+    var nextState = _applyUpgradeProgress(
+      state,
+      definition,
+      id,
+      nextTotalLevel: nextTotalLevel,
+      claimMilestone: true,
+    ).copyWith(cash: state.cash - cost);
+    final milestoneGrant = _milestoneGrantFor(
+      state,
+      definition,
+      id,
+      nextTotalLevel,
+    );
+    if (milestoneGrant != null) {
+      nextState = _applyInstantMilestoneMoney(nextState, milestoneGrant);
+    }
     return PurchaseResult(
       success: true,
-      state: state.copyWith(cash: state.cash - cost, upgrades: updatedUpgrades),
+      state: nextState,
       cost: cost,
+      milestoneGrant: milestoneGrant,
     );
   }
 
@@ -189,8 +253,8 @@ class EconomyEngine {
     }
     return state.copyWith(
       rush: TimedEffectState(
-        endsAtUtc: now.add(config.rushDuration),
-        cooldownEndsAtUtc: now.add(config.rushCooldown),
+        endsAtUtc: now.add(_rushDuration(state)),
+        cooldownEndsAtUtc: now.add(_rushCooldown(state)),
       ),
     );
   }
@@ -257,6 +321,8 @@ class EconomyEngine {
         reputation: state.prestige.reputation + earned,
         runCashEarned: 0,
       ),
+      stats: state.stats.copyWith(currentCombo: 0),
+      quests: state.quests,
       lastActiveAtUtc: now,
       lastSavedAtUtc: now,
     );
@@ -298,6 +364,39 @@ class EconomyEngine {
     return upgradeEffect(state, UpgradeId.turbo);
   }
 
+  Duration _rushDuration(GameState state) {
+    return config.rushDuration +
+        Duration(
+          milliseconds: max(
+            0,
+            (state.milestones.turboDurationSeconds * 1000).round(),
+          ),
+        );
+  }
+
+  Duration _rushCooldown(GameState state) {
+    final reduction = min(
+      0.8,
+      max(
+        0,
+        state.milestones.turboCooldownReductionPercent +
+            state.milestones.turboChargeSpeedPercent,
+      ),
+    );
+    final milliseconds = (config.rushCooldown.inMilliseconds * (1 - reduction))
+        .round();
+    return Duration(milliseconds: max(1000, milliseconds));
+  }
+
+  double _criticalExpectedMultiplier(GameState state) {
+    final chance = min(1.0, max(0.0, state.milestones.criticalChance));
+    if (chance <= 0) {
+      return 1;
+    }
+    final multiplier = max(1.0, 3 + state.milestones.criticalMultiplierBonus);
+    return 1 + (chance * (multiplier - 1));
+  }
+
   List<UpgradeTrack> _activeUpgradeTracks(GameState state) {
     return config.upgrades
         .map((definition) {
@@ -327,5 +426,82 @@ class EconomyEngine {
       itemIndex: state.itemIndex,
       itemLevel: state.level,
     );
+  }
+
+  GameState _applyUpgradeProgress(
+    GameState state,
+    UpgradeDefinition definition,
+    UpgradeId id, {
+    required int nextTotalLevel,
+    required bool claimMilestone,
+  }) {
+    final updatedUpgrades = Map<UpgradeId, UpgradeState>.from(state.upgrades)
+      ..[id] = UpgradeState.fromTotalLevel(
+        definition: definition,
+        totalLevel: nextTotalLevel,
+      );
+    var nextState = state.copyWith(upgrades: updatedUpgrades);
+    if (!claimMilestone) {
+      return nextState;
+    }
+
+    final grant = _milestoneGrantFor(state, definition, id, nextTotalLevel);
+    if (grant == null) {
+      return nextState;
+    }
+    return nextState.copyWith(
+      milestones: nextState.milestones.claimReward(
+        key: grant.key,
+        reward: grant.reward,
+      ),
+    );
+  }
+
+  MilestoneGrant? _milestoneGrantFor(
+    GameState state,
+    UpgradeDefinition definition,
+    UpgradeId id,
+    int nextTotalLevel,
+  ) {
+    final item = definition.itemForLevel(nextTotalLevel);
+    final itemLevel = definition.itemLevelForTotalLevel(nextTotalLevel);
+    MilestoneReward? reward;
+    for (final candidate in item.milestoneRewards) {
+      if (candidate.level == itemLevel) {
+        reward = candidate;
+        break;
+      }
+    }
+    if (reward == null) {
+      return null;
+    }
+
+    final key = milestoneKeyFor(
+      trackId: id,
+      itemKey: item.key,
+      level: itemLevel,
+    );
+    if (state.milestones.hasClaimed(key)) {
+      return null;
+    }
+    return MilestoneGrant(
+      key: key,
+      trackId: id,
+      itemKey: item.key,
+      level: itemLevel,
+      reward: reward,
+    );
+  }
+
+  GameState _applyInstantMilestoneMoney(GameState state, MilestoneGrant grant) {
+    if (grant.reward.type != MilestoneRewardType.instantMoney ||
+        grant.reward.value <= 0) {
+      return state;
+    }
+    return _addCoins(state, grant.reward.value.round());
+  }
+
+  double _bonusMultiplier(double percent) {
+    return 1 + max(0, percent);
   }
 }

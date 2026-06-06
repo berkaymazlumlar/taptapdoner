@@ -67,7 +67,10 @@ class UpgradeItemDefinition {
     this.maxLevel = UpgradeDefinition.maxItemLevel,
   });
 
-  factory UpgradeItemDefinition.fromTier(UpgradeItemTier tier) {
+  factory UpgradeItemDefinition.fromTier(
+    UpgradeItemTier tier, {
+    required UpgradeId upgradeId,
+  }) {
     return UpgradeItemDefinition(
       key: tier.id,
       tier: tier.tier,
@@ -75,7 +78,7 @@ class UpgradeItemDefinition {
       effectPerLevel: tier.levelEffect,
       baseCost: tier.baseCost,
       costMultiplier: tier.costMultiplier,
-      milestoneRewards: tier.milestoneRewards,
+      milestoneRewards: milestoneRewardsForUpgradeItem(upgradeId, tier),
       maxLevel: tier.maxLevel,
     );
   }
@@ -143,7 +146,9 @@ class UpgradeDefinition {
       baseCost: upgrade_track_logic.getUpgradeCost(track).floor(),
       costGrowth: upgrade_track_logic.getCurrentItem(track).costMultiplier,
       baselineEffect: upgrade_track_logic.getCurrentEffect(track),
-      items: track.tiers.map(UpgradeItemDefinition.fromTier).toList(),
+      items: track.tiers
+          .map((tier) => UpgradeItemDefinition.fromTier(tier, upgradeId: id))
+          .toList(),
     );
   }
 
@@ -301,6 +306,245 @@ class UpgradeDefinition {
       itemIndex: items.length - 1,
       itemLevel: items.last.maxLevel,
     );
+  }
+}
+
+String milestoneKeyFor({
+  required UpgradeId trackId,
+  required String itemKey,
+  required int level,
+}) {
+  return '${trackId.key}_${itemKey}_$level';
+}
+
+List<MilestoneReward> milestoneRewardsForUpgradeItem(
+  UpgradeId upgradeId,
+  UpgradeItemTier tier,
+) {
+  final itemKey = tier.id;
+  final completionCollectionKey = '${upgradeId.key}_$itemKey';
+
+  switch (upgradeId) {
+    case UpgradeId.knife:
+      if (itemKey == 'rusty_knife') {
+        return [
+          const MilestoneReward(
+            level: 5,
+            type: MilestoneRewardType.tapBonusPercent,
+            value: 0.05,
+            labelKey: 'rustyKnife5',
+          ),
+          const MilestoneReward(
+            level: 10,
+            type: MilestoneRewardType.criticalChance,
+            value: 0.01,
+            labelKey: 'rustyKnife10',
+            featureKey: 'critical_cut',
+          ),
+          const MilestoneReward(
+            level: 15,
+            type: MilestoneRewardType.comboDuration,
+            value: 0.25,
+            labelKey: 'rustyKnife15',
+            featureKey: 'combo',
+          ),
+          const MilestoneReward(
+            level: 20,
+            type: MilestoneRewardType.goldenDonerChance,
+            value: 0.0025,
+            labelKey: 'rustyKnife20',
+            featureKey: 'golden_doner',
+          ),
+          MilestoneReward(
+            level: 25,
+            type: MilestoneRewardType.chest,
+            quantity: 1,
+            labelKey: 'rustyKnife25',
+            featureKey: 'unlock_sharp_knife',
+            collectionKey: completionCollectionKey,
+          ),
+        ];
+      }
+      return [
+        const MilestoneReward(
+          level: 5,
+          type: MilestoneRewardType.tapBonusPercent,
+          value: 0.05,
+        ),
+        const MilestoneReward(
+          level: 10,
+          type: MilestoneRewardType.criticalChance,
+          value: 0.01,
+          featureKey: 'critical_cut',
+        ),
+        const MilestoneReward(
+          level: 15,
+          type: MilestoneRewardType.comboDuration,
+          value: 0.25,
+          featureKey: 'combo',
+        ),
+        const MilestoneReward(
+          level: 20,
+          type: MilestoneRewardType.goldenDonerChance,
+          value: 0.0025,
+          featureKey: 'golden_doner',
+        ),
+        MilestoneReward(
+          level: 25,
+          type: MilestoneRewardType.chest,
+          quantity: 1,
+          collectionKey: completionCollectionKey,
+        ),
+      ];
+    case UpgradeId.staff:
+      return [
+        const MilestoneReward(
+          level: 5,
+          type: MilestoneRewardType.passiveBonusPercent,
+          value: 0.05,
+        ),
+        const MilestoneReward(
+          level: 10,
+          type: MilestoneRewardType.tipChance,
+          value: 0.01,
+          featureKey: 'tips',
+        ),
+        const MilestoneReward(
+          level: 15,
+          type: MilestoneRewardType.featureUnlock,
+          featureKey: 'auto_collect_bonus',
+        ),
+        const MilestoneReward(
+          level: 20,
+          type: MilestoneRewardType.offlineEfficiency,
+          value: 0.03,
+        ),
+        MilestoneReward(
+          level: 25,
+          type: MilestoneRewardType.chest,
+          quantity: 1,
+          collectionKey: completionCollectionKey,
+        ),
+      ];
+    case UpgradeId.oven:
+      return [
+        const MilestoneReward(
+          level: 5,
+          type: MilestoneRewardType.globalBonusPercent,
+          value: 0.03,
+        ),
+        const MilestoneReward(
+          level: 10,
+          type: MilestoneRewardType.turboChargeSpeed,
+          value: 0.03,
+        ),
+        const MilestoneReward(
+          level: 15,
+          type: MilestoneRewardType.passiveBonusPercent,
+          value: 0.04,
+        ),
+        const MilestoneReward(
+          level: 20,
+          type: MilestoneRewardType.tapBonusPercent,
+          value: 0.04,
+        ),
+        MilestoneReward(
+          level: 25,
+          type: MilestoneRewardType.chest,
+          quantity: 1,
+          collectionKey: completionCollectionKey,
+        ),
+      ];
+    case UpgradeId.menu:
+      return [
+        const MilestoneReward(
+          level: 5,
+          type: MilestoneRewardType.menuBonusPercent,
+          value: 0.04,
+        ),
+        const MilestoneReward(
+          level: 10,
+          type: MilestoneRewardType.tipValuePercent,
+          value: 0.05,
+          featureKey: 'tips',
+        ),
+        const MilestoneReward(
+          level: 15,
+          type: MilestoneRewardType.specialOrderChance,
+          value: 0.01,
+          featureKey: 'special_orders',
+        ),
+        const MilestoneReward(
+          level: 20,
+          type: MilestoneRewardType.goldenDonerRewardPercent,
+          value: 0.05,
+          featureKey: 'golden_doner',
+        ),
+        MilestoneReward(
+          level: 25,
+          type: MilestoneRewardType.chest,
+          quantity: 1,
+          collectionKey: completionCollectionKey,
+        ),
+      ];
+    case UpgradeId.turbo:
+      return [
+        const MilestoneReward(
+          level: 5,
+          type: MilestoneRewardType.turboBonusPercent,
+          value: 0.05,
+        ),
+        const MilestoneReward(
+          level: 10,
+          type: MilestoneRewardType.turboDuration,
+          value: 1,
+        ),
+        const MilestoneReward(
+          level: 15,
+          type: MilestoneRewardType.turboChargeSpeed,
+          value: 0.05,
+        ),
+        const MilestoneReward(
+          level: 20,
+          type: MilestoneRewardType.turboCooldownReduction,
+          value: 0.03,
+        ),
+        MilestoneReward(
+          level: 25,
+          type: MilestoneRewardType.chest,
+          quantity: 1,
+          collectionKey: completionCollectionKey,
+        ),
+      ];
+    case UpgradeId.offline:
+      return [
+        const MilestoneReward(
+          level: 5,
+          type: MilestoneRewardType.offlineEfficiency,
+          value: 0.03,
+        ),
+        const MilestoneReward(
+          level: 10,
+          type: MilestoneRewardType.offlineMaxDuration,
+          value: 900,
+        ),
+        const MilestoneReward(
+          level: 15,
+          type: MilestoneRewardType.featureUnlock,
+          featureKey: 'offline_minimum_claim',
+        ),
+        const MilestoneReward(
+          level: 20,
+          type: MilestoneRewardType.offlineAdRewardPercent,
+          value: 0.05,
+        ),
+        MilestoneReward(
+          level: 25,
+          type: MilestoneRewardType.chest,
+          quantity: 1,
+          collectionKey: completionCollectionKey,
+        ),
+      ];
   }
 }
 

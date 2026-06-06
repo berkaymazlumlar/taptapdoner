@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
+import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
 import 'package:taptapdoner/services/save/save_repository.dart';
 
@@ -78,6 +79,59 @@ void main() {
         0,
       );
       expect(repository.savedState!.upgrade(config.upgrades.first.id).level, 2);
+    },
+  );
+
+  test(
+    'starter quest chain completes, claims once, and unlocks next quest',
+    () async {
+      final repository = _RecordingSaveRepository();
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller = GameController(
+        config: config,
+        saveRepository: repository,
+        adService: const NoopRewardedAdService(),
+        clock: () => nowUtc,
+      )..hydrate(GameState.initial(config, nowUtc: nowUtc));
+
+      expect(
+        controller.questSnapshotListenable.value?.questId,
+        'starter_tap_10',
+      );
+
+      for (var i = 0; i < 10; i += 1) {
+        await controller.tap();
+      }
+
+      expect(controller.questSnapshotListenable.value?.canClaim, isTrue);
+      final claimedFirst = await controller.claimActiveQuestReward();
+
+      expect(claimedFirst, isTrue);
+      expect(controller.state.cash, 60);
+      expect(
+        controller.questSnapshotListenable.value?.questId,
+        'starter_first_upgrade',
+      );
+      expect(controller.questSnapshotListenable.value?.canClaim, isFalse);
+
+      final duplicateClaim = await controller.claimActiveQuestReward();
+      expect(duplicateClaim, isFalse);
+      expect(controller.state.cash, 60);
+
+      final bought = await controller.buyUpgrade(UpgradeId.knife);
+      expect(bought, isTrue);
+      expect(controller.questSnapshotListenable.value?.canClaim, isTrue);
+
+      await controller.claimActiveQuestReward();
+      expect(controller.state.cash, 65);
+      expect(
+        controller.questSnapshotListenable.value?.questId,
+        'starter_rusty_knife_5',
+      );
+      expect(
+        repository.savedState?.quests['starter_tap_10']?.rewardClaimed,
+        isTrue,
+      );
     },
   );
 }

@@ -8,6 +8,7 @@ import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/ui/overlays/action_dock_overlay.dart';
 import 'package:taptapdoner/ui/overlays/game_hud_overlay.dart';
 import 'package:taptapdoner/ui/overlays/settings_overlay.dart';
+import 'package:taptapdoner/ui/overlays/starter_quest_overlay.dart';
 import 'package:taptapdoner/ui/overlays/tap_zone_overlay.dart';
 import 'package:taptapdoner/ui/pages/prestige_page.dart';
 import 'package:taptapdoner/ui/pages/shop_page.dart';
@@ -30,6 +31,9 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
   void _selectTab(GameBottomNavTab tab) {
     if (!mounted || _activeTab == tab) {
       return;
+    }
+    if (tab == GameBottomNavTab.prestige) {
+      widget.controller.markPrestigeScreenOpened();
     }
 
     setState(() {
@@ -144,11 +148,18 @@ class _KitchenTabPage extends StatefulWidget {
 
 class _KitchenTabPageState extends State<_KitchenTabPage> {
   late final TapTapDonerGame _game;
+  bool _questPanelVisible = false;
 
   @override
   void initState() {
     super.initState();
     _game = TapTapDonerGame(controller: widget.controller);
+  }
+
+  void _toggleQuestPanel() {
+    setState(() {
+      _questPanelVisible = !_questPanelVisible;
+    });
   }
 
   @override
@@ -179,6 +190,37 @@ class _KitchenTabPageState extends State<_KitchenTabPage> {
                     ),
                   ),
                   Positioned(
+                    top: metrics.questPanelTopInset,
+                    right: metrics.questButtonSideInset,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      reverseDuration: const Duration(milliseconds: 130),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeIn,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: Tween<double>(
+                              begin: 0.92,
+                              end: 1,
+                            ).animate(animation),
+                            alignment: Alignment.topRight,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _questPanelVisible
+                          ? StarterQuestOverlay(
+                              key: const ValueKey('starter-quest-panel-open'),
+                              controller: widget.controller,
+                            )
+                          : const SizedBox.shrink(
+                              key: ValueKey('starter-quest-panel-closed'),
+                            ),
+                    ),
+                  ),
+                  Positioned(
                     top: metrics.rushButtonTopInset,
                     right: metrics.rushButtonSideInset,
                     child: ValueListenableBuilder<RushSnapshot>(
@@ -189,6 +231,25 @@ class _KitchenTabPageState extends State<_KitchenTabPage> {
                           enabled: snapshot.canStart,
                           onPressed: snapshot.canStart
                               ? () => widget.controller.startRush()
+                              : null,
+                        );
+                      },
+                    ),
+                  ),
+                  Positioned(
+                    top: metrics.questButtonTopInset,
+                    right: metrics.questButtonSideInset,
+                    child: ValueListenableBuilder<QuestSnapshot?>(
+                      valueListenable:
+                          widget.controller.questSnapshotListenable,
+                      builder: (context, snapshot, _) {
+                        return QuestShortcutButton(
+                          scale: metrics.scale,
+                          enabled: snapshot != null,
+                          active: _questPanelVisible,
+                          canClaim: snapshot?.canClaim ?? false,
+                          onPressed: snapshot != null
+                              ? _toggleQuestPanel
                               : null,
                         );
                       },
@@ -233,6 +294,9 @@ class _ShellMetrics {
   double get mainBottomGap => 0;
   double get rushButtonTopInset => 8 * scale;
   double get rushButtonSideInset => 22 * scale;
+  double get questButtonTopInset => rushButtonTopInset + (64 * scale);
+  double get questButtonSideInset => rushButtonSideInset;
+  double get questPanelTopInset => questButtonTopInset + (64 * scale);
   double get fpsTopInset => 16 * scale;
   double get fpsSideInset => 24 * scale;
 }

@@ -313,6 +313,10 @@ class _UpgradeCard extends StatelessWidget {
             upgrade.id,
             upgradeSnapshot.nextMilestoneItemKey!,
           );
+    final nextMilestoneReward = upgradeSnapshot.nextMilestoneReward;
+    final nextMilestoneRewardText = nextMilestoneReward == null
+        ? null
+        : strings.milestoneRewardLabel(nextMilestoneReward);
     final nextMilestoneText =
         nextMilestoneItemName == null ||
             upgradeSnapshot.nextMilestoneLevel == null
@@ -320,6 +324,7 @@ class _UpgradeCard extends StatelessWidget {
         : strings.upgradeMilestonePreview(
             nextMilestoneItemName,
             upgradeSnapshot.nextMilestoneLevel!,
+            nextMilestoneRewardText,
           );
     final nextItemPreviewValue = nextItemName == null
         ? strings.upgradeMaxLevelLabel
@@ -1086,6 +1091,60 @@ Future<void> _buyUpgradeWithFeedback(
   }
 
   final after = controller.state.upgrade(upgrade.id);
+  final milestoneGrant = controller.lastPurchaseResult?.milestoneGrant;
+  if (milestoneGrant != null) {
+    final itemName = strings.upgradeItemName(
+      upgrade.id,
+      milestoneGrant.itemKey,
+    );
+    final reward = strings.milestoneRewardLabel(milestoneGrant.reward);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      return;
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: DonerColors.panelPrimary,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                strings.milestoneUnlockTitle,
+                style: TextStyle(
+                  fontFamily: RoastedTypography.headlineFontFamily,
+                  fontWeight: FontWeight.w900,
+                  color: DonerColors.goldPrimary,
+                ),
+              ),
+              SizedBox(height: 6.h),
+              Text(
+                '$itemName Lv. ${milestoneGrant.level}',
+                style: TextStyle(
+                  fontFamily: RoastedTypography.bodyFontFamily,
+                  fontWeight: FontWeight.w800,
+                  color: DonerColors.creamText,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                reward,
+                style: TextStyle(
+                  fontFamily: RoastedTypography.headlineFontFamily,
+                  fontWeight: FontWeight.w900,
+                  color: DonerColors.goldBright,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    return;
+  }
+
   if (after.itemIndex <= before.itemIndex) {
     return;
   }

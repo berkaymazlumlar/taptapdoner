@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/services/save/shared_preferences_save_repository.dart';
@@ -15,6 +16,15 @@ void main() {
   test('save repository round-trips state', () async {
     final knife = config.upgrade(UpgradeId.knife);
     final repository = SharedPreferencesSaveRepository();
+    final quests =
+        Map<String, QuestProgress>.from(StarterQuestCatalog.initialProgress())
+          ..['starter_tap_10'] = const QuestProgress(
+            questId: 'starter_tap_10',
+            status: QuestStatus.claimed,
+            currentValue: 10,
+            targetValue: 10,
+            rewardClaimed: true,
+          );
     final state =
         GameState.initial(
           config,
@@ -23,6 +33,19 @@ void main() {
         ).copyWith(
           cash: 1234,
           pendingOfflineCash: 87,
+          milestones: const MilestoneState(
+            claimedMilestoneKeys: {'knife_rusty_knife_5'},
+            unlockedFeatureKeys: {'critical_cut'},
+            tapBonusPercent: 0.05,
+            chests: 1,
+          ),
+          stats: const GameStatsState(
+            tapCount: 12,
+            totalUpgradesPurchased: 1,
+            criticalCutCount: 2,
+            maxCombo: 4,
+          ),
+          quests: quests,
           upgrades: {
             for (final definition in config.upgrades)
               definition.id: definition.id == UpgradeId.knife
@@ -45,6 +68,10 @@ void main() {
     expect(raw, contains('"id":"knife"'));
     expect(raw, contains('"itemIndex":1'));
     expect(raw, contains('"level":6'));
+    expect(raw, contains('"claimedMilestones":["knife_rusty_knife_5"]'));
+    expect(raw, contains('"tapCount":12'));
+    expect(raw, contains('"questId":"starter_tap_10"'));
+    expect(raw, contains('"rewardClaimed":true'));
     expect(raw, isNot(contains('stations')));
     expect(raw, isNot(contains('baseCost')));
     expect(raw, isNot(contains('tiers')));
@@ -54,6 +81,19 @@ void main() {
     expect(loaded.localeCode, 'tr');
     expect(loaded.upgrade(UpgradeId.knife).itemIndex, 1);
     expect(loaded.upgrade(UpgradeId.knife).level, 6);
+    expect(
+      loaded.milestones.claimedMilestoneKeys,
+      contains('knife_rusty_knife_5'),
+    );
+    expect(loaded.milestones.unlockedFeatureKeys, contains('critical_cut'));
+    expect(loaded.milestones.tapBonusPercent, closeTo(0.05, 0.0001));
+    expect(loaded.milestones.chests, 1);
+    expect(loaded.stats.tapCount, 12);
+    expect(loaded.stats.totalUpgradesPurchased, 1);
+    expect(loaded.stats.criticalCutCount, 2);
+    expect(loaded.stats.maxCombo, 4);
+    expect(loaded.quests['starter_tap_10']?.status, QuestStatus.claimed);
+    expect(loaded.quests['starter_tap_10']?.rewardClaimed, isTrue);
   });
 
   test('corrupt payload returns null', () async {

@@ -14,8 +14,9 @@ class BackgroundProductionCalculator {
   }) {
     final rawElapsed = nowUtc.difference(state.lastActiveAtUtc);
     final positiveElapsed = rawElapsed.isNegative ? Duration.zero : rawElapsed;
-    final effectiveElapsed = positiveElapsed > config.offlineCap
-        ? config.offlineCap
+    final offlineCap = engine.offlineCap(state);
+    final effectiveElapsed = positiveElapsed > offlineCap
+        ? offlineCap
         : positiveElapsed;
     if (effectiveElapsed == Duration.zero) {
       return ProductionGrant(

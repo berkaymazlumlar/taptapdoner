@@ -13,6 +13,7 @@ abstract final class DonerIcons {
   static const FaIconData reputation = FontAwesomeIcons.solidStar;
 
   static const FaIconData close = FontAwesomeIcons.xmark;
+  static const FaIconData info = FontAwesomeIcons.circleInfo;
   static const FaIconData settings = FontAwesomeIcons.gear;
   static const FaIconData sound = FontAwesomeIcons.music;
   static const FaIconData haptics = FontAwesomeIcons.mobileVibrate;

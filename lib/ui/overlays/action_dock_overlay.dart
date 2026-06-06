@@ -142,7 +142,7 @@ class RushShortcutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = 68 * scale;
+    final size = 54 * scale;
     return Tooltip(
       message: AppStrings.of(context).rushLabel,
       child: SizedBox.square(
@@ -175,15 +175,15 @@ class RushShortcutButton extends StatelessWidget {
                                 ? DonerColors.orangeAccent
                                 : DonerColors.bgPrimary)
                             .withValues(alpha: enabled ? 0.36 : 0.22),
-                    blurRadius: 20 * scale,
-                    offset: Offset(0, 8 * scale),
+                    blurRadius: 16 * scale,
+                    offset: Offset(0, 6 * scale),
                   ),
                 ],
               ),
               child: Center(
                 child: FaIcon(
                   DonerIcons.rush,
-                  size: 34 * scale,
+                  size: 27 * scale,
                   color: enabled
                       ? DonerColors.goldBright
                       : DonerColors.disabledText,

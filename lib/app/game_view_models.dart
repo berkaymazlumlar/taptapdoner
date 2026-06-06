@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
 @immutable
@@ -58,6 +59,47 @@ class RushSnapshot {
 }
 
 @immutable
+class QuestSnapshot {
+  const QuestSnapshot({
+    required this.questId,
+    required this.status,
+    required this.currentValue,
+    required this.targetValue,
+    required this.rewardClaimed,
+  });
+
+  final String questId;
+  final QuestStatus status;
+  final double currentValue;
+  final double targetValue;
+  final bool rewardClaimed;
+
+  bool get canClaim =>
+      status == QuestStatus.completed && rewardClaimed == false;
+
+  double get progress {
+    if (targetValue <= 0) {
+      return 0;
+    }
+    return (currentValue / targetValue).clamp(0, 1).toDouble();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is QuestSnapshot &&
+        questId == other.questId &&
+        status == other.status &&
+        currentValue == other.currentValue &&
+        targetValue == other.targetValue &&
+        rewardClaimed == other.rewardClaimed;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(questId, status, currentValue, targetValue, rewardClaimed);
+}
+
+@immutable
 class ShopUpgradeSnapshot {
   const ShopUpgradeSnapshot({
     required this.totalLevel,
@@ -76,6 +118,7 @@ class ShopUpgradeSnapshot {
     this.nextItemEffect,
     this.nextMilestoneItemKey,
     this.nextMilestoneLevel,
+    this.nextMilestoneReward,
   });
 
   final int totalLevel;
@@ -88,6 +131,7 @@ class ShopUpgradeSnapshot {
   final double? nextItemEffect;
   final String? nextMilestoneItemKey;
   final int? nextMilestoneLevel;
+  final MilestoneReward? nextMilestoneReward;
   final double currentEffect;
   final double nextEffect;
   final bool maxed;
@@ -110,6 +154,7 @@ class ShopUpgradeSnapshot {
         nextItemEffect == other.nextItemEffect &&
         nextMilestoneItemKey == other.nextMilestoneItemKey &&
         nextMilestoneLevel == other.nextMilestoneLevel &&
+        nextMilestoneReward == other.nextMilestoneReward &&
         currentEffect == other.currentEffect &&
         nextEffect == other.nextEffect &&
         maxed == other.maxed &&
@@ -130,6 +175,7 @@ class ShopUpgradeSnapshot {
     nextItemEffect,
     nextMilestoneItemKey,
     nextMilestoneLevel,
+    nextMilestoneReward,
     currentEffect,
     nextEffect,
     maxed,

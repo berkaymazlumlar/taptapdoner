@@ -36,6 +36,71 @@ void main() {
     );
   });
 
+  test('upgrade milestones grant rewards once at item milestone levels', () {
+    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 5000);
+    PurchaseResult? result;
+
+    for (var targetLevel = 2; targetLevel <= 5; targetLevel += 1) {
+      result = engine.buyUpgrade(state, UpgradeId.knife);
+      expect(result.success, isTrue);
+      state = result.state;
+      expect(state.upgrade(UpgradeId.knife).level, targetLevel);
+    }
+
+    expect(state.upgrade(UpgradeId.knife).level, 5);
+    expect(result!.milestoneGrant, isNotNull);
+    expect(result.milestoneGrant!.key, 'knife_rusty_knife_5');
+    expect(
+      state.milestones.claimedMilestoneKeys,
+      contains('knife_rusty_knife_5'),
+    );
+    expect(state.milestones.tapBonusPercent, closeTo(0.05, 0.0001));
+
+    final duplicateAttempt = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      cash: 5000,
+      upgrades: {
+        ...state.upgrades,
+        UpgradeId.knife: const UpgradeState(
+          id: UpgradeId.knife,
+          itemIndex: 0,
+          level: 4,
+        ),
+      },
+      milestones: state.milestones,
+    );
+
+    final duplicateResult = engine.buyUpgrade(
+      duplicateAttempt,
+      UpgradeId.knife,
+    );
+
+    expect(duplicateResult.success, isTrue);
+    expect(duplicateResult.milestoneGrant, isNull);
+    expect(
+      duplicateResult.state.milestones.tapBonusPercent,
+      closeTo(0.05, 0.0001),
+    );
+  });
+
+  test('first rusty knife milestones unlock active play systems', () {
+    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 50000);
+    PurchaseResult? lastResult;
+
+    while (state.upgrade(UpgradeId.knife).level < 20) {
+      lastResult = engine.buyUpgrade(state, UpgradeId.knife);
+      expect(lastResult.success, isTrue);
+      state = lastResult.state;
+    }
+
+    expect(lastResult!.milestoneGrant!.key, 'knife_rusty_knife_20');
+    expect(state.milestones.hasFeature('critical_cut'), isTrue);
+    expect(state.milestones.hasFeature('combo'), isTrue);
+    expect(state.milestones.hasFeature('golden_doner'), isTrue);
+    expect(state.milestones.criticalChance, closeTo(0.01, 0.0001));
+    expect(state.milestones.comboDurationSeconds, closeTo(0.25, 0.0001));
+    expect(state.milestones.goldenDonerChance, closeTo(0.0025, 0.0001));
+  });
+
   test('each next item starts stronger than the previous item cap', () {
     for (final upgrade in config.upgrades) {
       for (var index = 0; index < upgrade.items.length - 1; index += 1) {
@@ -191,6 +256,8 @@ void main() {
       expect(prestiged.prestige.runCashEarned, 0);
       expect(prestiged.rush.endsAtUtc, isNull);
       expect(prestiged.rush.cooldownEndsAtUtc, isNull);
+      expect(prestiged.milestones.claimedMilestoneKeys, isEmpty);
+      expect(prestiged.milestones.tapBonusPercent, 0);
       for (final upgrade in prestiged.upgrades.values) {
         expect(upgrade.itemIndex, 0, reason: upgrade.id.key);
         expect(upgrade.level, 1, reason: upgrade.id.key);

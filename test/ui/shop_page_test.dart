@@ -97,6 +97,53 @@ void main() {
     expect(controller.state.upgrade(UpgradeId.knife).level, 2);
   });
 
+  testWidgets('milestone purchase shows reward preview and popup', (
+    tester,
+  ) async {
+    final base = GameState.initial(config, nowUtc: nowUtc);
+    final controller = _controller(
+      config,
+      nowUtc,
+      state: base.copyWith(
+        cash: 1000,
+        lifetimeCash: 1000,
+        upgrades: {
+          ...base.upgrades,
+          UpgradeId.knife: const UpgradeState(
+            id: UpgradeId.knife,
+            itemIndex: 0,
+            level: 4,
+          ),
+        },
+      ),
+    );
+
+    await _pumpShopPage(
+      tester,
+      controller: controller,
+      size: const Size(390, 844),
+      onOpenKitchen: () {},
+      onOpenPrestige: () {},
+    );
+
+    expect(find.textContaining('Rusty Knife Lv. 5'), findsWidgets);
+    expect(find.textContaining('Getting the feel'), findsWidgets);
+
+    final button = find.byKey(const ValueKey('shop-upgrade-button-knife'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(controller.state.upgrade(UpgradeId.knife).level, 5);
+    expect(
+      controller.state.milestones.claimedMilestoneKeys,
+      contains('knife_rusty_knife_5'),
+    );
+    expect(find.text('Milestone Unlocked!'), findsOneWidget);
+    expect(find.text('Rusty Knife Lv. 5'), findsOneWidget);
+    expect(find.textContaining('Getting the feel'), findsWidgets);
+  });
+
   testWidgets(
     'level twenty-five upgrade shows next item preview and feedback',
     (tester) async {

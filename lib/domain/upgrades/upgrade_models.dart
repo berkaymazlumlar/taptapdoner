@@ -9,20 +9,109 @@ enum UpgradeEffectType {
   offlineEfficiency,
 }
 
+enum MilestoneRewardType {
+  tapBonusPercent,
+  passiveBonusPercent,
+  globalBonusPercent,
+  menuBonusPercent,
+  criticalChance,
+  criticalMultiplier,
+  comboDuration,
+  comboMultiplier,
+  turboBonusPercent,
+  turboChargeSpeed,
+  turboDuration,
+  turboCooldownReduction,
+  offlineEfficiency,
+  offlineMaxDuration,
+  offlineAdRewardPercent,
+  goldenDonerChance,
+  goldenDonerRewardPercent,
+  tipChance,
+  tipValuePercent,
+  specialOrderChance,
+  instantMoney,
+  chest,
+  cosmeticToken,
+  collectionUnlock,
+  featureUnlock,
+}
+
 const defaultUpgradeMilestoneRewards = [
-  MilestoneReward(level: 5, labelKey: 'milestone_5'),
-  MilestoneReward(level: 10, labelKey: 'milestone_10'),
-  MilestoneReward(level: 15, labelKey: 'milestone_15'),
-  MilestoneReward(level: 20, labelKey: 'milestone_20'),
-  MilestoneReward(level: 25, labelKey: 'milestone_25'),
+  MilestoneReward(
+    level: 5,
+    type: MilestoneRewardType.tapBonusPercent,
+    value: 0.05,
+    labelKey: 'milestone_5',
+  ),
+  MilestoneReward(
+    level: 10,
+    type: MilestoneRewardType.globalBonusPercent,
+    value: 0.01,
+    labelKey: 'milestone_10',
+  ),
+  MilestoneReward(
+    level: 15,
+    type: MilestoneRewardType.passiveBonusPercent,
+    value: 0.05,
+    labelKey: 'milestone_15',
+  ),
+  MilestoneReward(
+    level: 20,
+    type: MilestoneRewardType.goldenDonerChance,
+    value: 0.0025,
+    labelKey: 'milestone_20',
+  ),
+  MilestoneReward(
+    level: 25,
+    type: MilestoneRewardType.chest,
+    quantity: 1,
+    labelKey: 'milestone_25',
+  ),
 ];
 
 class MilestoneReward {
-  const MilestoneReward({required this.level, required this.labelKey})
-    : assert(level >= 1, 'level must be at least 1.');
+  const MilestoneReward({
+    required this.level,
+    required this.type,
+    this.value = 0,
+    this.quantity = 0,
+    this.labelKey = '',
+    this.featureKey,
+    this.collectionKey,
+  }) : assert(level >= 1, 'level must be at least 1.'),
+       assert(quantity >= 0, 'quantity cannot be negative.');
 
   final int level;
+  final MilestoneRewardType type;
+  final double value;
+  final int quantity;
   final String labelKey;
+  final String? featureKey;
+  final String? collectionKey;
+
+  @override
+  bool operator ==(Object other) {
+    return other is MilestoneReward &&
+        level == other.level &&
+        type == other.type &&
+        value == other.value &&
+        quantity == other.quantity &&
+        labelKey == other.labelKey &&
+        featureKey == other.featureKey &&
+        collectionKey == other.collectionKey;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    level,
+    type,
+    value,
+    quantity,
+    labelKey,
+    featureKey,
+    collectionKey,
+  );
 }
 
 class UpgradeTrack {
