@@ -2,6 +2,12 @@ import 'dart:math';
 
 import 'package:taptapdoner/domain/economy/economy_calculator.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/progression/achievement_catalog.dart';
+import 'package:taptapdoner/domain/progression/collection_catalog.dart';
+import 'package:taptapdoner/domain/progression/faz5_models.dart';
+import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
+import 'package:taptapdoner/domain/progression/shop_progression_catalog.dart';
+import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
@@ -63,6 +69,18 @@ class EconomyEngine {
   const EconomyEngine(this.config);
 
   final EconomyConfig config;
+
+  static const _comboMultiplierThresholds = <int, double>{
+    5: 1.10,
+    10: 1.20,
+    20: 1.40,
+    30: 1.60,
+    50: 2.00,
+    75: 2.50,
+    100: 3.00,
+    150: 4.00,
+    250: 5.00,
+  };
 
   int upgradeCost(UpgradeDefinition definition, UpgradeState state) {
     return definition.costForLevel(_upgradeTotalLevel(definition, state));
@@ -128,16 +146,27 @@ class EconomyEngine {
   }
 
   int tapValue(GameState state, {DateTime? nowUtc}) {
-    final total =
-        calculateTapIncome(
-          baseTap: config.baseTapValue.toDouble(),
-          knifeEffect: _knifeEffect(state),
-          ovenEffect: _ovenEffect(state),
-          menuEffect: _menuEffect(state),
-          prestigeMultiplier: _prestigeMultiplier(state),
-          turboMultiplier: _activeTurboMultiplier(state, nowUtc: nowUtc),
-        ) *
-        _criticalExpectedMultiplier(state);
+    final total = _tapIncome(
+      state,
+      nowUtc: nowUtc,
+      comboMultiplier: comboMultiplierForCount(state.stats.currentCombo, state),
+      criticalMultiplier: _criticalExpectedMultiplier(state),
+    );
+    return max(1, total.round());
+  }
+
+  int tapValueForActivePlay(
+    GameState state, {
+    DateTime? nowUtc,
+    double comboMultiplier = 1,
+    double criticalMultiplier = 1,
+  }) {
+    final total = _tapIncome(
+      state,
+      nowUtc: nowUtc,
+      comboMultiplier: comboMultiplier,
+      criticalMultiplier: criticalMultiplier,
+    );
     return max(1, total.round());
   }
 
@@ -146,16 +175,23 @@ class EconomyEngine {
     DateTime? nowUtc,
     bool includeRush = true,
   }) {
+    final now = (nowUtc ?? DateTime.now()).toUtc();
+    final collectionBonuses = _permanentBonuses(state);
     final baseIncome = calculatePassiveIncomePerSecond(
       staffEffect: _staffEffect(state),
       ovenEffect: _ovenEffect(state),
       menuEffect: _menuEffect(state),
+      shopMultiplier: shopMultiplier(state),
       prestigeMultiplier: _prestigeMultiplier(state),
+      collectionPassiveMultiplier:
+          collectionBonuses.passiveMultiplier *
+          _prestigePassiveMultiplier(state),
+      collectionGlobalMultiplier:
+          collectionBonuses.globalMultiplier * _prestigeGlobalMultiplier(state),
+      temporaryBoostMultiplier:
+          includeRush && state.passiveBoost.isActiveAt(now) ? 2 : 1,
     );
-    final now = (nowUtc ?? DateTime.now()).toUtc();
-    return includeRush && state.passiveBoost.isActiveAt(now)
-        ? baseIncome * 2
-        : baseIncome;
+    return baseIncome;
   }
 
   double offlineEfficiency(GameState state) {
@@ -166,6 +202,12 @@ class EconomyEngine {
     return config.offlineCap +
         Duration(
           seconds: max(0, state.milestones.offlineMaxDurationSeconds.round()),
+        ) +
+        Duration(
+          seconds: _prestigeUpgradeEffectSeconds(
+            state,
+            PrestigeShopCatalog.bigRegister,
+          ).round(),
         );
   }
 
@@ -193,6 +235,149 @@ class EconomyEngine {
 
   GameState applyTap(GameState state, {DateTime? nowUtc}) {
     return _addCoins(state, tapValue(state, nowUtc: nowUtc));
+  }
+
+  Duration comboExpireDuration(GameState state) {
+    final raw =
+        config.comboBaseExpireDuration +
+        Duration(
+          milliseconds: max(
+            0,
+            (state.milestones.comboDurationSeconds * 1000).round(),
+          ),
+        ) +
+        Duration(
+          milliseconds:
+              (_prestigeUpgradeEffectSeconds(
+                        state,
+                        PrestigeShopCatalog.comboMaster,
+                      ) *
+                      1000)
+                  .round(),
+        );
+    if (raw > config.comboMaxExpireDuration) {
+      return config.comboMaxExpireDuration;
+    }
+    return raw;
+  }
+
+  double comboMultiplierForCount(int comboCount, GameState state) {
+    if (comboCount <= 0 || !state.milestones.hasFeature('combo')) {
+      return 1;
+    }
+    var multiplier = 1.0;
+    for (final entry in _comboMultiplierThresholds.entries) {
+      if (comboCount >= entry.key) {
+        multiplier = entry.value;
+      }
+    }
+    multiplier += state.milestones.comboMultiplierBonus;
+    return min(config.comboMaxMultiplier, max(1.0, multiplier));
+  }
+
+  double criticalChance(GameState state) {
+    if (!state.milestones.hasFeature('critical_cut')) {
+      return 0;
+    }
+    return min(config.criticalMaxChance, _criticalChanceBeforeCap(state));
+  }
+
+  double goldenDonerIntervalMultiplier(GameState state) {
+    final bonus = _prestigeUpgradePercent(
+      state,
+      PrestigeShopCatalog.goldenLuck,
+    );
+    return max(0.50, 1 - bonus);
+  }
+
+  double shopMultiplier(GameState state) {
+    final level = state.shopProgression.currentShopLevel;
+    return ShopProgressionCatalog.byLevel(level).incomeMultiplier;
+  }
+
+  double shopMultiplierForLevel(int level) {
+    return ShopProgressionCatalog.byLevel(level).incomeMultiplier;
+  }
+
+  double prestigeShopTapBonusPercent(GameState state) {
+    return _prestigeUpgradePercent(state, PrestigeShopCatalog.masterHand);
+  }
+
+  double prestigeShopPassiveBonusPercent(GameState state) {
+    return _prestigeUpgradePercent(state, PrestigeShopCatalog.loyalApprentices);
+  }
+
+  double prestigeShopGlobalBonusPercent(GameState state) {
+    return _prestigeUpgradePercent(state, PrestigeShopCatalog.hotOven);
+  }
+
+  double prestigeShopStartingCash(GameState state) {
+    final level = state.prestige.prestigeUpgradeLevel(
+      PrestigeShopCatalog.fastStart,
+    );
+    return (level * 100 * max(1, state.prestige.prestigeCount)).toDouble();
+  }
+
+  double prestigeUpgradeEffectValue(GameState state, String upgradeId) {
+    return _prestigeUpgradeEffectSeconds(state, upgradeId);
+  }
+
+  double _prestigeUpgradePercent(GameState state, String upgradeId) {
+    return _prestigeUpgradeEffectSeconds(state, upgradeId);
+  }
+
+  double _prestigeUpgradeEffectSeconds(GameState state, String upgradeId) {
+    final definition = PrestigeShopCatalog.byId(upgradeId);
+    if (definition == null) {
+      return 0;
+    }
+    return state.prestige.prestigeUpgradeLevel(upgradeId) *
+        definition.effectPerLevel;
+  }
+
+  double _prestigeTapMultiplier(GameState state) {
+    return 1 + max(0, prestigeShopTapBonusPercent(state));
+  }
+
+  double _prestigePassiveMultiplier(GameState state) {
+    return 1 + max(0, prestigeShopPassiveBonusPercent(state));
+  }
+
+  double _prestigeGlobalMultiplier(GameState state) {
+    return 1 + max(0, prestigeShopGlobalBonusPercent(state));
+  }
+
+  double _criticalChanceBeforeCap(GameState state) {
+    return max(
+      0.0,
+      config.criticalBaseChance +
+          state.milestones.criticalChance +
+          _prestigeUpgradePercent(state, PrestigeShopCatalog.criticalMastery),
+    );
+  }
+
+  double criticalMultiplier(GameState state) {
+    if (!state.milestones.hasFeature('critical_cut')) {
+      return 1;
+    }
+    return min(
+      config.criticalMaxMultiplier,
+      max(
+        1.0,
+        config.criticalBaseMultiplier +
+            state.milestones.criticalMultiplierBonus,
+      ),
+    );
+  }
+
+  int goldenDonerReward(GameState state, {DateTime? nowUtc}) {
+    final tapBased = tapValueForActivePlay(state, nowUtc: nowUtc) * 50;
+    final passiveBased = (passiveIncomePerSecond(state, nowUtc: nowUtc) * 120)
+        .round();
+    final reward =
+        max(100, max(tapBased, passiveBased)) *
+        (1 + state.milestones.goldenDonerRewardPercent);
+    return max(100, reward.round());
   }
 
   PurchaseResult buyUpgrade(GameState state, UpgradeId id) {
@@ -310,21 +495,93 @@ class EconomyEngine {
     if (earned <= 0) {
       return state;
     }
-    return GameState.initial(
+    final nextPrestige = state.prestige.copyWith(
+      totalPrestigePoints: state.prestige.totalPrestigePoints + earned,
+      unspentPrestigePoints: state.prestige.unspentPrestigePoints + earned,
+      prestigeCount: state.prestige.prestigeCount + 1,
+      runCashEarned: 0,
+    );
+    final fastStartLevel = nextPrestige.prestigeUpgradeLevel(
+      PrestigeShopCatalog.fastStart,
+    );
+    final startingCash = fastStartLevel <= 0
+        ? 0
+        : (100 * fastStartLevel * nextPrestige.prestigeCount);
+    final earlyTurboLevel = nextPrestige.prestigeUpgradeLevel(
+      PrestigeShopCatalog.earlyTurbo,
+    );
+    final earlyTurboDuration = earlyTurboLevel <= 0
+        ? Duration.zero
+        : Duration(
+            milliseconds:
+                (config.rushDuration.inMilliseconds *
+                        min(1.0, earlyTurboLevel * 0.10))
+                    .round(),
+          );
+    final chestLevel = nextPrestige.prestigeUpgradeLevel(
+      PrestigeShopCatalog.masterChest,
+    );
+    final chestType = PrestigeShopCatalog.prestigeChestForLevel(chestLevel);
+    final initial = GameState.initial(
       config,
       nowUtc: now,
       localeCode: state.localeCode,
-    ).copyWith(
+    );
+    return initial.copyWith(
+      cash: startingCash,
       lifetimeCash: state.lifetimeCash,
       pendingOfflineCash: 0,
-      prestige: PrestigeState(
-        reputation: state.prestige.reputation + earned,
-        runCashEarned: 0,
-      ),
-      stats: state.stats.copyWith(currentCombo: 0),
-      quests: state.quests,
+      prestige: nextPrestige,
+      rush: earlyTurboDuration > Duration.zero
+          ? TimedEffectState(endsAtUtc: now.add(earlyTurboDuration))
+          : initial.rush,
+      stats: state.stats.copyWith(currentCombo: 0, clearLastTapAtUtc: true),
+      quests: StarterQuestCatalog.initialProgress(),
+      achievements: state.achievements,
+      collection: state.collection,
+      chestInventory: chestType == null
+          ? state.chestInventory
+          : state.chestInventory.add(chestType),
+      shopProgression: state.shopProgression.resetCurrentRun(),
       lastActiveAtUtc: now,
       lastSavedAtUtc: now,
+    );
+  }
+
+  PurchaseResult buyPrestigeUpgrade(GameState state, String upgradeId) {
+    final definition = PrestigeShopCatalog.byId(upgradeId);
+    if (definition == null) {
+      return PurchaseResult(
+        success: false,
+        state: state,
+        reason: 'unknown_prestige_upgrade',
+      );
+    }
+    final currentLevel = state.prestige.prestigeUpgradeLevel(upgradeId);
+    if (currentLevel >= definition.maxLevel) {
+      return PurchaseResult(success: false, state: state, reason: 'max_level');
+    }
+    final cost = definition.costForLevel(currentLevel);
+    if (state.prestige.unspentPrestigePoints < cost) {
+      return PurchaseResult(
+        success: false,
+        state: state,
+        cost: cost,
+        reason: 'insufficient_prestige_points',
+      );
+    }
+    final upgrades = Map<String, int>.from(
+      state.prestige.purchasedPrestigeUpgrades,
+    )..[upgradeId] = currentLevel + 1;
+    return PurchaseResult(
+      success: true,
+      state: state.copyWith(
+        prestige: state.prestige.copyWith(
+          unspentPrestigePoints: state.prestige.unspentPrestigePoints - cost,
+          purchasedPrestigeUpgrades: Map<String, int>.unmodifiable(upgrades),
+        ),
+      ),
+      cost: cost,
     );
   }
 
@@ -333,7 +590,7 @@ class EconomyEngine {
   }
 
   double prestigeMultiplier(GameState state) {
-    return prestigeMultiplierForPoints(state.prestige.reputation);
+    return prestigeMultiplierForPoints(state.prestige.totalPrestigePoints);
   }
 
   double prestigeMultiplierForPoints(int prestigePoints) {
@@ -389,12 +646,41 @@ class EconomyEngine {
   }
 
   double _criticalExpectedMultiplier(GameState state) {
-    final chance = min(1.0, max(0.0, state.milestones.criticalChance));
+    final chance = criticalChance(state);
     if (chance <= 0) {
       return 1;
     }
-    final multiplier = max(1.0, 3 + state.milestones.criticalMultiplierBonus);
+    final multiplier = criticalMultiplier(state);
     return 1 + (chance * (multiplier - 1));
+  }
+
+  double _tapIncome(
+    GameState state, {
+    DateTime? nowUtc,
+    double comboMultiplier = 1,
+    double criticalMultiplier = 1,
+  }) {
+    final activeMultiplier = min(
+      config.comboCriticalMultiplierCap,
+      max(1.0, comboMultiplier) * max(1.0, criticalMultiplier),
+    );
+    final now = (nowUtc ?? DateTime.now()).toUtc();
+    final collectionBonuses = _permanentBonuses(state);
+    return calculateTapIncome(
+      baseTap: config.baseTapValue.toDouble(),
+      knifeEffect: _knifeEffect(state),
+      ovenEffect: _ovenEffect(state),
+      menuEffect: _menuEffect(state),
+      shopMultiplier: shopMultiplier(state),
+      prestigeMultiplier: _prestigeMultiplier(state),
+      collectionTapMultiplier:
+          collectionBonuses.tapMultiplier * _prestigeTapMultiplier(state),
+      collectionGlobalMultiplier:
+          collectionBonuses.globalMultiplier * _prestigeGlobalMultiplier(state),
+      temporaryBoostMultiplier: state.passiveBoost.isActiveAt(now) ? 2 : 1,
+      turboMultiplier: _activeTurboMultiplier(state, nowUtc: nowUtc),
+      comboMultiplier: activeMultiplier,
+    );
   }
 
   List<UpgradeTrack> _activeUpgradeTracks(GameState state) {
@@ -409,6 +695,57 @@ class EconomyEngine {
 
   double _prestigeMultiplier(GameState state) {
     return prestigeMultiplier(state);
+  }
+
+  CollectionBonusTotals _permanentBonuses(GameState state) {
+    final collectionBonuses = CollectionCatalog.bonusTotalsFor(
+      config: config,
+      claimedBonusItemIds: state.collection.claimedBonusItemIds,
+    );
+    final achievementBonuses = _achievementBonuses(state);
+    return CollectionBonusTotals(
+      tapBonusPercent:
+          collectionBonuses.tapBonusPercent +
+          achievementBonuses.tapBonusPercent,
+      passiveBonusPercent:
+          collectionBonuses.passiveBonusPercent +
+          achievementBonuses.passiveBonusPercent,
+      globalBonusPercent:
+          collectionBonuses.globalBonusPercent +
+          achievementBonuses.globalBonusPercent,
+    );
+  }
+
+  CollectionBonusTotals _achievementBonuses(GameState state) {
+    var tap = 0.0;
+    var passive = 0.0;
+    var global = 0.0;
+    for (final progress in state.achievements.values) {
+      if (!progress.isRewardClaimed) {
+        continue;
+      }
+      final reward = AchievementCatalog.byId[progress.achievementId]?.reward;
+      if (reward == null) {
+        continue;
+      }
+      switch (reward.type) {
+        case AchievementRewardType.permanentTapBonus:
+          tap += reward.amount;
+        case AchievementRewardType.permanentPassiveBonus:
+          passive += reward.amount;
+        case AchievementRewardType.permanentGlobalBonus:
+          global += reward.amount;
+        case AchievementRewardType.cash:
+        case AchievementRewardType.chest:
+        case AchievementRewardType.cosmeticToken:
+          break;
+      }
+    }
+    return CollectionBonusTotals(
+      tapBonusPercent: tap,
+      passiveBonusPercent: passive,
+      globalBonusPercent: global,
+    );
   }
 
   GameState _addCoins(GameState state, int coins) {

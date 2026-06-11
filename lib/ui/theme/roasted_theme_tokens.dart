@@ -1,25 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 abstract final class DonerTypography {
-  static const logoFontFamily = 'DM Serif Display';
-  static const displayFontFamily = 'Cinzel';
-  static const bodyFontFamily = 'Montserrat';
+  static const logoFontFamily = 'Plus Jakarta Sans';
+  static const displayFontFamily = 'Plus Jakarta Sans';
+  static const bodyFontFamily = 'Be Vietnam Pro';
 
   static TextStyle logo(TextStyle? textStyle) {
-    return GoogleFonts.dmSerifDisplay(textStyle: textStyle);
+    return _withFamily(textStyle, logoFontFamily);
   }
 
   static TextStyle display(TextStyle? textStyle) {
-    return GoogleFonts.cinzel(textStyle: textStyle);
+    return _withFamily(textStyle, displayFontFamily);
   }
 
   static TextStyle body(TextStyle? textStyle) {
-    return GoogleFonts.montserrat(textStyle: textStyle);
+    return _withFamily(textStyle, bodyFontFamily);
   }
 
   static TextTheme bodyTextTheme(TextTheme textTheme) {
-    return GoogleFonts.montserratTextTheme(textTheme);
+    return textTheme.apply(fontFamily: bodyFontFamily);
+  }
+
+  static TextStyle _withFamily(TextStyle? textStyle, String fontFamily) {
+    return (textStyle ?? const TextStyle()).copyWith(fontFamily: fontFamily);
   }
 }
 

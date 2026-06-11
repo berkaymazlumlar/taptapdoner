@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
@@ -134,6 +137,254 @@ void main() {
       );
     },
   );
+
+  test(
+    'achievement progress completes and reward can be claimed once',
+    () async {
+      final repository = _RecordingSaveRepository();
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller = GameController(
+        config: config,
+        saveRepository: repository,
+        adService: const NoopRewardedAdService(),
+        clock: () => nowUtc,
+      )..hydrate(GameState.initial(config, nowUtc: nowUtc));
+
+      for (var i = 0; i < 10; i += 1) {
+        await controller.tap();
+      }
+
+      final progress = controller.state.achievements['tap_10'];
+      expect(progress?.isCompleted, isTrue);
+      expect(progress?.isRewardClaimed, isFalse);
+      expect(
+        controller
+            .progressionSnapshotListenable
+            .value
+            .latestClaimableAchievement
+            ?.id,
+        'tap_10',
+      );
+
+      final claimed = await controller.claimAchievementReward('tap_10');
+      final duplicate = await controller.claimAchievementReward('tap_10');
+
+      expect(claimed, isTrue);
+      expect(duplicate, isFalse);
+      expect(controller.state.cash, 60);
+      expect(controller.state.achievements['tap_10']?.isRewardClaimed, isTrue);
+      expect(
+        repository.savedState?.achievements['tap_10']?.isRewardClaimed,
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'opening a chest consumes inventory and applies the rolled reward',
+    () async {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+            random: _FixedRandom(0.1),
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              chestInventory: const ChestInventoryState(
+                counts: {ChestType.small: 1},
+              ),
+            ),
+          );
+
+      final reward = await controller.openChest(ChestType.small);
+
+      expect(reward, isNotNull);
+      expect(reward!.rewardType, ChestRewardType.money);
+      expect(controller.state.chestInventory.count(ChestType.small), 0);
+      expect(controller.state.stats.chestsOpened, 1);
+      expect(controller.state.cash, greaterThan(0));
+      expect(controller.state.achievements['chest_1']?.isCompleted, isTrue);
+    },
+  );
+
+  test('combo increases tap income and expires after its window', () async {
+    var nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final comboConfig = _activePlayConfig(baseTapValue: 10);
+    final controller =
+        GameController(
+          config: comboConfig,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+        )..hydrate(
+          GameState.initial(comboConfig, nowUtc: nowUtc).copyWith(
+            milestones: const MilestoneState(unlockedFeatureKeys: {'combo'}),
+          ),
+        );
+
+    final first = await controller.tap();
+    TapOutcome fifth = first;
+    for (var index = 0; index < 4; index += 1) {
+      fifth = await controller.tap();
+    }
+
+    expect(first.combo, 1);
+    expect(fifth.combo, 5);
+    expect(fifth.comboMultiplier, closeTo(1.10, 0.0001));
+    expect(fifth.coins, greaterThan(first.coins));
+    expect(controller.activePlaySnapshotListenable.value.currentCombo, 5);
+
+    nowUtc = nowUtc.add(const Duration(seconds: 3));
+    controller.tick(const Duration(seconds: 3));
+
+    expect(controller.activePlaySnapshotListenable.value.currentCombo, 0);
+  });
+
+  test('critical cut randomly multiplies an unlocked tap', () async {
+    final criticalConfig = _activePlayConfig(
+      baseTapValue: 10,
+      criticalBaseChance: 1,
+      criticalMaxChance: 1,
+    );
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller =
+        GameController(
+          config: criticalConfig,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+        )..hydrate(
+          GameState.initial(criticalConfig, nowUtc: nowUtc).copyWith(
+            milestones: const MilestoneState(
+              unlockedFeatureKeys: {'critical_cut'},
+            ),
+          ),
+        );
+
+    final outcome = await controller.tap();
+
+    expect(outcome.isCritical, isTrue);
+    expect(outcome.criticalMultiplier, closeTo(3, 0.0001));
+    expect(outcome.coins, 30);
+    expect(controller.state.stats.criticalCutCount, 1);
+  });
+
+  test(
+    'golden doner spawns while active and pays only when completed',
+    () async {
+      var nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final goldenConfig = _activePlayConfig(
+        baseTapValue: 10,
+        goldenDonerMinSpawnInterval: const Duration(seconds: 1),
+        goldenDonerMaxSpawnInterval: const Duration(seconds: 1),
+        goldenDonerActiveDuration: const Duration(seconds: 5),
+        goldenDonerRequiredHits: 2,
+      );
+      final controller =
+          GameController(
+            config: goldenConfig,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(goldenConfig, nowUtc: nowUtc).copyWith(
+              milestones: const MilestoneState(
+                unlockedFeatureKeys: {'golden_doner'},
+              ),
+            ),
+          );
+
+      nowUtc = nowUtc.add(const Duration(seconds: 1));
+      controller.tick(const Duration(seconds: 1));
+
+      expect(
+        controller.activePlaySnapshotListenable.value.goldenDonerActive,
+        isTrue,
+      );
+      expect(controller.state.goldenDoner.requiredHits, 2);
+
+      final firstHit = await controller.tap();
+      final secondHit = await controller.tap();
+
+      expect(firstHit.goldenDonerHit, isTrue);
+      expect(firstHit.goldenDonerCompleted, isFalse);
+      expect(secondHit.goldenDonerCompleted, isTrue);
+      expect(secondHit.goldenDonerReward, greaterThanOrEqualTo(500));
+      expect(controller.state.stats.goldenDonerCollected, 1);
+      expect(controller.state.goldenDoner.isActiveAt(nowUtc), isFalse);
+      expect(
+        controller.state.cash,
+        greaterThanOrEqualTo(secondHit.goldenDonerReward),
+      );
+    },
+  );
+
+  test(
+    'expired golden doner gives no reward after background checkpoint',
+    () async {
+      var nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final goldenConfig = _activePlayConfig(
+        goldenDonerMinSpawnInterval: const Duration(seconds: 1),
+        goldenDonerMaxSpawnInterval: const Duration(seconds: 1),
+        goldenDonerActiveDuration: const Duration(seconds: 2),
+        goldenDonerRequiredHits: 2,
+      );
+      final controller =
+          GameController(
+            config: goldenConfig,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(goldenConfig, nowUtc: nowUtc).copyWith(
+              milestones: const MilestoneState(
+                unlockedFeatureKeys: {'golden_doner'},
+              ),
+            ),
+          );
+
+      nowUtc = nowUtc.add(const Duration(seconds: 1));
+      controller.tick(const Duration(seconds: 1));
+      expect(controller.state.goldenDoner.isActiveAt(nowUtc), isTrue);
+
+      nowUtc = nowUtc.add(const Duration(seconds: 5));
+      await controller.checkpointLifecycle();
+
+      expect(controller.state.goldenDoner.isActiveAt(nowUtc), isFalse);
+      expect(controller.state.stats.goldenDonerCollected, 0);
+    },
+  );
+}
+
+EconomyConfig _activePlayConfig({
+  int baseTapValue = 1,
+  double criticalBaseChance = 0.03,
+  double criticalMaxChance = 0.40,
+  Duration goldenDonerMinSpawnInterval = const Duration(seconds: 90),
+  Duration goldenDonerMaxSpawnInterval = const Duration(seconds: 240),
+  Duration goldenDonerActiveDuration = const Duration(seconds: 6),
+  int goldenDonerRequiredHits = 10,
+}) {
+  final config = EconomyConfig.standard();
+  return EconomyConfig(
+    baseTapValue: baseTapValue,
+    rushIncomeMultiplier: config.rushIncomeMultiplier,
+    rushDuration: config.rushDuration,
+    rushCooldown: config.rushCooldown,
+    offlineCap: config.offlineCap,
+    prestigeThreshold: config.prestigeThreshold,
+    prestigeBonusPerPoint: config.prestigeBonusPerPoint,
+    upgrades: config.upgrades,
+    criticalBaseChance: criticalBaseChance,
+    criticalMaxChance: criticalMaxChance,
+    goldenDonerMinSpawnInterval: goldenDonerMinSpawnInterval,
+    goldenDonerMaxSpawnInterval: goldenDonerMaxSpawnInterval,
+    goldenDonerActiveDuration: goldenDonerActiveDuration,
+    goldenDonerRequiredHits: goldenDonerRequiredHits,
+  );
 }
 
 class _RecordingSaveRepository implements SaveRepository {
@@ -176,4 +427,19 @@ class _DelayedSaveRepository implements SaveRepository {
     await Future<void>.delayed(delay);
     savedStates.add(state);
   }
+}
+
+class _FixedRandom implements math.Random {
+  const _FixedRandom(this.value);
+
+  final double value;
+
+  @override
+  bool nextBool() => value >= 0.5;
+
+  @override
+  double nextDouble() => value;
+
+  @override
+  int nextInt(int max) => (value * max).floor().clamp(0, max - 1);
 }

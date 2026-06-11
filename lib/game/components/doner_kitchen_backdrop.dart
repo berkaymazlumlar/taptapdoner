@@ -13,14 +13,19 @@ class DonerKitchenBackdrop extends Component
   static const double _maxSpawnRate = 12;
   static const int _maxActiveDrops = 30;
   static const int _decodedBillWidth = 320;
+  static const int _decodedBackdropWidth = 1440;
 
   final math.Random _random = math.Random();
   final List<_MoneyDrop> _drops = <_MoneyDrop>[];
   final List<ui.Image> _moneyImages = <ui.Image>[];
+  ui.Image? _backgroundImage;
   double _spawnAccumulator = 0;
 
   @visibleForTesting
   int get debugActiveMoneyDropCount => _drops.length;
+
+  @visibleForTesting
+  bool get debugHasBackdropImage => _backgroundImage != null;
 
   @visibleForTesting
   double debugSpawnRateFor(double passiveIncomePerSecond) {
@@ -30,6 +35,14 @@ class DonerKitchenBackdrop extends Component
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    try {
+      _backgroundImage = await _loadUiImage(
+        UiAssetPaths.kitchenBackdrop,
+        targetWidth: _decodedBackdropWidth,
+      );
+    } catch (_) {
+      _backgroundImage = null;
+    }
     for (final assetPath in UiAssetPaths.moneyRainBills) {
       try {
         _moneyImages.add(await _loadUiImage(assetPath));
@@ -83,9 +96,19 @@ class DonerKitchenBackdrop extends Component
   void render(Canvas canvas) {
     final size = game.size.toSize();
     final rect = Offset.zero & size;
-    final backgroundShader = DonerGradients.screen.createShader(rect);
-
-    canvas.drawRect(rect, Paint()..shader = backgroundShader);
+    final backgroundImage = _backgroundImage;
+    if (backgroundImage != null) {
+      paintImage(
+        canvas: canvas,
+        rect: rect,
+        image: backgroundImage,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
+      );
+    } else {
+      final backgroundShader = DonerGradients.screen.createShader(rect);
+      canvas.drawRect(rect, Paint()..shader = backgroundShader);
+    }
 
     for (final drop in _drops) {
       if (_moneyImages.isEmpty) {
@@ -160,11 +183,11 @@ class DonerKitchenBackdrop extends Component
     );
   }
 
-  Future<ui.Image> _loadUiImage(String assetPath) async {
+  Future<ui.Image> _loadUiImage(String assetPath, {int? targetWidth}) async {
     final data = await rootBundle.load(assetPath);
     final codec = await ui.instantiateImageCodec(
       data.buffer.asUint8List(),
-      targetWidth: _decodedBillWidth,
+      targetWidth: targetWidth ?? _decodedBillWidth,
     );
     final frame = await codec.getNextFrame();
     codec.dispose();

@@ -44,10 +44,18 @@ class UiFooterMenuTray extends StatelessWidget {
         key: const ValueKey('ui-footer-menu-tray-fallback-shell'),
         decoration: BoxDecoration(
           borderRadius: radius,
-          gradient: DonerGradients.header,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF61150E).withValues(alpha: 0.80),
+              const Color(0xFF4B0E0A).withValues(alpha: 0.74),
+              const Color(0xFF3A0B08).withValues(alpha: 0.68),
+            ],
+          ),
           border: Border.all(
-            color: DonerColors.borderPrimary.withValues(alpha: 0.86),
-            width: 1.5,
+            color: DonerColors.borderPrimary.withValues(alpha: 0.58),
+            width: 1.35,
           ),
           boxShadow: RoastedShadows.surface,
         ),
@@ -64,12 +72,10 @@ class UiFooterMenuTray extends StatelessWidget {
                         borderRadius: radius,
                         gradient: LinearGradient(
                           colors: [
-                            Colors.white.withValues(
-                              alpha: RoastedOpacity.gloss,
-                            ),
+                            Colors.white.withValues(alpha: 0.05),
                             Colors.transparent,
                             RoastedColors.surfaceContainerLowest.withValues(
-                              alpha: 0.12,
+                              alpha: 0.08,
                             ),
                           ],
                           begin: Alignment.topCenter,
@@ -152,9 +158,18 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
 
     final shellGradient = enabled
         ? selected
-              ? const [Color(0xFFB24F1B), DonerColors.panelSecondary]
-              : const [DonerColors.panelSecondary, DonerColors.panelPrimary]
-        : const [DonerColors.panelDark, DonerColors.disabledBg];
+              ? [
+                  const Color(0xFFB24F1B).withValues(alpha: 0.82),
+                  DonerColors.panelSecondary.withValues(alpha: 0.76),
+                ]
+              : [
+                  DonerColors.panelSecondary.withValues(alpha: 0.74),
+                  DonerColors.panelPrimary.withValues(alpha: 0.68),
+                ]
+        : [
+            DonerColors.panelDark.withValues(alpha: 0.52),
+            DonerColors.disabledBg.withValues(alpha: 0.46),
+          ];
 
     final shellShadow = [
       BoxShadow(
@@ -204,6 +219,9 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
               children: [
                 Positioned.fill(
                   child: DecoratedBox(
+                    key: ValueKey(
+                      'ui-footer-menu-tray-segment-shell-${widget.index}',
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: itemRadius,
                       gradient: LinearGradient(
@@ -214,8 +232,8 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
                       boxShadow: shellShadow,
                       border: Border.all(
                         color: selected
-                            ? DonerColors.goldPrimary.withValues(alpha: 0.72)
-                            : DonerColors.borderSoft.withValues(alpha: 0.56),
+                            ? DonerColors.goldPrimary.withValues(alpha: 0.54)
+                            : DonerColors.borderSoft.withValues(alpha: 0.42),
                       ),
                     ),
                   ),
@@ -227,12 +245,10 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
                         borderRadius: itemRadius,
                         gradient: LinearGradient(
                           colors: [
-                            Colors.white.withValues(
-                              alpha: RoastedOpacity.gloss,
-                            ),
+                            Colors.white.withValues(alpha: 0.05),
                             Colors.transparent,
                             RoastedColors.surfaceContainerLowest.withValues(
-                              alpha: 0.12,
+                              alpha: 0.08,
                             ),
                           ],
                           begin: Alignment.topCenter,

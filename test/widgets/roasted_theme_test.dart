@@ -15,11 +15,14 @@ void main() {
     final theme = buildAppTheme();
 
     expect(theme.brightness, Brightness.dark);
-    expect(theme.scaffoldBackgroundColor, const Color(0xFF1F0F09));
-    expect(theme.colorScheme.primary, const Color(0xFFE9C400));
-    expect(theme.colorScheme.surfaceContainer, const Color(0xFF2D1B14));
-    expect(theme.colorScheme.surfaceContainerHigh, const Color(0xFF39251E));
-    expect(theme.colorScheme.onSurface, const Color(0xFFFDDBD0));
+    expect(theme.scaffoldBackgroundColor, RoastedColors.background);
+    expect(theme.colorScheme.primary, RoastedColors.primary);
+    expect(theme.colorScheme.surfaceContainer, RoastedColors.surfaceContainer);
+    expect(
+      theme.colorScheme.surfaceContainerHigh,
+      RoastedColors.surfaceContainerHigh,
+    );
+    expect(theme.colorScheme.onSurface, RoastedColors.onSurface);
 
     expect(theme.textTheme.displayLarge?.fontFamily, 'Plus Jakarta Sans');
     expect(theme.textTheme.headlineMedium?.fontFamily, 'Plus Jakarta Sans');
@@ -27,8 +30,8 @@ void main() {
     expect(theme.textTheme.bodyMedium?.fontFamily, 'Be Vietnam Pro');
     expect(theme.textTheme.labelLarge?.fontFamily, 'Be Vietnam Pro');
 
-    expect(RoastedShadows.surface.first.color, const Color(0x1AFDDBD0));
-    expect(RoastedShadows.glow.first.color, const Color(0x22E9C400));
+    expect(RoastedShadows.surface.first.color, const Color(0x59000000));
+    expect(RoastedShadows.glow.first.color, const Color(0x2EE8B35A));
   });
 
   testWidgets('chef portrait asset is bundled and the avatar widget builds', (
@@ -54,7 +57,7 @@ void main() {
     final decoration = container.decoration as BoxDecoration;
     expect(
       decoration.boxShadow?.first.color,
-      RoastedColors.onSurface.withValues(alpha: 0.18),
+      DonerColors.tealPrimary.withValues(alpha: 0.22),
     );
   });
 }

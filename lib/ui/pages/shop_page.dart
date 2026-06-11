@@ -51,6 +51,14 @@ class ShopPage extends StatelessWidget {
             child: ValueListenableBuilder<ShopSnapshot>(
               valueListenable: controller.shopSnapshotListenable,
               builder: (context, snapshot, _) {
+                final levelUp = controller.consumeShopLevelUpSnapshot();
+                if (levelUp != null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (context.mounted) {
+                      _showShopLevelUpDialog(context, levelUp);
+                    }
+                  });
+                }
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final compact =
@@ -83,6 +91,109 @@ class ShopPage extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showShopLevelUpDialog(
+  BuildContext context,
+  ShopLevelUpSnapshot snapshot,
+) {
+  showDialog<void>(
+    context: context,
+    builder: (context) {
+      return Dialog(
+        key: const ValueKey('shop-level-up-popup'),
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.symmetric(horizontal: 28.w),
+        child: Container(
+          padding: EdgeInsets.all(18.w),
+          decoration: BoxDecoration(
+            gradient: DonerGradients.card,
+            borderRadius: BorderRadius.circular(16.r),
+            border: Border.all(
+              color: DonerColors.goldPrimary.withValues(alpha: 0.88),
+              width: 1.6,
+            ),
+            boxShadow: DonerShadows.soft,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  FaIcon(
+                    DonerIcons.shop,
+                    color: DonerColors.goldPrimary,
+                    size: 22.sp,
+                  ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Text(
+                      'SHOP LEVEL UP',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: RoastedTypography.headlineFontFamily,
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                        color: DonerColors.goldPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10.h),
+              Text(
+                '${snapshot.previousLevelName} -> ${snapshot.currentLevelName}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: RoastedTypography.bodyFontFamily,
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w800,
+                  color: DonerColors.creamText,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                'Unlocked: ${snapshot.unlockLabel}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: RoastedTypography.bodyFontFamily,
+                  fontSize: 11.sp,
+                  fontWeight: FontWeight.w700,
+                  color: DonerColors.bodyText,
+                ),
+              ),
+              SizedBox(height: 4.h),
+              Text(
+                'Income x${snapshot.incomeMultiplier.toStringAsFixed(2)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: RoastedTypography.bodyFontFamily,
+                  fontSize: 11.sp,
+                  fontWeight: FontWeight.w900,
+                  color: DonerColors.tealBright,
+                ),
+              ),
+              SizedBox(height: 14.h),
+              DonerGameButton(
+                label: 'OK',
+                icon: DonerIcons.shield,
+                enabled: true,
+                onPressed: () => Navigator.of(context).maybePop(),
+                height: 42.h,
+                pill: true,
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _ShopContent extends StatelessWidget {
@@ -133,6 +244,8 @@ class _ShopContent extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _ShopProgressionCard(snapshot: snapshot.progression),
+                      SizedBox(height: 12.h),
                       StitchSheetSectionDivider(label: strings.upgradesTitle),
                       SizedBox(height: 8.h),
                       for (final upgrade in controller.upgrades)
@@ -152,6 +265,218 @@ class _ShopContent extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ShopProgressionCard extends StatelessWidget {
+  const _ShopProgressionCard({required this.snapshot});
+
+  final ShopProgressionSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final nextName = snapshot.nextName;
+    return Container(
+      key: const ValueKey('shop-progression-card'),
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        gradient: DonerGradients.card,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(
+          color: DonerColors.borderPrimary.withValues(alpha: 0.78),
+          width: 1.4,
+        ),
+        boxShadow: DonerShadows.soft,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 30.w,
+                height: 30.w,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: DonerColors.goldPrimary.withValues(alpha: 0.13),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: DonerColors.borderPrimary),
+                ),
+                child: FaIcon(
+                  DonerIcons.shop,
+                  size: 14.sp,
+                  color: DonerColors.goldPrimary,
+                ),
+              ),
+              SizedBox(width: 9.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SHOP LEVEL ${snapshot.currentLevel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: RoastedTypography.bodyFontFamily,
+                        fontSize: 8.sp,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                        color: DonerColors.goldPrimary,
+                      ),
+                    ),
+                    SizedBox(height: 3.h),
+                    Text(
+                      snapshot.currentName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: RoastedTypography.headlineFontFamily,
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                        letterSpacing: 0,
+                        color: DonerColors.creamText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _ShopBonusPill(
+              label: 'Income',
+              value: 'x${snapshot.incomeMultiplier.toStringAsFixed(2)}',
+            ),
+          ),
+          SizedBox(height: 10.h),
+          if (nextName == null)
+            Text(
+              'Max shop level reached',
+              style: TextStyle(
+                fontFamily: RoastedTypography.bodyFontFamily,
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w700,
+                color: DonerColors.bodyText,
+              ),
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Next: Lv. ${snapshot.nextLevel} $nextName',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: RoastedTypography.bodyFontFamily,
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w900,
+                      color: DonerColors.bodyText,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Text(
+                  '${snapshot.completedRequirements}/${snapshot.requirements.length}',
+                  style: TextStyle(
+                    fontFamily: RoastedTypography.bodyFontFamily,
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w900,
+                    color: DonerColors.tealBright,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 8.h),
+            for (final requirement in snapshot.requirements.take(4))
+              Padding(
+                padding: EdgeInsets.only(bottom: 5.h),
+                child: Row(
+                  children: [
+                    FaIcon(
+                      requirement.completed
+                          ? DonerIcons.shield
+                          : DonerIcons.lock,
+                      size: 10.sp,
+                      color: requirement.completed
+                          ? DonerColors.tealBright
+                          : DonerColors.bodyText.withValues(alpha: 0.65),
+                    ),
+                    SizedBox(width: 7.w),
+                    Expanded(
+                      child: Text(
+                        requirement.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: RoastedTypography.bodyFontFamily,
+                          fontSize: 10.sp,
+                          fontWeight: FontWeight.w700,
+                          color: requirement.completed
+                              ? DonerColors.creamText
+                              : DonerColors.bodyText,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ShopBonusPill extends StatelessWidget {
+  const _ShopBonusPill({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(minWidth: 70.w),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        color: DonerColors.panelDark.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: DonerColors.borderSoft),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.bodyFontFamily,
+              fontSize: 8.sp,
+              fontWeight: FontWeight.w800,
+              color: DonerColors.bodyText,
+            ),
+          ),
+          SizedBox(height: 2.h),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: RoastedTypography.headlineFontFamily,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: DonerColors.goldPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

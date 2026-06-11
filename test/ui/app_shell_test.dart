@@ -110,6 +110,53 @@ void main() {
     expect(find.text('Combo unlocks at Rusty Knife Lv. 15.'), findsOneWidget);
   });
 
+  testWidgets('home bottom nav switches to Goals and shows the full list', (
+    tester,
+  ) async {
+    final controller = _controllerForApp(config, nowUtc);
+
+    await _pumpAppForTabs(tester, controller);
+    await tester.tap(find.byKey(const ValueKey('bottom-nav-goals-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('goals-tab-root')), findsOneWidget);
+    expect(find.byKey(const ValueKey('goals-page-root')), findsOneWidget);
+    expect(find.byKey(const ValueKey('tap-zone-root')), findsNothing);
+    expect(_findGameWidget(), findsNothing);
+    expect(find.text('First Cut'), findsOneWidget);
+    expect(find.text('Fresh Start'), findsOneWidget);
+    expect(find.byKey(const ValueKey('bottom-nav-shell')), findsOneWidget);
+  });
+
+  testWidgets('achievement popup claims the reward and dismisses itself', (
+    tester,
+  ) async {
+    final controller = _controllerForApp(config, nowUtc);
+
+    await _pumpAppForTabs(tester, controller);
+    for (var index = 0; index < 10; index += 1) {
+      await controller.tap();
+    }
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('achievement-popup-card')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('achievement-popup-claim-tap_10')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('achievement-popup-claim-tap_10')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(controller.state.achievements['tap_10']?.isRewardClaimed, isTrue);
+    expect(find.byKey(const ValueKey('achievement-popup-card')), findsNothing);
+  });
+
   testWidgets('home bottom nav switches to Prestige without a bottom sheet', (
     tester,
   ) async {

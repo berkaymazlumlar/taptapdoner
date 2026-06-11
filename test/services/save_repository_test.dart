@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/progression/faz5_models.dart';
+import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
@@ -33,6 +35,13 @@ void main() {
         ).copyWith(
           cash: 1234,
           pendingOfflineCash: 87,
+          prestige: const PrestigeState(
+            reputation: 4,
+            unspentPrestigePoints: 2,
+            prestigeCount: 1,
+            runCashEarned: 7500,
+            purchasedPrestigeUpgrades: {PrestigeShopCatalog.masterHand: 1},
+          ),
           milestones: const MilestoneState(
             claimedMilestoneKeys: {'knife_rusty_knife_5'},
             unlockedFeatureKeys: {'critical_cut'},
@@ -45,7 +54,42 @@ void main() {
             criticalCutCount: 2,
             maxCombo: 4,
           ),
+          goldenDoner: GoldenDonerState(
+            activeUntilUtc: DateTime.utc(2026, 4, 1, 12, 0, 5),
+            nextSpawnAtUtc: DateTime.utc(2026, 4, 1, 12, 2),
+            lastSpawnAtUtc: DateTime.utc(2026, 4, 1, 12),
+            requiredHits: 10,
+            currentHits: 3,
+            rewardPreview: 500,
+          ),
           quests: quests,
+          achievements: {
+            for (final entry in GameState.initial(config).achievements.entries)
+              entry.key: entry.key == 'tap_10'
+                  ? const AchievementProgress(
+                      achievementId: 'tap_10',
+                      currentValue: 10,
+                      isCompleted: true,
+                      isRewardClaimed: true,
+                    )
+                  : entry.value,
+          },
+          collection: const CollectionState(
+            unlockedItemIds: {'knife_rusty_knife'},
+            claimedBonusItemIds: {'knife_rusty_knife'},
+          ),
+          chestInventory: const ChestInventoryState(
+            counts: {ChestType.small: 2, ChestType.master: 1},
+          ),
+          shopProgression: const ShopProgressionState(
+            currentShopLevel: 2,
+            highestShopLevel: 3,
+            unlockedShopIds: {
+              'street_stand',
+              'small_buffet',
+              'neighborhood_doner',
+            },
+          ),
           upgrades: {
             for (final definition in config.upgrades)
               definition.id: definition.id == UpgradeId.knife
@@ -70,8 +114,16 @@ void main() {
     expect(raw, contains('"level":6'));
     expect(raw, contains('"claimedMilestones":["knife_rusty_knife_5"]'));
     expect(raw, contains('"tapCount":12'));
+    expect(raw, contains('"goldenDoner"'));
+    expect(raw, contains('"currentHits":3'));
     expect(raw, contains('"questId":"starter_tap_10"'));
     expect(raw, contains('"rewardClaimed":true'));
+    expect(raw, contains('"achievementId":"tap_10"'));
+    expect(raw, contains('"collection"'));
+    expect(raw, contains('"chestInventory"'));
+    expect(raw, contains('"shopProgression"'));
+    expect(raw, contains('"unspentPrestigePoints":2'));
+    expect(raw, contains('"master_hand":1'));
     expect(raw, isNot(contains('stations')));
     expect(raw, isNot(contains('baseCost')));
     expect(raw, isNot(contains('tiers')));
@@ -79,6 +131,14 @@ void main() {
     expect(loaded!.cash, 1234);
     expect(loaded.pendingOfflineCash, 87);
     expect(loaded.localeCode, 'tr');
+    expect(loaded.prestige.totalPrestigePoints, 4);
+    expect(loaded.prestige.unspentPrestigePoints, 2);
+    expect(loaded.prestige.prestigeCount, 1);
+    expect(
+      loaded.prestige.prestigeUpgradeLevel(PrestigeShopCatalog.masterHand),
+      1,
+    );
+    expect(loaded.prestige.runCashEarned, 7500);
     expect(loaded.upgrade(UpgradeId.knife).itemIndex, 1);
     expect(loaded.upgrade(UpgradeId.knife).level, 6);
     expect(
@@ -92,8 +152,29 @@ void main() {
     expect(loaded.stats.totalUpgradesPurchased, 1);
     expect(loaded.stats.criticalCutCount, 2);
     expect(loaded.stats.maxCombo, 4);
+    expect(loaded.goldenDoner.currentHits, 3);
+    expect(loaded.goldenDoner.requiredHits, 10);
+    expect(loaded.goldenDoner.rewardPreview, 500);
+    expect(
+      loaded.goldenDoner.activeUntilUtc,
+      DateTime.utc(2026, 4, 1, 12, 0, 5),
+    );
     expect(loaded.quests['starter_tap_10']?.status, QuestStatus.claimed);
     expect(loaded.quests['starter_tap_10']?.rewardClaimed, isTrue);
+    expect(loaded.achievements['tap_10']?.isRewardClaimed, isTrue);
+    expect(loaded.collection.unlockedItemIds, contains('knife_rusty_knife'));
+    expect(
+      loaded.collection.claimedBonusItemIds,
+      contains('knife_rusty_knife'),
+    );
+    expect(loaded.chestInventory.count(ChestType.small), 2);
+    expect(loaded.chestInventory.count(ChestType.master), 1);
+    expect(loaded.shopProgression.currentShopLevel, 2);
+    expect(loaded.shopProgression.highestShopLevel, 3);
+    expect(
+      loaded.shopProgression.unlockedShopIds,
+      contains('neighborhood_doner'),
+    );
   });
 
   test('corrupt payload returns null', () async {

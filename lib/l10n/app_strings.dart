@@ -86,6 +86,17 @@ class AppStrings {
   String get questClaimLabel => _value('questClaimLabel');
   String get questCompletedLabel => _value('questCompletedLabel');
   String get questComboUnlockInfo => _value('questComboUnlockInfo');
+  String get comboLabel => _value('comboLabel');
+  String get criticalCutLabel => _value('criticalCutLabel');
+  String get goldenDonerLabel => _value('goldenDonerLabel');
+  String get goldenDonerRewardLabel => _value('goldenDonerRewardLabel');
+
+  String goldenDonerProgress(int hits, int requiredHits) {
+    return _template('goldenDonerProgress', {
+      'hits': hits.toString(),
+      'required': requiredHits.toString(),
+    });
+  }
 
   String rushStatus(Duration remaining, Duration cooldown) {
     if (remaining > Duration.zero) {
@@ -407,6 +418,11 @@ const Map<String, String> _en = {
   'quest.starter_shop_level_2.reward': 'Global income +5%',
   'quest.starter_open_prestige.title': 'View the Prestige Goal',
   'quest.starter_open_prestige.reward': '+500 cash',
+  'comboLabel': 'Combo',
+  'criticalCutLabel': 'Critical!',
+  'goldenDonerLabel': 'Golden Doner',
+  'goldenDonerRewardLabel': 'Reward',
+  'goldenDonerProgress': '{hits}/{required} cuts',
   'settingsTitle': 'Settings',
   'languageTitle': 'Language',
   'englishLabel': 'English',
@@ -655,6 +671,11 @@ const Map<String, String> _tr = {
   'quest.starter_shop_level_2.reward': 'Global gelir +%5',
   'quest.starter_open_prestige.title': 'Prestij hedefini gor',
   'quest.starter_open_prestige.reward': '+500 para',
+  'comboLabel': 'Combo',
+  'criticalCutLabel': 'Kritik!',
+  'goldenDonerLabel': 'Altin Doner',
+  'goldenDonerRewardLabel': 'Odul',
+  'goldenDonerProgress': '{hits}/{required} kesim',
   'settingsTitle': 'Ayarlar',
   'languageTitle': 'Dil',
   'englishLabel': 'Ingilizce',

@@ -1,3 +1,5 @@
+import 'package:taptapdoner/domain/progression/faz5_models.dart';
+
 enum QuestStatus { locked, active, completed, claimed }
 
 enum StarterQuestGoalType {
@@ -98,6 +100,7 @@ class StarterQuestReward {
   const StarterQuestReward({
     this.cash = 0,
     this.chests = 0,
+    this.chestType = ChestType.small,
     this.featureKey,
     this.passiveBoostDuration = Duration.zero,
     this.comboMultiplierBonus = 0,
@@ -110,6 +113,7 @@ class StarterQuestReward {
 
   final int cash;
   final int chests;
+  final ChestType chestType;
   final String? featureKey;
   final Duration passiveBoostDuration;
   final double comboMultiplierBonus;
@@ -217,7 +221,7 @@ abstract final class StarterQuestCatalog {
       id: 'starter_knife_item_1',
       goalType: StarterQuestGoalType.knifeItemIndex,
       targetValue: 1,
-      reward: StarterQuestReward(chests: 1),
+      reward: StarterQuestReward(chests: 1, chestType: ChestType.master),
     ),
     StarterQuestDefinition(
       id: 'starter_shop_prepare',

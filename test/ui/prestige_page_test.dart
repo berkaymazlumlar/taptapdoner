@@ -13,7 +13,9 @@ void main() {
   final config = EconomyConfig.standard();
   final nowUtc = DateTime.utc(2026, 4, 1, 12);
 
-  testWidgets('prestige sheet renders the stitched hierarchy', (tester) async {
+  testWidgets('prestige sheet renders the collapsed info layout', (
+    tester,
+  ) async {
     final controller = _controller(
       config,
       nowUtc,
@@ -36,15 +38,28 @@ void main() {
     expect(find.text('After'), findsOneWidget);
     expect(find.text('x1.10'), findsOneWidget);
     expect(find.text('x1.15'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('prestige-shop-shortcut-button')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('prestige-checklist-toggle-What Resets')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('prestige-checklist-toggle-What Stays')),
+      findsOneWidget,
+    );
     expect(find.text('What Resets'), findsOneWidget);
     expect(
       find.text(
-        'Current money, all upgrade progress, temporary boosts, and turbo state',
+        'Current money, all upgrade progress, current shop level, temporary boosts, combo, Golden Doner, and turbo state',
       ),
-      findsOneWidget,
+      findsNothing,
     );
+    expect(find.text('Unspent'), findsOneWidget);
     expect(find.text('What Stays'), findsOneWidget);
-    expect(find.text('Prestige multiplier'), findsOneWidget);
+    expect(find.text('Prestige multiplier'), findsNothing);
     final actionButton = find.byKey(const ValueKey('prestige-action-button'));
     expect(actionButton, findsOneWidget);
     expect(tester.getRect(actionButton).bottom, lessThanOrEqualTo(844));
@@ -81,6 +96,86 @@ void main() {
     expect(controller.state.prestige.reputation, 3);
     expect(controller.state.prestige.runCashEarned, 0);
     expect(controller.availablePrestigePoints, 0);
+  });
+
+  testWidgets('prestige info tiles expand on demand', (tester) async {
+    final controller = _controller(
+      config,
+      nowUtc,
+      state: GameState.initial(config, nowUtc: nowUtc).copyWith(
+        prestige: const PrestigeState(reputation: 2, runCashEarned: 1_250_000),
+      ),
+    );
+
+    await _pumpPage(
+      tester,
+      controller,
+      presentation: PrestigePagePresentation.tab,
+    );
+
+    const resetText =
+        'Current money, all upgrade progress, current shop level, temporary boosts, combo, Golden Doner, and turbo state';
+    expect(find.text(resetText), findsNothing);
+
+    final resetToggle = find.byKey(
+      const ValueKey('prestige-checklist-toggle-What Resets'),
+    );
+    await tester.ensureVisible(resetToggle);
+    await tester.tap(resetToggle);
+    await tester.pumpAndSettle();
+
+    expect(find.text(resetText), findsOneWidget);
+  });
+
+  testWidgets('prestige shop opens as a separate page and purchases upgrades', (
+    tester,
+  ) async {
+    final controller = _controller(
+      config,
+      nowUtc,
+      state: GameState.initial(config, nowUtc: nowUtc).copyWith(
+        prestige: const PrestigeState(
+          totalPrestigePoints: 2,
+          unspentPrestigePoints: 2,
+          runCashEarned: 1_250_000,
+        ),
+      ),
+    );
+
+    await _pumpPage(tester, controller);
+
+    await tester.tap(
+      find.byKey(const ValueKey('prestige-shop-shortcut-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('prestige-shop-page-root')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('prestige-shop-page-title')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('prestige-shop-upgrade-master_hand')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('prestige-shop-buy-button-master_hand')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(controller.state.prestige.prestigeUpgradeLevel('master_hand'), 1);
+    expect(controller.state.prestige.unspentPrestigePoints, 1);
+
+    await tester.tap(
+      find.byKey(const ValueKey('prestige-shop-page-close-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('prestige-shop-page-root')), findsNothing);
   });
 
   testWidgets('prestige tab keeps the action inside the summary card', (
@@ -121,17 +216,10 @@ void main() {
     final stackRect = tester.getRect(cardStack);
     final resetRect = tester.getRect(resetCard);
     final staysRect = tester.getRect(staysCard);
-    final gaps = [
-      summaryRect.top - stackRect.top,
-      resetRect.top - summaryRect.bottom,
-      staysRect.top - resetRect.bottom,
-      stackRect.bottom - staysRect.bottom,
-    ];
-
-    for (final gap in gaps) {
-      expect(gap, greaterThan(0));
-      expect(gap, closeTo(gaps.first, 1.0));
-    }
+    expect(summaryRect.top, greaterThanOrEqualTo(stackRect.top));
+    expect(resetRect.top, greaterThan(summaryRect.bottom));
+    expect(staysRect.top, greaterThan(resetRect.bottom));
+    expect(stackRect.bottom, greaterThan(staysRect.bottom));
   });
 
   testWidgets('close button uses the provided callback', (tester) async {

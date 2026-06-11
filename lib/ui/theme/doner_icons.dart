@@ -7,6 +7,9 @@ abstract final class DonerIcons {
   static const FaIconData kitchen = FontAwesomeIcons.utensils;
   static const FaIconData shop = FontAwesomeIcons.store;
   static const FaIconData prestige = FontAwesomeIcons.award;
+  static const FaIconData goals = FontAwesomeIcons.trophy;
+  static const FaIconData chest = FontAwesomeIcons.boxOpen;
+  static const FaIconData collection = FontAwesomeIcons.layerGroup;
 
   static const FaIconData cash = FontAwesomeIcons.wallet;
   static const FaIconData idleIncome = FontAwesomeIcons.stopwatch;
@@ -26,6 +29,7 @@ abstract final class DonerIcons {
   static const FaIconData diamond = FontAwesomeIcons.diamond;
   static const FaIconData lock = FontAwesomeIcons.lock;
   static const FaIconData rewardAd = FontAwesomeIcons.video;
+  static const FaIconData expand = FontAwesomeIcons.chevronDown;
 
   static const FaIconData stationDonerSpit = FontAwesomeIcons.utensils;
   static const FaIconData stationPrep = FontAwesomeIcons.bowlFood;

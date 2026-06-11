@@ -5,13 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
+import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/ui/overlays/action_dock_overlay.dart';
 import 'package:taptapdoner/ui/overlays/game_hud_overlay.dart';
 import 'package:taptapdoner/ui/overlays/settings_overlay.dart';
 import 'package:taptapdoner/ui/overlays/starter_quest_overlay.dart';
 import 'package:taptapdoner/ui/overlays/tap_zone_overlay.dart';
+import 'package:taptapdoner/ui/pages/goals_page.dart';
 import 'package:taptapdoner/ui/pages/prestige_page.dart';
 import 'package:taptapdoner/ui/pages/shop_page.dart';
+import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/game_bottom_nav_bar.dart';
 
@@ -106,6 +109,11 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
             presentation: ShopPagePresentation.tab,
           ),
         );
+      case GameBottomNavTab.goals:
+        return KeyedSubtree(
+          key: const ValueKey('goals-tab-root'),
+          child: GoalsPage(controller: widget.controller),
+        );
       case GameBottomNavTab.prestige:
         return KeyedSubtree(
           key: const ValueKey('prestige-tab-root'),
@@ -128,6 +136,7 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
       activeTab: _activeTab,
       onOpenKitchen: () => _selectTab(GameBottomNavTab.kitchen),
       onOpenShop: () => _selectTab(GameBottomNavTab.shop),
+      onOpenGoals: () => _selectTab(GameBottomNavTab.goals),
       onOpenPrestige: () => _selectTab(GameBottomNavTab.prestige),
     );
   }
@@ -256,6 +265,15 @@ class _KitchenTabPageState extends State<_KitchenTabPage> {
                     ),
                   ),
                   Positioned(
+                    left: metrics.progressionPopupSideInset,
+                    right: metrics.questButtonSideInset + (68 * metrics.scale),
+                    bottom: metrics.progressionPopupBottomInset,
+                    child: _AchievementPopup(
+                      controller: widget.controller,
+                      scale: metrics.scale,
+                    ),
+                  ),
+                  Positioned(
                     top: metrics.fpsTopInset,
                     left: metrics.fpsSideInset,
                     child: IgnorePointer(
@@ -297,8 +315,73 @@ class _ShellMetrics {
   double get questButtonTopInset => rushButtonTopInset + (64 * scale);
   double get questButtonSideInset => rushButtonSideInset;
   double get questPanelTopInset => questButtonTopInset + (64 * scale);
+  double get progressionPopupSideInset => 22 * scale;
+  double get progressionPopupBottomInset => 12 * scale;
   double get fpsTopInset => 16 * scale;
   double get fpsSideInset => 24 * scale;
+}
+
+class _AchievementPopup extends StatelessWidget {
+  const _AchievementPopup({required this.controller, required this.scale});
+
+  final GameController controller;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ProgressionSnapshot>(
+      valueListenable: controller.progressionSnapshotListenable,
+      builder: (context, snapshot, _) {
+        final achievement = snapshot.latestClaimableAchievement;
+        if (achievement == null) {
+          return const SizedBox.shrink();
+        }
+        return DecoratedBox(
+          key: const ValueKey('achievement-popup-card'),
+          decoration: BoxDecoration(
+            gradient: DonerGradients.activeButton,
+            borderRadius: BorderRadius.circular(8 * scale),
+            border: Border.all(color: DonerColors.goldBright, width: 1.4),
+            boxShadow: DonerShadows.soft,
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(10 * scale),
+            child: Row(
+              children: [
+                FaIcon(
+                  DonerIcons.goals,
+                  color: DonerColors.creamText,
+                  size: 18 * scale,
+                ),
+                SizedBox(width: 8 * scale),
+                Expanded(
+                  child: Text(
+                    achievement.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DonerTypography.body(
+                      Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: DonerColors.creamText,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12 * scale,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  key: ValueKey('achievement-popup-claim-${achievement.id}'),
+                  onPressed: () =>
+                      controller.claimAchievementReward(achievement.id),
+                  child: Text(AppStrings.of(context).claimLabel),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _FpsBadge extends StatelessWidget {

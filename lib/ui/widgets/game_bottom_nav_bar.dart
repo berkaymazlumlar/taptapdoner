@@ -4,13 +4,14 @@ import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/ui_footer_menu_tray.dart';
 
-enum GameBottomNavTab { kitchen, shop, prestige }
+enum GameBottomNavTab { kitchen, shop, goals, prestige }
 
 class GameBottomNavBar extends StatelessWidget {
   const GameBottomNavBar({
     required this.activeTab,
     required this.onOpenKitchen,
     required this.onOpenShop,
+    required this.onOpenGoals,
     required this.onOpenPrestige,
     super.key,
   });
@@ -18,6 +19,7 @@ class GameBottomNavBar extends StatelessWidget {
   final GameBottomNavTab activeTab;
   final VoidCallback onOpenKitchen;
   final VoidCallback onOpenShop;
+  final VoidCallback onOpenGoals;
   final VoidCallback onOpenPrestige;
 
   @override
@@ -39,6 +41,13 @@ class GameBottomNavBar extends StatelessWidget {
         onPressed: onOpenShop,
       ),
       UiFooterMenuTrayItem(
+        key: const ValueKey('bottom-nav-goals-button'),
+        icon: DonerIcons.goals,
+        label: strings.isTurkish ? 'HEDEF' : 'Goals',
+        selected: activeTab == GameBottomNavTab.goals,
+        onPressed: onOpenGoals,
+      ),
+      UiFooterMenuTrayItem(
         key: const ValueKey('bottom-nav-prestige-button'),
         icon: DonerIcons.prestige,
         label: strings.prestigeNavLabel,
@@ -48,7 +57,7 @@ class GameBottomNavBar extends StatelessWidget {
     ];
 
     return Padding(
-      padding: EdgeInsets.all(8),
+      padding: EdgeInsets.symmetric(horizontal: 8),
       child: Container(
         key: const ValueKey('bottom-nav-shell'),
         decoration: BoxDecoration(

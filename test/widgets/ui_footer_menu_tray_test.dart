@@ -50,8 +50,27 @@ void main() {
       find.byKey(const ValueKey('ui-footer-menu-tray-fallback-shell')),
     );
     final trayDecoration = trayShell.decoration as BoxDecoration;
+    final selectedSegmentShell = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('ui-footer-menu-tray-segment-shell-0')),
+    );
+    final selectedSegmentDecoration =
+        selectedSegmentShell.decoration as BoxDecoration;
     expect(trayDecoration.borderRadius, isNotNull);
+    expect(trayDecoration.gradient, isA<LinearGradient>());
     expect(trayDecoration.boxShadow, isNotEmpty);
+    expect(
+      (trayDecoration.gradient as LinearGradient).colors.every(
+        (color) => color.alpha < 255,
+      ),
+      isTrue,
+    );
+    expect(selectedSegmentDecoration.gradient, isA<LinearGradient>());
+    expect(
+      (selectedSegmentDecoration.gradient as LinearGradient).colors.every(
+        (color) => color.alpha < 255,
+      ),
+      isTrue,
+    );
 
     final shopBadge = tester.getRect(
       find.byKey(const ValueKey('ui-footer-menu-tray-badge-shell-0')),

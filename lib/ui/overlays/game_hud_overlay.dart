@@ -137,17 +137,26 @@ class _TopShell extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 8 * scale, sigmaY: 8 * scale),
         child: DecoratedBox(
+          key: const ValueKey('game-hud-shell-decoration'),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.vertical(bottom: radius),
-            gradient: DonerGradients.header,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF61150E).withValues(alpha: 0.82),
+                const Color(0xFF4B0E0A).withValues(alpha: 0.76),
+                const Color(0xFF3A0B08).withValues(alpha: 0.70),
+              ],
+            ),
             border: Border.all(
-              color: DonerColors.borderPrimary.withValues(alpha: 0.78),
-              width: 1.5,
+              color: DonerColors.borderPrimary.withValues(alpha: 0.56),
+              width: 1.35,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.36),
-                blurRadius: 24 * scale,
+                color: Colors.black.withValues(alpha: 0.24),
+                blurRadius: 20 * scale,
                 offset: Offset(0, 10 * scale),
               ),
             ],
@@ -163,9 +172,9 @@ class _TopShell extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.white.withValues(alpha: 0.08),
+                          Colors.white.withValues(alpha: 0.05),
                           Colors.transparent,
-                          Colors.black.withValues(alpha: 0.14),
+                          Colors.black.withValues(alpha: 0.08),
                         ],
                         stops: const [0.0, 0.55, 1.0],
                       ),
@@ -327,6 +336,14 @@ class _SettingsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final buttonGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        const Color(0xFF5C140E).withValues(alpha: 0.80),
+        const Color(0xFF42100B).withValues(alpha: 0.72),
+      ],
+    );
     return SizedBox(
       width: size,
       height: size,
@@ -343,9 +360,9 @@ class _SettingsButton extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: DonerGradients.card,
+                gradient: buttonGradient,
                 border: Border.all(
-                  color: DonerColors.borderPrimary,
+                  color: DonerColors.borderPrimary.withValues(alpha: 0.60),
                   width: 1.5,
                 ),
                 boxShadow: DonerShadows.soft,
@@ -380,6 +397,14 @@ class _StatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final chipGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        const Color(0xFF5C140E).withValues(alpha: 0.78),
+        const Color(0xFF42100B).withValues(alpha: 0.70),
+      ],
+    );
     return Container(
       height: 54 * scale,
       padding: EdgeInsets.symmetric(
@@ -387,15 +412,15 @@ class _StatChip extends StatelessWidget {
         vertical: 7 * scale,
       ),
       decoration: BoxDecoration(
-        gradient: DonerGradients.card,
+        gradient: chipGradient,
         borderRadius: BorderRadius.circular(16 * scale),
         border: Border.all(
-          color: DonerColors.borderSoft.withValues(alpha: 0.84),
+          color: DonerColors.borderSoft.withValues(alpha: 0.62),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
+            color: Colors.black.withValues(alpha: 0.18),
             blurRadius: 12 * scale,
             offset: Offset(0, 6 * scale),
           ),

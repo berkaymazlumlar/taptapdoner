@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/progression/achievement_catalog.dart';
+import 'package:taptapdoner/domain/progression/faz5_models.dart';
+import 'package:taptapdoner/domain/progression/shop_progression_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
@@ -55,26 +58,162 @@ class UpgradeState {
 }
 
 class PrestigeState {
-  const PrestigeState({required this.reputation, required this.runCashEarned});
+  const PrestigeState({
+    int? totalPrestigePoints,
+    int? reputation,
+    required this.runCashEarned,
+    int? unspentPrestigePoints,
+    this.prestigeCount = 0,
+    this.purchasedPrestigeUpgrades = const <String, int>{},
+  }) : totalPrestigePoints = totalPrestigePoints ?? reputation ?? 0,
+       unspentPrestigePoints =
+           unspentPrestigePoints ?? totalPrestigePoints ?? reputation ?? 0;
 
-  final int reputation;
+  final int totalPrestigePoints;
   final int runCashEarned;
+  final int unspentPrestigePoints;
+  final int prestigeCount;
+  final Map<String, int> purchasedPrestigeUpgrades;
 
-  PrestigeState copyWith({int? reputation, int? runCashEarned}) {
+  int get reputation => totalPrestigePoints;
+
+  int prestigeUpgradeLevel(String upgradeId) {
+    return math.max(0, purchasedPrestigeUpgrades[upgradeId] ?? 0);
+  }
+
+  PrestigeState copyWith({
+    int? totalPrestigePoints,
+    int? reputation,
+    int? runCashEarned,
+    int? unspentPrestigePoints,
+    int? prestigeCount,
+    Map<String, int>? purchasedPrestigeUpgrades,
+  }) {
     return PrestigeState(
-      reputation: reputation ?? this.reputation,
+      totalPrestigePoints:
+          totalPrestigePoints ?? reputation ?? this.totalPrestigePoints,
       runCashEarned: runCashEarned ?? this.runCashEarned,
+      unspentPrestigePoints: math.max(
+        0,
+        unspentPrestigePoints ?? this.unspentPrestigePoints,
+      ),
+      prestigeCount: math.max(0, prestigeCount ?? this.prestigeCount),
+      purchasedPrestigeUpgrades: Map<String, int>.unmodifiable(
+        purchasedPrestigeUpgrades ?? this.purchasedPrestigeUpgrades,
+      ),
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'reputation': reputation, 'runCashEarned': runCashEarned};
+    return {
+      'reputation': reputation,
+      'totalPrestigePoints': totalPrestigePoints,
+      'unspentPrestigePoints': unspentPrestigePoints,
+      'prestigeCount': prestigeCount,
+      'runCashEarned': runCashEarned,
+      'purchasedPrestigeUpgrades': purchasedPrestigeUpgrades,
+    };
   }
 
   factory PrestigeState.fromJson(Map<String, dynamic>? json) {
+    final total = math.max(
+      0,
+      _intValue(
+        json?['totalPrestigePoints'],
+        fallback: _intValue(json?['reputation']),
+      ),
+    );
+    final rawUnspent = json?.containsKey('unspentPrestigePoints') == true
+        ? _intValue(json?['unspentPrestigePoints'])
+        : total;
     return PrestigeState(
-      reputation: math.max(0, _intValue(json?['reputation'])),
+      totalPrestigePoints: total,
+      unspentPrestigePoints: math.min(total, math.max(0, rawUnspent)),
+      prestigeCount: math.max(0, _intValue(json?['prestigeCount'])),
       runCashEarned: math.max(0, _intValue(json?['runCashEarned'])),
+      purchasedPrestigeUpgrades: _intMap(json?['purchasedPrestigeUpgrades']),
+    );
+  }
+}
+
+class ShopProgressionState {
+  const ShopProgressionState({
+    this.currentShopLevel = 1,
+    this.highestShopLevel = 1,
+    this.unlockedShopIds = const <String>{'street_stand'},
+    this.claimedShopLevelRewards = const <String>{},
+  }) : assert(currentShopLevel >= 1, 'currentShopLevel must be at least 1.'),
+       assert(highestShopLevel >= 1, 'highestShopLevel must be at least 1.');
+
+  final int currentShopLevel;
+  final int highestShopLevel;
+  final Set<String> unlockedShopIds;
+  final Set<String> claimedShopLevelRewards;
+
+  ShopProgressionState copyWith({
+    int? currentShopLevel,
+    int? highestShopLevel,
+    Set<String>? unlockedShopIds,
+    Set<String>? claimedShopLevelRewards,
+  }) {
+    final current = math.max(1, currentShopLevel ?? this.currentShopLevel);
+    return ShopProgressionState(
+      currentShopLevel: current,
+      highestShopLevel: math.max(
+        current,
+        math.max(1, highestShopLevel ?? this.highestShopLevel),
+      ),
+      unlockedShopIds: unlockedShopIds ?? this.unlockedShopIds,
+      claimedShopLevelRewards:
+          claimedShopLevelRewards ?? this.claimedShopLevelRewards,
+    );
+  }
+
+  ShopProgressionState unlockThroughLevel(int level) {
+    final clampedLevel = math.max(1, level);
+    final unlocked = Set<String>.from(unlockedShopIds);
+    for (final definition in ShopProgressionCatalog.levels) {
+      if (definition.level <= clampedLevel) {
+        unlocked.add(definition.id);
+      }
+    }
+    return copyWith(
+      currentShopLevel: clampedLevel,
+      highestShopLevel: math.max(highestShopLevel, clampedLevel),
+      unlockedShopIds: Set<String>.unmodifiable(unlocked),
+    );
+  }
+
+  ShopProgressionState resetCurrentRun() {
+    return copyWith(currentShopLevel: 1);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'currentShopLevel': currentShopLevel,
+      'highestShopLevel': highestShopLevel,
+      'unlockedShopIds': _sortedStrings(unlockedShopIds),
+      'claimedShopLevelRewards': _sortedStrings(claimedShopLevelRewards),
+    };
+  }
+
+  factory ShopProgressionState.fromJson(Map<String, dynamic>? json) {
+    final current = math.max(
+      1,
+      _intValue(json?['currentShopLevel'], fallback: 1),
+    );
+    final highest = math.max(
+      current,
+      _intValue(json?['highestShopLevel'], fallback: current),
+    );
+    final unlocked = _stringSet(json?['unlockedShopIds']);
+    return ShopProgressionState(
+      currentShopLevel: current,
+      highestShopLevel: highest,
+      unlockedShopIds: unlocked.isEmpty
+          ? const <String>{'street_stand'}
+          : unlocked,
+      claimedShopLevelRewards: _stringSet(json?['claimedShopLevelRewards']),
     );
   }
 }
@@ -136,6 +275,97 @@ class TimedEffectState {
   }
 }
 
+class GoldenDonerState {
+  const GoldenDonerState({
+    this.activeUntilUtc,
+    this.nextSpawnAtUtc,
+    this.lastSpawnAtUtc,
+    this.requiredHits = 0,
+    this.currentHits = 0,
+    this.rewardPreview = 0,
+  }) : assert(requiredHits >= 0, 'requiredHits cannot be negative.'),
+       assert(currentHits >= 0, 'currentHits cannot be negative.'),
+       assert(rewardPreview >= 0, 'rewardPreview cannot be negative.');
+
+  final DateTime? activeUntilUtc;
+  final DateTime? nextSpawnAtUtc;
+  final DateTime? lastSpawnAtUtc;
+  final int requiredHits;
+  final int currentHits;
+  final int rewardPreview;
+
+  bool isActiveAt(DateTime nowUtc) {
+    return activeUntilUtc?.isAfter(nowUtc) == true &&
+        requiredHits > 0 &&
+        currentHits < requiredHits;
+  }
+
+  Duration remainingActive(DateTime nowUtc) {
+    if (!isActiveAt(nowUtc)) {
+      return Duration.zero;
+    }
+    return activeUntilUtc!.difference(nowUtc);
+  }
+
+  GoldenDonerState copyWith({
+    DateTime? activeUntilUtc,
+    DateTime? nextSpawnAtUtc,
+    DateTime? lastSpawnAtUtc,
+    int? requiredHits,
+    int? currentHits,
+    int? rewardPreview,
+    bool clearActiveUntilUtc = false,
+    bool clearNextSpawnAtUtc = false,
+    bool clearLastSpawnAtUtc = false,
+  }) {
+    return GoldenDonerState(
+      activeUntilUtc: clearActiveUntilUtc
+          ? null
+          : (activeUntilUtc ?? this.activeUntilUtc),
+      nextSpawnAtUtc: clearNextSpawnAtUtc
+          ? null
+          : (nextSpawnAtUtc ?? this.nextSpawnAtUtc),
+      lastSpawnAtUtc: clearLastSpawnAtUtc
+          ? null
+          : (lastSpawnAtUtc ?? this.lastSpawnAtUtc),
+      requiredHits: math.max(0, requiredHits ?? this.requiredHits),
+      currentHits: math.max(0, currentHits ?? this.currentHits),
+      rewardPreview: math.max(0, rewardPreview ?? this.rewardPreview),
+    );
+  }
+
+  GoldenDonerState clearActive() {
+    return copyWith(
+      clearActiveUntilUtc: true,
+      requiredHits: 0,
+      currentHits: 0,
+      rewardPreview: 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'activeUntilUtc': activeUntilUtc?.toIso8601String(),
+      'nextSpawnAtUtc': nextSpawnAtUtc?.toIso8601String(),
+      'lastSpawnAtUtc': lastSpawnAtUtc?.toIso8601String(),
+      'requiredHits': requiredHits,
+      'currentHits': currentHits,
+      'rewardPreview': rewardPreview,
+    };
+  }
+
+  factory GoldenDonerState.fromJson(Map<String, dynamic>? json) {
+    return GoldenDonerState(
+      activeUntilUtc: _dateTimeValue(json?['activeUntilUtc']),
+      nextSpawnAtUtc: _dateTimeValue(json?['nextSpawnAtUtc']),
+      lastSpawnAtUtc: _dateTimeValue(json?['lastSpawnAtUtc']),
+      requiredHits: math.max(0, _intValue(json?['requiredHits'])),
+      currentHits: math.max(0, _intValue(json?['currentHits'])),
+      rewardPreview: math.max(0, _intValue(json?['rewardPreview'])),
+    );
+  }
+}
+
 class GameStatsState {
   const GameStatsState({
     this.tapCount = 0,
@@ -146,6 +376,7 @@ class GameStatsState {
     this.currentCombo = 0,
     this.turboUsedCount = 0,
     this.goldenDonerCollected = 0,
+    this.chestsOpened = 0,
     this.shopLevel = 1,
     this.openPrestigeScreenOnce = false,
     this.lastTapAtUtc,
@@ -166,6 +397,7 @@ class GameStatsState {
          goldenDonerCollected >= 0,
          'goldenDonerCollected cannot be negative.',
        ),
+       assert(chestsOpened >= 0, 'chestsOpened cannot be negative.'),
        assert(shopLevel >= 1, 'shopLevel must be at least 1.');
 
   final int tapCount;
@@ -176,6 +408,7 @@ class GameStatsState {
   final int currentCombo;
   final int turboUsedCount;
   final int goldenDonerCollected;
+  final int chestsOpened;
   final int shopLevel;
   final bool openPrestigeScreenOnce;
   final DateTime? lastTapAtUtc;
@@ -189,9 +422,11 @@ class GameStatsState {
     int? currentCombo,
     int? turboUsedCount,
     int? goldenDonerCollected,
+    int? chestsOpened,
     int? shopLevel,
     bool? openPrestigeScreenOnce,
     DateTime? lastTapAtUtc,
+    bool clearLastTapAtUtc = false,
   }) {
     return GameStatsState(
       tapCount: math.max(0, tapCount ?? this.tapCount),
@@ -211,10 +446,13 @@ class GameStatsState {
         0,
         goldenDonerCollected ?? this.goldenDonerCollected,
       ),
+      chestsOpened: math.max(0, chestsOpened ?? this.chestsOpened),
       shopLevel: math.max(1, shopLevel ?? this.shopLevel),
       openPrestigeScreenOnce:
           openPrestigeScreenOnce ?? this.openPrestigeScreenOnce,
-      lastTapAtUtc: lastTapAtUtc ?? this.lastTapAtUtc,
+      lastTapAtUtc: clearLastTapAtUtc
+          ? null
+          : (lastTapAtUtc ?? this.lastTapAtUtc),
     );
   }
 
@@ -228,6 +466,7 @@ class GameStatsState {
       'currentCombo': currentCombo,
       'turboUsedCount': turboUsedCount,
       'goldenDonerCollected': goldenDonerCollected,
+      'chestsOpened': chestsOpened,
       'shopLevel': shopLevel,
       'openPrestigeScreenOnce': openPrestigeScreenOnce,
       'lastTapAtUtc': lastTapAtUtc?.toIso8601String(),
@@ -252,6 +491,7 @@ class GameStatsState {
         0,
         _intValue(json?['goldenDonerCollected']),
       ),
+      chestsOpened: math.max(0, _intValue(json?['chestsOpened'])),
       shopLevel: math.max(1, _intValue(json?['shopLevel'], fallback: 1)),
       openPrestigeScreenOnce: _boolValue(json?['openPrestigeScreenOnce']),
       lastTapAtUtc: _dateTimeValue(json?['lastTapAtUtc']),
@@ -644,6 +884,176 @@ class MilestoneState {
   }
 }
 
+class AchievementProgress {
+  const AchievementProgress({
+    required this.achievementId,
+    this.currentValue = 0,
+    this.isCompleted = false,
+    this.isRewardClaimed = false,
+  });
+
+  final String achievementId;
+  final double currentValue;
+  final bool isCompleted;
+  final bool isRewardClaimed;
+
+  AchievementProgress copyWith({
+    double? currentValue,
+    bool? isCompleted,
+    bool? isRewardClaimed,
+  }) {
+    return AchievementProgress(
+      achievementId: achievementId,
+      currentValue: math.max(0, currentValue ?? this.currentValue),
+      isCompleted: isCompleted ?? this.isCompleted,
+      isRewardClaimed: isRewardClaimed ?? this.isRewardClaimed,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'achievementId': achievementId,
+      'currentValue': currentValue,
+      'isCompleted': isCompleted,
+      'isRewardClaimed': isRewardClaimed,
+    };
+  }
+
+  factory AchievementProgress.fromJson(
+    Map<String, dynamic> json, {
+    required AchievementProgress fallback,
+  }) {
+    return AchievementProgress(
+      achievementId: _stringValue(
+        json['achievementId'],
+        fallback: fallback.achievementId,
+      ),
+      currentValue: _nonNegativeDouble(json['currentValue']),
+      isCompleted: _boolValue(json['isCompleted']),
+      isRewardClaimed: _boolValue(json['isRewardClaimed']),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is AchievementProgress &&
+        achievementId == other.achievementId &&
+        currentValue == other.currentValue &&
+        isCompleted == other.isCompleted &&
+        isRewardClaimed == other.isRewardClaimed;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(achievementId, currentValue, isCompleted, isRewardClaimed);
+}
+
+class CollectionState {
+  const CollectionState({
+    this.unlockedItemIds = const <String>{},
+    this.claimedBonusItemIds = const <String>{},
+  });
+
+  final Set<String> unlockedItemIds;
+  final Set<String> claimedBonusItemIds;
+
+  bool isUnlocked(String itemId) => unlockedItemIds.contains(itemId);
+
+  bool hasClaimedBonus(String itemId) => claimedBonusItemIds.contains(itemId);
+
+  CollectionState copyWith({
+    Set<String>? unlockedItemIds,
+    Set<String>? claimedBonusItemIds,
+  }) {
+    return CollectionState(
+      unlockedItemIds: unlockedItemIds ?? this.unlockedItemIds,
+      claimedBonusItemIds: claimedBonusItemIds ?? this.claimedBonusItemIds,
+    );
+  }
+
+  CollectionState unlock(String itemId, {bool claimBonus = true}) {
+    if (itemId.isEmpty) {
+      return this;
+    }
+    final nextUnlocked = Set<String>.from(unlockedItemIds)..add(itemId);
+    final nextClaimed = Set<String>.from(claimedBonusItemIds);
+    if (claimBonus) {
+      nextClaimed.add(itemId);
+    }
+    return copyWith(
+      unlockedItemIds: Set<String>.unmodifiable(nextUnlocked),
+      claimedBonusItemIds: Set<String>.unmodifiable(nextClaimed),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'unlockedItems': _sortedStrings(unlockedItemIds),
+      'claimedBonuses': _sortedStrings(claimedBonusItemIds),
+    };
+  }
+
+  factory CollectionState.fromJson(Map<String, dynamic>? json) {
+    return CollectionState(
+      unlockedItemIds: _stringSet(json?['unlockedItems']),
+      claimedBonusItemIds: _stringSet(json?['claimedBonuses']),
+    );
+  }
+}
+
+class ChestInventoryState {
+  const ChestInventoryState({this.counts = const <ChestType, int>{}});
+
+  final Map<ChestType, int> counts;
+
+  int count(ChestType type) => math.max(0, counts[type] ?? 0);
+
+  int get totalCount {
+    return ChestType.values.fold(0, (total, type) => total + count(type));
+  }
+
+  ChestInventoryState add(ChestType type, {int quantity = 1}) {
+    if (quantity <= 0) {
+      return this;
+    }
+    final next = Map<ChestType, int>.from(counts);
+    next[type] = count(type) + quantity;
+    return ChestInventoryState(counts: Map<ChestType, int>.unmodifiable(next));
+  }
+
+  ChestInventoryState remove(ChestType type, {int quantity = 1}) {
+    if (quantity <= 0 || count(type) <= 0) {
+      return this;
+    }
+    final next = Map<ChestType, int>.from(counts);
+    next[type] = math.max(0, count(type) - quantity);
+    return ChestInventoryState(counts: Map<ChestType, int>.unmodifiable(next));
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      for (final type in ChestType.values)
+        chestTypeKey(type): math.max(0, counts[type] ?? 0),
+    };
+  }
+
+  factory ChestInventoryState.fromJson(
+    Map<String, dynamic>? json, {
+    int legacySmallChests = 0,
+  }) {
+    final counts = <ChestType, int>{};
+    for (final type in ChestType.values) {
+      counts[type] = math.max(0, _intValue(json?[chestTypeKey(type)]));
+    }
+    if (counts.values.every((value) => value == 0) && legacySmallChests > 0) {
+      counts[ChestType.small] = legacySmallChests;
+    }
+    return ChestInventoryState(
+      counts: Map<ChestType, int>.unmodifiable(counts),
+    );
+  }
+}
+
 class GameState {
   const GameState({
     required this.schemaVersion,
@@ -655,14 +1065,19 @@ class GameState {
     required this.prestige,
     required this.rush,
     required this.passiveBoost,
+    required this.goldenDoner,
     required this.stats,
     required this.quests,
+    required this.achievements,
+    required this.collection,
+    required this.chestInventory,
+    required this.shopProgression,
     required this.lastActiveAtUtc,
     required this.lastSavedAtUtc,
     required this.localeCode,
   });
 
-  static const currentSchemaVersion = 7;
+  static const currentSchemaVersion = 10;
 
   final int schemaVersion;
   final int cash;
@@ -673,8 +1088,13 @@ class GameState {
   final PrestigeState prestige;
   final TimedEffectState rush;
   final TimedEffectState passiveBoost;
+  final GoldenDonerState goldenDoner;
   final GameStatsState stats;
   final Map<String, QuestProgress> quests;
+  final Map<String, AchievementProgress> achievements;
+  final CollectionState collection;
+  final ChestInventoryState chestInventory;
+  final ShopProgressionState shopProgression;
   final DateTime lastActiveAtUtc;
   final DateTime lastSavedAtUtc;
   final String localeCode;
@@ -698,8 +1118,13 @@ class GameState {
       prestige: const PrestigeState(reputation: 0, runCashEarned: 0),
       rush: const TimedEffectState(),
       passiveBoost: const TimedEffectState(),
+      goldenDoner: const GoldenDonerState(),
       stats: const GameStatsState(),
       quests: StarterQuestCatalog.initialProgress(),
+      achievements: _initialAchievementProgress(),
+      collection: const CollectionState(),
+      chestInventory: const ChestInventoryState(),
+      shopProgression: const ShopProgressionState(),
       lastActiveAtUtc: now,
       lastSavedAtUtc: now,
       localeCode: localeCode,
@@ -718,8 +1143,13 @@ class GameState {
     PrestigeState? prestige,
     TimedEffectState? rush,
     TimedEffectState? passiveBoost,
+    GoldenDonerState? goldenDoner,
     GameStatsState? stats,
     Map<String, QuestProgress>? quests,
+    Map<String, AchievementProgress>? achievements,
+    CollectionState? collection,
+    ChestInventoryState? chestInventory,
+    ShopProgressionState? shopProgression,
     DateTime? lastActiveAtUtc,
     DateTime? lastSavedAtUtc,
     String? localeCode,
@@ -734,8 +1164,13 @@ class GameState {
       prestige: prestige ?? this.prestige,
       rush: rush ?? this.rush,
       passiveBoost: passiveBoost ?? this.passiveBoost,
+      goldenDoner: goldenDoner ?? this.goldenDoner,
       stats: stats ?? this.stats,
       quests: quests ?? this.quests,
+      achievements: achievements ?? this.achievements,
+      collection: collection ?? this.collection,
+      chestInventory: chestInventory ?? this.chestInventory,
+      shopProgression: shopProgression ?? this.shopProgression,
       lastActiveAtUtc: lastActiveAtUtc ?? this.lastActiveAtUtc,
       lastSavedAtUtc: lastSavedAtUtc ?? this.lastSavedAtUtc,
       localeCode: localeCode ?? this.localeCode,
@@ -753,8 +1188,15 @@ class GameState {
       'prestige': prestige.toJson(),
       'rush': rush.toJson(),
       'passiveBoost': passiveBoost.toJson(),
+      'goldenDoner': goldenDoner.toJson(),
       'stats': stats.toJson(),
       'quests': quests.values.map((value) => value.toJson()).toList(),
+      'achievements': achievements.values
+          .map((value) => value.toJson())
+          .toList(),
+      'collection': collection.toJson(),
+      'chestInventory': chestInventory.toJson(),
+      'shopProgression': shopProgression.toJson(),
       'lastActiveAtUtc': lastActiveAtUtc.toIso8601String(),
       'lastSavedAtUtc': lastSavedAtUtc.toIso8601String(),
       'localeCode': localeCode,
@@ -809,6 +1251,10 @@ class GameState {
       }
     }
 
+    final milestones = MilestoneState.fromJson(
+      _stringKeyMap(json['milestones']),
+    );
+
     return GameState(
       schemaVersion: schemaVersion,
       cash: _intValue(json['cash']),
@@ -821,14 +1267,26 @@ class GameState {
             definition,
           ),
       },
-      milestones: MilestoneState.fromJson(_stringKeyMap(json['milestones'])),
+      milestones: milestones,
       prestige: PrestigeState.fromJson(_stringKeyMap(json['prestige'])),
       rush: TimedEffectState.fromJson(_stringKeyMap(json['rush'])),
       passiveBoost: TimedEffectState.fromJson(
         _stringKeyMap(json['passiveBoost']),
       ),
+      goldenDoner: GoldenDonerState.fromJson(
+        _stringKeyMap(json['goldenDoner']),
+      ),
       stats: GameStatsState.fromJson(_stringKeyMap(json['stats'])),
       quests: _questProgressMap(json['quests']),
+      achievements: _achievementProgressMap(json['achievements']),
+      collection: CollectionState.fromJson(_stringKeyMap(json['collection'])),
+      chestInventory: ChestInventoryState.fromJson(
+        _stringKeyMap(json['chestInventory']),
+        legacySmallChests: milestones.chests,
+      ),
+      shopProgression: ShopProgressionState.fromJson(
+        _stringKeyMap(json['shopProgression']),
+      ),
       lastActiveAtUtc:
           _dateTimeValue(json['lastActiveAtUtc']) ?? fallback.lastActiveAtUtc,
       lastSavedAtUtc:
@@ -933,6 +1391,38 @@ Map<String, QuestProgress> _questProgressMap(Object? value) {
   return Map<String, QuestProgress>.unmodifiable(parsed);
 }
 
+Map<String, AchievementProgress> _initialAchievementProgress() {
+  return Map<String, AchievementProgress>.unmodifiable({
+    for (final achievement in AchievementCatalog.achievements)
+      achievement.id: AchievementProgress(achievementId: achievement.id),
+  });
+}
+
+Map<String, AchievementProgress> _achievementProgressMap(Object? value) {
+  final initial = _initialAchievementProgress();
+  if (value is! List) {
+    return initial;
+  }
+
+  final parsed = Map<String, AchievementProgress>.from(initial);
+  for (final entry in value) {
+    final map = _stringKeyMap(entry);
+    if (map == null) {
+      continue;
+    }
+    final achievementId = _stringValue(map['achievementId']);
+    final fallback = initial[achievementId];
+    if (fallback == null) {
+      continue;
+    }
+    parsed[achievementId] = AchievementProgress.fromJson(
+      map,
+      fallback: fallback,
+    );
+  }
+  return Map<String, AchievementProgress>.unmodifiable(parsed);
+}
+
 String _stringValue(Object? value, {String fallback = ''}) {
   return value is String ? value : fallback;
 }
@@ -999,6 +1489,21 @@ Set<String> _stringSet(Object? value) {
   return Set<String>.unmodifiable(
     value.whereType<String>().where((entry) => entry.isNotEmpty),
   );
+}
+
+Map<String, int> _intMap(Object? value) {
+  if (value is! Map) {
+    return const <String, int>{};
+  }
+  final parsed = <String, int>{};
+  value.forEach((key, value) {
+    final normalizedKey = key.toString();
+    if (normalizedKey.isEmpty) {
+      return;
+    }
+    parsed[normalizedKey] = math.max(0, _intValue(value));
+  });
+  return Map<String, int>.unmodifiable(parsed);
 }
 
 List<String> _sortedStrings(Set<String> values) {

@@ -21,6 +21,7 @@ void main() {
     game.onGameResize(Vector2(360, 640));
     await game.onLoad();
 
+    expect(game.backdrop.debugHasBackdropImage, isTrue);
     expect(game.controller.passiveIncomePerSecond, 0);
     final first = await _renderBackdropBytes(game);
     game.update(1);

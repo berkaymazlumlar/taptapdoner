@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/economy/economy_engine.dart';
+import 'package:taptapdoner/domain/progression/faz5_models.dart';
+import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
+import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
@@ -215,6 +218,112 @@ void main() {
     );
   });
 
+  test('collection permanent tap bonus is included in tap income', () {
+    final highTapConfig = EconomyConfig(
+      baseTapValue: 100,
+      rushIncomeMultiplier: config.rushIncomeMultiplier,
+      rushDuration: config.rushDuration,
+      rushCooldown: config.rushCooldown,
+      offlineCap: config.offlineCap,
+      prestigeThreshold: config.prestigeThreshold,
+      prestigeBonusPerPoint: config.prestigeBonusPerPoint,
+      upgrades: config.upgrades,
+    );
+    final highTapEngine = EconomyEngine(highTapConfig);
+    final baseState = GameState.initial(highTapConfig, nowUtc: nowUtc);
+    final collectionState = baseState.copyWith(
+      collection: const CollectionState(
+        unlockedItemIds: {'knife_rusty_knife'},
+        claimedBonusItemIds: {'knife_rusty_knife'},
+      ),
+    );
+
+    expect(highTapEngine.tapValue(baseState, nowUtc: nowUtc), 100);
+    expect(highTapEngine.tapValue(collectionState, nowUtc: nowUtc), 101);
+  });
+
+  test('shop level multiplier is included in tap and passive income', () {
+    final highTapConfig = EconomyConfig(
+      baseTapValue: 100,
+      rushIncomeMultiplier: config.rushIncomeMultiplier,
+      rushDuration: config.rushDuration,
+      rushCooldown: config.rushCooldown,
+      offlineCap: config.offlineCap,
+      prestigeThreshold: config.prestigeThreshold,
+      prestigeBonusPerPoint: config.prestigeBonusPerPoint,
+      upgrades: config.upgrades,
+    );
+    final highTapEngine = EconomyEngine(highTapConfig);
+    final baseState = GameState.initial(highTapConfig, nowUtc: nowUtc);
+    final shopLevelTwoState = baseState.copyWith(
+      shopProgression: const ShopProgressionState(
+        currentShopLevel: 2,
+        highestShopLevel: 2,
+        unlockedShopIds: {'street_stand', 'small_buffet'},
+      ),
+    );
+
+    expect(highTapEngine.tapValue(baseState, nowUtc: nowUtc), 100);
+    expect(highTapEngine.tapValue(shopLevelTwoState, nowUtc: nowUtc), 105);
+
+    final staffState = highTapEngine
+        .buyUpgrade(baseState.copyWith(cash: 5000), UpgradeId.staff)
+        .state;
+    final staffShopState = staffState.copyWith(
+      shopProgression: const ShopProgressionState(
+        currentShopLevel: 2,
+        highestShopLevel: 2,
+        unlockedShopIds: {'street_stand', 'small_buffet'},
+      ),
+    );
+
+    expect(
+      highTapEngine.passiveIncomePerSecond(staffShopState, nowUtc: nowUtc),
+      closeTo(
+        highTapEngine.passiveIncomePerSecond(staffState, nowUtc: nowUtc) * 1.05,
+        0.0001,
+      ),
+    );
+  });
+
+  test('prestige shop purchase spends unspent points and applies bonuses', () {
+    final highTapConfig = EconomyConfig(
+      baseTapValue: 100,
+      rushIncomeMultiplier: config.rushIncomeMultiplier,
+      rushDuration: config.rushDuration,
+      rushCooldown: config.rushCooldown,
+      offlineCap: config.offlineCap,
+      prestigeThreshold: config.prestigeThreshold,
+      prestigeBonusPerPoint: config.prestigeBonusPerPoint,
+      upgrades: config.upgrades,
+    );
+    final highTapEngine = EconomyEngine(highTapConfig);
+    final state = GameState.initial(highTapConfig, nowUtc: nowUtc).copyWith(
+      prestige: const PrestigeState(
+        reputation: 5,
+        unspentPrestigePoints: 5,
+        runCashEarned: 0,
+      ),
+    );
+
+    final result = highTapEngine.buyPrestigeUpgrade(
+      state,
+      PrestigeShopCatalog.masterHand,
+    );
+
+    expect(result.success, isTrue);
+    expect(result.cost, 1);
+    expect(result.state.prestige.totalPrestigePoints, 5);
+    expect(result.state.prestige.unspentPrestigePoints, 4);
+    expect(
+      result.state.prestige.prestigeUpgradeLevel(
+        PrestigeShopCatalog.masterHand,
+      ),
+      1,
+    );
+    expect(highTapEngine.tapValue(result.state, nowUtc: nowUtc), 131);
+  });
+
   test('prestige points use the square-root total-earned curve', () {
     final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
       prestige: const PrestigeState(reputation: 16, runCashEarned: 125000000),
@@ -253,6 +362,9 @@ void main() {
       expect(prestiged.pendingOfflineCash, 0);
       expect(prestiged.lifetimeCash, state.lifetimeCash);
       expect(prestiged.prestige.reputation, 3);
+      expect(prestiged.prestige.totalPrestigePoints, 3);
+      expect(prestiged.prestige.unspentPrestigePoints, 3);
+      expect(prestiged.prestige.prestigeCount, 1);
       expect(prestiged.prestige.runCashEarned, 0);
       expect(prestiged.rush.endsAtUtc, isNull);
       expect(prestiged.rush.cooldownEndsAtUtc, isNull);
@@ -262,6 +374,69 @@ void main() {
         expect(upgrade.itemIndex, 0, reason: upgrade.id.key);
         expect(upgrade.level, 1, reason: upgrade.id.key);
       }
+    },
+  );
+
+  test(
+    'prestige preserves permanent phase five and prestige shop state while resetting current run',
+    () {
+      final quests =
+          Map<String, QuestProgress>.from(StarterQuestCatalog.initialProgress())
+            ..['starter_tap_10'] = const QuestProgress(
+              questId: 'starter_tap_10',
+              status: QuestStatus.claimed,
+              currentValue: 10,
+              targetValue: 10,
+              rewardClaimed: true,
+            );
+      final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+        cash: 50000,
+        lifetimeCash: 2_500_000,
+        pendingOfflineCash: 1200,
+        prestige: const PrestigeState(
+          reputation: 5,
+          unspentPrestigePoints: 2,
+          prestigeCount: 1,
+          runCashEarned: 1_000_000,
+          purchasedPrestigeUpgrades: {
+            PrestigeShopCatalog.fastStart: 2,
+            PrestigeShopCatalog.masterChest: 3,
+          },
+        ),
+        shopProgression: const ShopProgressionState(
+          currentShopLevel: 3,
+          highestShopLevel: 4,
+          unlockedShopIds: {
+            'street_stand',
+            'small_buffet',
+            'neighborhood_doner',
+            'busy_street_doner',
+          },
+        ),
+        quests: quests,
+        collection: const CollectionState(
+          unlockedItemIds: {'knife_rusty_knife'},
+          claimedBonusItemIds: {'knife_rusty_knife'},
+        ),
+      );
+
+      final prestiged = engine.applyPrestige(state, nowUtc: nowUtc);
+
+      expect(prestiged.cash, 400);
+      expect(prestiged.pendingOfflineCash, 0);
+      expect(prestiged.lifetimeCash, state.lifetimeCash);
+      expect(prestiged.prestige.totalPrestigePoints, 6);
+      expect(prestiged.prestige.unspentPrestigePoints, 3);
+      expect(prestiged.prestige.prestigeCount, 2);
+      expect(
+        prestiged.prestige.purchasedPrestigeUpgrades,
+        state.prestige.purchasedPrestigeUpgrades,
+      );
+      expect(prestiged.shopProgression.currentShopLevel, 1);
+      expect(prestiged.shopProgression.highestShopLevel, 4);
+      expect(prestiged.collection, state.collection);
+      expect(prestiged.chestInventory.count(ChestType.master), 1);
+      expect(prestiged.quests['starter_tap_10']?.status, QuestStatus.active);
     },
   );
 }

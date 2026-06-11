@@ -12,24 +12,47 @@ double calculateTapIncome({
   required double knifeEffect,
   required double ovenEffect,
   required double menuEffect,
+  required double shopMultiplier,
   required double prestigeMultiplier,
   required double turboMultiplier,
+  double collectionTapMultiplier = 1,
+  double collectionGlobalMultiplier = 1,
+  double temporaryBoostMultiplier = 1,
+  double comboMultiplier = 1,
+  double criticalMultiplier = 1,
 }) {
   return baseTap *
       knifeEffect *
       ovenEffect *
       menuEffect *
+      shopMultiplier *
       prestigeMultiplier *
-      turboMultiplier;
+      collectionTapMultiplier *
+      collectionGlobalMultiplier *
+      temporaryBoostMultiplier *
+      turboMultiplier *
+      comboMultiplier *
+      criticalMultiplier;
 }
 
 double calculatePassiveIncomePerSecond({
   required double staffEffect,
   required double ovenEffect,
   required double menuEffect,
+  required double shopMultiplier,
   required double prestigeMultiplier,
+  double collectionPassiveMultiplier = 1,
+  double collectionGlobalMultiplier = 1,
+  double temporaryBoostMultiplier = 1,
 }) {
-  return staffEffect * ovenEffect * menuEffect * prestigeMultiplier;
+  return staffEffect *
+      ovenEffect *
+      menuEffect *
+      shopMultiplier *
+      prestigeMultiplier *
+      collectionPassiveMultiplier *
+      collectionGlobalMultiplier *
+      temporaryBoostMultiplier;
 }
 
 double calculateOfflineIncome({

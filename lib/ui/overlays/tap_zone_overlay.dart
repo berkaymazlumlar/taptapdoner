@@ -3,7 +3,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_controller.dart';
+import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
+import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/theme/ui_asset_paths.dart';
@@ -136,13 +138,28 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
     required double squareSize,
     required double tapTargetSize,
   }) async {
-    final tapBurstValue = widget.controller.tapValue;
-    _enqueueTapBurst(tapBurstValue, tapPosition, squareSize, tapTargetSize);
     _enqueueFallingSlice(tapPosition, squareSize, tapTargetSize);
     setState(() => _scale = 0.95);
-    await widget.controller.tap();
+    final outcome = await widget.controller.tap();
     if (!mounted) {
       return;
+    }
+
+    _enqueueTapBurst(
+      outcome,
+      tapPosition,
+      squareSize,
+      tapTargetSize,
+      type: outcome.isCritical ? _TapBurstType.critical : _TapBurstType.normal,
+    );
+    if (outcome.goldenDonerCompleted && outcome.goldenDonerReward > 0) {
+      _enqueueTapBurst(
+        outcome,
+        tapPosition,
+        squareSize,
+        tapTargetSize,
+        type: _TapBurstType.goldenDoner,
+      );
     }
 
     await Future<void>.delayed(const Duration(milliseconds: 110));
@@ -154,11 +171,12 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
   }
 
   void _enqueueTapBurst(
-    int value,
+    TapOutcome outcome,
     Offset tapPosition,
     double squareSize,
-    double tapTargetSize,
-  ) {
+    double tapTargetSize, {
+    required _TapBurstType type,
+  }) {
     final id = _nextTapBurstId++;
     final effectOrigin = _offsetEffectOrigin(
       tapPosition,
@@ -170,7 +188,10 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
     );
     final entry = _TapBurstEntry(
       id: id,
-      value: value,
+      value: type == _TapBurstType.goldenDoner
+          ? outcome.goldenDonerReward
+          : outcome.coins,
+      type: type,
       origin: effectOrigin,
       riseDistance: squareSize * (0.14 + (_random.nextDouble() * 0.05)),
     );
@@ -318,24 +339,26 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
         final tapTargetSize = squareSize * _tapVisualScale;
         final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
         final tapImageCacheWidth = (tapTargetSize * devicePixelRatio).round();
-        final tapBurstFontSize = math.min(36.0, squareSize * 0.112);
-        final tapBurstStrokeStyle = DonerTypography.body(
+        final tapBurstFontSize = math.min(38.0, squareSize * 0.118);
+        final tapBurstStrokeStyle = DonerTypography.display(
           Theme.of(context).textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w900,
             fontSize: tapBurstFontSize,
-            letterSpacing: 0.4,
+            height: 0.90,
+            letterSpacing: -0.5,
             foreground: Paint()
               ..style = PaintingStyle.stroke
-              ..strokeWidth = math.max(2.2, tapBurstFontSize * 0.08)
+              ..strokeWidth = math.max(2.4, tapBurstFontSize * 0.09)
               ..color = DonerColors.panelDark.withValues(alpha: 0.95),
           ),
         );
-        final tapBurstFillStyle = DonerTypography.body(
+        final tapBurstFillStyle = DonerTypography.display(
           Theme.of(context).textTheme.headlineMedium?.copyWith(
             color: DonerColors.goldBright,
             fontWeight: FontWeight.w900,
             fontSize: tapBurstFontSize,
-            letterSpacing: 0.4,
+            height: 0.90,
+            letterSpacing: -0.5,
             shadows: [
               Shadow(
                 color: DonerColors.goldPrimary.withValues(alpha: 0.75),
@@ -344,7 +367,7 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
               ),
               Shadow(
                 color: const Color(0xFFFFF0A8).withValues(alpha: 0.45),
-                blurRadius: 10,
+                blurRadius: 14,
                 offset: const Offset(0, 0),
               ),
               Shadow(
@@ -354,6 +377,37 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
               ),
             ],
           ),
+        );
+        final criticalTapBurstFillStyle = tapBurstFillStyle.copyWith(
+          color: const Color(0xFFFFF6DD),
+          fontSize: tapBurstFontSize * 1.12,
+          letterSpacing: -0.3,
+          shadows: [
+            Shadow(
+              color: const Color(0xFFFFF0B5).withValues(alpha: 0.90),
+              blurRadius: 24,
+              offset: const Offset(0, 0),
+            ),
+            Shadow(
+              color: DonerColors.goldPrimary.withValues(alpha: 0.72),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+            Shadow(
+              color: DonerColors.orangeAccent.withValues(alpha: 0.48),
+              blurRadius: 28,
+              offset: const Offset(0, 8),
+            ),
+            Shadow(
+              color: DonerColors.panelDark.withValues(alpha: 0.45),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        );
+        final goldenTapBurstFillStyle = tapBurstFillStyle.copyWith(
+          color: const Color(0xFFFFF0A8),
+          fontSize: tapBurstFontSize * 1.12,
         );
 
         return Padding(
@@ -519,41 +573,74 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
                                   index < _tapBursts.length;
                                   index++
                                 )
-                                  AnimatedPositioned(
-                                    key: ValueKey(
-                                      'tap-zone-cash-splash-${_tapBursts[index].id}',
-                                    ),
-                                    duration: _tapBurstLifetime,
-                                    curve: Curves.easeOut,
-                                    left: _tapBursts[index].origin.dx,
-                                    top:
-                                        _tapBursts[index].origin.dy -
-                                        (_tapBursts[index].isRising
-                                            ? _tapBursts[index].riseDistance
-                                            : 0),
-                                    child: AnimatedOpacity(
-                                      key: index == 0
-                                          ? const ValueKey(
-                                              'tap-zone-cash-splash',
-                                            )
-                                          : null,
-                                      opacity: _tapBursts[index].isFadingOut
-                                          ? 0
-                                          : 1,
-                                      duration: _tapBurstFadeDuration,
-                                      curve: Curves.easeIn,
-                                      child: FractionalTranslation(
-                                        translation: const Offset(-0.5, -0.5),
-                                        child: _TapBurstLabel(
-                                          text:
-                                              '+${formatCompactCurrency(context, _tapBursts[index].value)}',
-                                          fillStyle: tapBurstFillStyle,
-                                          strokeStyle: tapBurstStrokeStyle,
+                                  () {
+                                    final burst = _tapBursts[index];
+                                    final burstKeyBase = index == 0
+                                        ? 'tap-zone-cash-splash'
+                                        : 'tap-zone-cash-splash-${burst.id}';
+
+                                    return AnimatedPositioned(
+                                      key: ValueKey(
+                                        'tap-zone-cash-splash-${burst.id}',
+                                      ),
+                                      duration: _tapBurstLifetime,
+                                      curve: Curves.easeOut,
+                                      left: burst.origin.dx,
+                                      top:
+                                          burst.origin.dy -
+                                          (burst.isRising
+                                              ? burst.riseDistance
+                                              : 0),
+                                      child: AnimatedOpacity(
+                                        key: index == 0
+                                            ? const ValueKey(
+                                                'tap-zone-cash-splash',
+                                              )
+                                            : null,
+                                        opacity: burst.isFadingOut ? 0 : 1,
+                                        duration: _tapBurstFadeDuration,
+                                        curve: Curves.easeIn,
+                                        child: FractionalTranslation(
+                                          translation: const Offset(-0.5, -0.5),
+                                          child: _TapBurstAnimatedEntry(
+                                            entry: burst,
+                                            keyBase: burstKeyBase,
+                                            child: _TapBurstLabel(
+                                              text: _tapBurstText(
+                                                context,
+                                                burst,
+                                              ),
+                                              fillStyle: _tapBurstFillStyle(
+                                                burst.type,
+                                                normal: tapBurstFillStyle,
+                                                critical:
+                                                    criticalTapBurstFillStyle,
+                                                golden: goldenTapBurstFillStyle,
+                                              ),
+                                              strokeStyle: tapBurstStrokeStyle,
+                                              keyBase: burstKeyBase,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
+                                    );
+                                  }(),
                               ],
+                            ),
+                          ),
+                        ),
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: ValueListenableBuilder<ActivePlaySnapshot>(
+                              valueListenable: widget
+                                  .controller
+                                  .activePlaySnapshotListenable,
+                              builder: (context, snapshot, _) {
+                                return _ActivePlayBadges(
+                                  snapshot: snapshot,
+                                  squareSize: squareSize,
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -594,10 +681,499 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
   }
 }
 
+class _ActivePlayBadges extends StatelessWidget {
+  const _ActivePlayBadges({required this.snapshot, required this.squareSize});
+
+  final ActivePlaySnapshot snapshot;
+  final double squareSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = (squareSize / 256).clamp(0.78, 1.1).toDouble();
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        if (snapshot.hasCombo)
+          Positioned(
+            top: squareSize * 0.06,
+            child: _ComboBadge(snapshot: snapshot, scale: scale),
+          ),
+        if (snapshot.goldenDonerActive)
+          Positioned(
+            bottom: squareSize * 0.04,
+            child: _GoldenDonerBadge(snapshot: snapshot, scale: scale),
+          ),
+      ],
+    );
+  }
+}
+
+class _ComboBadge extends StatefulWidget {
+  const _ComboBadge({required this.snapshot, required this.scale});
+
+  final ActivePlaySnapshot snapshot;
+  final double scale;
+
+  @override
+  State<_ComboBadge> createState() => _ComboBadgeState();
+}
+
+class _ComboBadgeState extends State<_ComboBadge>
+    with SingleTickerProviderStateMixin {
+  static const _pulseDuration = Duration(milliseconds: 320);
+
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseScale;
+  late final Animation<double> _pulseLift;
+  late final Animation<double> _pulseGlow;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: _pulseDuration,
+      value: 1,
+    );
+    _pulseScale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 1.08,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 42,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.08,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 58,
+      ),
+    ]).animate(_pulseController);
+    _pulseLift = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.0,
+          end: 5.0,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 45,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 5.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 55,
+      ),
+    ]).animate(_pulseController);
+    _pulseGlow = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.0,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 65,
+      ),
+    ]).animate(_pulseController);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ComboBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.snapshot.comboMultiplier > oldWidget.snapshot.comboMultiplier) {
+      _pulseController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final comboIntensity = _comboMultiplierIntensity(
+      widget.snapshot.comboMultiplier,
+    );
+    final labelColor = Color.lerp(
+      const Color(0xFFFFD6A4),
+      const Color(0xFFFFF0D0),
+      comboIntensity,
+    )!;
+    final comboColor = Color.lerp(
+      const Color(0xFFFFD7A0),
+      const Color(0xFFFFEDC2),
+      comboIntensity,
+    )!;
+    final multiplierColor = Color.lerp(
+      const Color(0xFFE8A86A),
+      DonerColors.goldBright,
+      comboIntensity,
+    )!;
+
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, _) {
+        final pulseGlow = _pulseGlow.value;
+        final goldGlow = comboIntensity + (pulseGlow * 0.9);
+        final textGlow = 8 + (comboIntensity * 8) + (pulseGlow * 12);
+        final shellGlow = 12 + (comboIntensity * 10) + (pulseGlow * 18);
+
+        return Transform.translate(
+          offset: Offset(0, -_pulseLift.value * widget.scale),
+          child: Transform.scale(
+            key: const ValueKey('tap-zone-combo-badge-scale'),
+            scale: _pulseScale.value,
+            child: Container(
+              key: const ValueKey('tap-zone-combo-badge'),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(
+                      0xFF5A2416,
+                    ).withValues(alpha: 0.82 + (comboIntensity * 0.06)),
+                    const Color(
+                      0xFF35140D,
+                    ).withValues(alpha: 0.94 - (comboIntensity * 0.08)),
+                  ],
+                ),
+                border: Border.all(
+                  color: Color.lerp(
+                    DonerColors.borderPrimary,
+                    const Color(0xFFFFE4A2),
+                    comboIntensity,
+                  )!.withValues(alpha: 0.85 + (pulseGlow * 0.12)),
+                  width: 1.3 + (comboIntensity * 0.35),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: DonerColors.goldPrimary.withValues(
+                      alpha: 0.18 + (goldGlow * 0.16),
+                    ),
+                    blurRadius: shellGlow * widget.scale,
+                    offset: Offset(0, 6 * widget.scale),
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFFFFF0A8).withValues(
+                      alpha: comboIntensity > 0.72
+                          ? 0.09 + (pulseGlow * 0.10)
+                          : 0,
+                    ),
+                    blurRadius: (18 + (pulseGlow * 14)) * widget.scale,
+                    offset: const Offset(0, 0),
+                  ),
+                ],
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    top: 1,
+                    left: 16 * widget.scale,
+                    right: 16 * widget.scale,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            const Color(
+                              0xFFFFF2B2,
+                            ).withValues(alpha: 0.26 + (comboIntensity * 0.22)),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                      child: SizedBox(height: 1.6 * widget.scale),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16 * widget.scale,
+                      vertical: 8 * widget.scale,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          _multiplier(widget.snapshot.comboMultiplier),
+                          key: const ValueKey(
+                            'tap-zone-combo-badge-multiplier',
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: DonerTypography.display(
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: multiplierColor,
+                              fontWeight: FontWeight.w900,
+                              fontSize:
+                                  (13.8 + (comboIntensity * 7.4)) *
+                                  widget.scale,
+                              letterSpacing: -0.1 - (comboIntensity * 0.18),
+                              height: 0.88,
+                              shadows: [
+                                Shadow(
+                                  color: const Color(0xFFFFF0A8).withValues(
+                                    alpha: comboIntensity > 0.70
+                                        ? 0.22 + (goldGlow * 0.28)
+                                        : 0.12 + (goldGlow * 0.12),
+                                  ),
+                                  blurRadius: (textGlow + 4) * widget.scale,
+                                  offset: const Offset(0, 0),
+                                ),
+                                Shadow(
+                                  color: DonerColors.goldPrimary.withValues(
+                                    alpha: 0.28 + (goldGlow * 0.18),
+                                  ),
+                                  blurRadius: (textGlow - 1) * widget.scale,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 10 * widget.scale),
+                        Container(
+                          width: 1.2 * widget.scale,
+                          height: (24 + (comboIntensity * 6)) * widget.scale,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                const Color(
+                                  0xFFFFF0A8,
+                                ).withValues(alpha: 0.10 + (goldGlow * 0.12)),
+                                DonerColors.goldPrimary.withValues(
+                                  alpha: 0.18 + (goldGlow * 0.16),
+                                ),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 9 * widget.scale),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              strings.comboLabel.toUpperCase(),
+                              key: const ValueKey('tap-zone-combo-badge-label'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: DonerTypography.display(
+                                Theme.of(
+                                  context,
+                                ).textTheme.labelSmall?.copyWith(
+                                  color: labelColor.withValues(alpha: 0.82),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize:
+                                      (8.6 + (comboIntensity * 0.8)) *
+                                      widget.scale,
+                                  letterSpacing: 1.15,
+                                  height: 0.9,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 2 * widget.scale),
+                            Text(
+                              'x${widget.snapshot.currentCombo}',
+                              key: const ValueKey('tap-zone-combo-badge-count'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: DonerTypography.display(
+                                Theme.of(
+                                  context,
+                                ).textTheme.labelSmall?.copyWith(
+                                  color: comboColor.withValues(alpha: 0.92),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize:
+                                      (10.2 + (comboIntensity * 1.2)) *
+                                      widget.scale,
+                                  letterSpacing: 0.05,
+                                  height: 0.92,
+                                  shadows: [
+                                    Shadow(
+                                      color: DonerColors.goldPrimary.withValues(
+                                        alpha: 0.18 + (goldGlow * 0.10),
+                                      ),
+                                      blurRadius: (textGlow - 3) * widget.scale,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GoldenDonerBadge extends StatelessWidget {
+  const _GoldenDonerBadge({required this.snapshot, required this.scale});
+
+  final ActivePlaySnapshot snapshot;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    return Container(
+      key: const ValueKey('tap-zone-golden-doner-badge'),
+      width: 176 * scale,
+      padding: EdgeInsets.symmetric(
+        horizontal: 12 * scale,
+        vertical: 9 * scale,
+      ),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFD875), Color(0xFFD97A24)],
+        ),
+        borderRadius: BorderRadius.circular(18 * scale),
+        border: Border.all(color: const Color(0xFFFFF0A8), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: DonerColors.goldPrimary.withValues(alpha: 0.38),
+            blurRadius: 20 * scale,
+            offset: Offset(0, 8 * scale),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  strings.goldenDonerLabel.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: DonerTypography.body(
+                    Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: DonerColors.panelDark,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 10.5 * scale,
+                      letterSpacing: 0.8,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+              Text(
+                '${snapshot.goldenDonerRemaining.inSeconds}s',
+                style: DonerTypography.body(
+                  Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: DonerColors.panelDark,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10 * scale,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6 * scale),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              key: const ValueKey('tap-zone-golden-doner-progress'),
+              value: snapshot.goldenDonerProgress,
+              minHeight: 5 * scale,
+              backgroundColor: DonerColors.panelDark.withValues(alpha: 0.30),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                DonerColors.creamText,
+              ),
+            ),
+          ),
+          SizedBox(height: 5 * scale),
+          Text(
+            '${strings.goldenDonerProgress(snapshot.goldenDonerHits, snapshot.goldenDonerRequiredHits)}  ${formatCompactCurrency(context, snapshot.goldenDonerRewardPreview)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: DonerTypography.body(
+              Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: DonerColors.panelDark,
+                fontWeight: FontWeight.w900,
+                fontSize: 9.5 * scale,
+                height: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _multiplier(double value) => 'x${value.toStringAsFixed(2)}';
+
+double _comboMultiplierIntensity(double multiplier) {
+  const minMultiplier = 1.0;
+  const maxVisibleMultiplier = 3.0;
+  return ((multiplier - minMultiplier) / (maxVisibleMultiplier - minMultiplier))
+      .clamp(0, 1)
+      .toDouble();
+}
+
+String _tapBurstText(BuildContext context, _TapBurstEntry entry) {
+  final amount = '+${formatCompactCurrency(context, entry.value)}';
+  return switch (entry.type) {
+    _TapBurstType.normal => amount,
+    _TapBurstType.critical =>
+      '${AppStrings.of(context).criticalCutLabel.toUpperCase()} $amount',
+    _TapBurstType.goldenDoner =>
+      '${AppStrings.of(context).goldenDonerLabel.toUpperCase()} $amount',
+  };
+}
+
+TextStyle? _tapBurstFillStyle(
+  _TapBurstType type, {
+  required TextStyle? normal,
+  required TextStyle? critical,
+  required TextStyle? golden,
+}) {
+  return switch (type) {
+    _TapBurstType.normal => normal,
+    _TapBurstType.critical => critical,
+    _TapBurstType.goldenDoner => golden,
+  };
+}
+
 class _TapBurstEntry {
   const _TapBurstEntry({
     required this.id,
     required this.value,
+    required this.type,
     required this.origin,
     required this.riseDistance,
     this.isRising = false,
@@ -606,6 +1182,7 @@ class _TapBurstEntry {
 
   final int id;
   final int value;
+  final _TapBurstType type;
   final Offset origin;
   final double riseDistance;
   final bool isRising;
@@ -615,10 +1192,55 @@ class _TapBurstEntry {
     return _TapBurstEntry(
       id: id,
       value: value,
+      type: type,
       origin: origin,
       riseDistance: riseDistance,
       isRising: isRising ?? this.isRising,
       isFadingOut: isFadingOut ?? this.isFadingOut,
+    );
+  }
+}
+
+enum _TapBurstType { normal, critical, goldenDoner }
+
+class _TapBurstAnimatedEntry extends StatelessWidget {
+  const _TapBurstAnimatedEntry({
+    required this.entry,
+    required this.child,
+    required this.keyBase,
+  });
+
+  static const _entryDuration = Duration(milliseconds: 340);
+  static const _startSlide = Offset(0, 0.18);
+  static const _startTurns = -0.03;
+  static const _startScale = 0.58;
+
+  final _TapBurstEntry entry;
+  final Widget child;
+  final String keyBase;
+
+  @override
+  Widget build(BuildContext context) {
+    if (entry.type != _TapBurstType.critical) {
+      return child;
+    }
+
+    return AnimatedSlide(
+      offset: entry.isRising ? Offset.zero : _startSlide,
+      duration: _entryDuration,
+      curve: Curves.easeOutCubic,
+      child: AnimatedRotation(
+        turns: entry.isRising ? 0 : _startTurns,
+        duration: _entryDuration,
+        curve: Curves.easeOutBack,
+        child: AnimatedScale(
+          key: ValueKey('$keyBase-critical-entry'),
+          scale: entry.isRising ? 1 : _startScale,
+          duration: _entryDuration,
+          curve: Curves.elasticOut,
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -628,19 +1250,21 @@ class _TapBurstLabel extends StatelessWidget {
     required this.text,
     required this.fillStyle,
     required this.strokeStyle,
+    required this.keyBase,
   });
 
   final String text;
   final TextStyle? fillStyle;
   final TextStyle? strokeStyle;
+  final String keyBase;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Text(text, style: strokeStyle),
-        Text(text, style: fillStyle),
+        Text(key: ValueKey('$keyBase-stroke'), text, style: strokeStyle),
+        Text(key: ValueKey('$keyBase-fill'), text, style: fillStyle),
       ],
     );
   }
