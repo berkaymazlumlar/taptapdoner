@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
+import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
-import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
 import 'package:taptapdoner/services/save/save_repository.dart';
-import 'package:taptapdoner/ui/overlays/tap_zone_overlay.dart';
+import 'package:taptapdoner/ui/overlays/combo_badge.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
 void main() {
@@ -20,17 +20,16 @@ void main() {
     final controller = _controller(
       config,
       nowUtc,
-      state: _comboState(config, nowUtc, currentCombo: 4, maxCombo: 4),
+      state: _comboState(config, nowUtc, currentCombo: 10, maxCombo: 10),
     );
-    final game = TapTapDonerGame(controller: controller);
 
     await tester.pumpWidget(
       _SizedHost(
         size: const Size(390, 844),
-        child: TapZoneOverlay(controller: controller, game: game),
+        child: _ComboBadgeHost(controller: controller),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     final lowMultiplier = tester.widget<Text>(
       find.byKey(const ValueKey('tap-zone-combo-badge-multiplier')),
@@ -39,23 +38,44 @@ void main() {
       find.byKey(const ValueKey('tap-zone-combo-badge-label')),
     );
 
+    expect(
+      tester.widget(find.byKey(const ValueKey('tap-zone-combo-badge'))),
+      isA<SizedBox>(),
+    );
+    expect(lowLabel.data, 'FAST COMBO');
     expect(lowMultiplier.style?.fontFamily, DonerTypography.displayFontFamily);
     expect(lowMultiplier.style?.color, isNot(DonerColors.goldBright));
+    expect(lowMultiplier.style?.shadows, isNull);
+    expect(lowLabel.style?.shadows, isNull);
+    expect(find.byType(ImageFiltered), findsWidgets);
     expect(
       lowMultiplier.style!.fontSize!,
       greaterThan(lowLabel.style!.fontSize!),
     );
 
+    await tester.pump(const Duration(milliseconds: 180));
+    final animatedLowMultiplier = tester.widget<Text>(
+      find.byKey(const ValueKey('tap-zone-combo-badge-multiplier')),
+    );
+    expect(
+      animatedLowMultiplier.style?.color,
+      isNot(lowMultiplier.style?.color),
+    );
+
     controller.hydrate(
       _comboState(config, nowUtc, currentCombo: 100, maxCombo: 100),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     final highMultiplier = tester.widget<Text>(
       find.byKey(const ValueKey('tap-zone-combo-badge-multiplier')),
     );
+    final highLabel = tester.widget<Text>(
+      find.byKey(const ValueKey('tap-zone-combo-badge-label')),
+    );
 
-    expect(highMultiplier.style?.color, DonerColors.goldBright);
+    expect(highLabel.data, 'LEGENDARY COMBO');
+    expect(highMultiplier.style?.color, isNot(lowMultiplier.style?.color));
     expect(
       highMultiplier.style!.fontSize!,
       greaterThan(lowMultiplier.style!.fontSize!),
@@ -66,30 +86,51 @@ void main() {
     final controller = _controller(
       config,
       nowUtc,
-      state: _comboState(config, nowUtc, currentCombo: 4, maxCombo: 4),
+      state: _comboState(config, nowUtc, currentCombo: 10, maxCombo: 10),
     );
-    final game = TapTapDonerGame(controller: controller);
 
     await tester.pumpWidget(
       _SizedHost(
         size: const Size(390, 844),
-        child: TapZoneOverlay(controller: controller, game: game),
+        child: _ComboBadgeHost(controller: controller),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(_comboScale(tester), closeTo(1.0, 0.001));
 
     controller.hydrate(
-      _comboState(config, nowUtc, currentCombo: 5, maxCombo: 5),
+      _comboState(config, nowUtc, currentCombo: 20, maxCombo: 20),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 70));
 
     expect(_comboScale(tester), greaterThan(1.02));
 
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 360));
     expect(_comboScale(tester), closeTo(1.0, 0.001));
+  });
+
+  testWidgets('combo badge idly jitters while it is visible', (tester) async {
+    final controller = _controller(
+      config,
+      nowUtc,
+      state: _comboState(config, nowUtc, currentCombo: 20, maxCombo: 20),
+    );
+
+    await tester.pumpWidget(
+      _SizedHost(
+        size: const Size(390, 844),
+        child: _ComboBadgeHost(controller: controller),
+      ),
+    );
+    await tester.pump();
+
+    final firstOffset = _comboIdleOffset(tester);
+    await tester.pump(const Duration(milliseconds: 120));
+    final nextOffset = _comboIdleOffset(tester);
+
+    expect((nextOffset - firstOffset).distance, greaterThan(0.1));
   });
 }
 
@@ -98,6 +139,14 @@ double _comboScale(WidgetTester tester) {
     find.byKey(const ValueKey('tap-zone-combo-badge-scale')),
   );
   return badge.transform.getMaxScaleOnAxis();
+}
+
+Offset _comboIdleOffset(WidgetTester tester) {
+  final badge = tester.widget<Transform>(
+    find.byKey(const ValueKey('tap-zone-combo-badge-idle')),
+  );
+  final translation = badge.transform.getTranslation();
+  return Offset(translation.x, translation.y);
 }
 
 GameState _comboState(
@@ -127,6 +176,24 @@ GameController _controller(
     adService: const NoopRewardedAdService(),
     clock: () => nowUtc,
   )..hydrate(state);
+}
+
+class _ComboBadgeHost extends StatelessWidget {
+  const _ComboBadgeHost({required this.controller});
+
+  final GameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ValueListenableBuilder<ActivePlaySnapshot>(
+        valueListenable: controller.activePlaySnapshotListenable,
+        builder: (context, snapshot, _) {
+          return ComboBadge(snapshot: snapshot, scale: 1);
+        },
+      ),
+    );
+  }
 }
 
 class _SizedHost extends StatelessWidget {

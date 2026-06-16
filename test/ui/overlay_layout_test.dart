@@ -68,7 +68,11 @@ void main() {
       find.byKey(const ValueKey('tap-zone-cash-splash-0')),
     );
     expect(firstCashSplashRect.center.dx, greaterThan(topTapPosition.dx));
-    expect(firstCashSplashRect.top, lessThanOrEqualTo(topTapPosition.dy));
+    expect(
+      firstCashSplashRect.top,
+      greaterThanOrEqualTo(topTapPosition.dy - 4),
+    );
+    expect(firstCashSplashRect.top, lessThan(topTapPosition.dy + 48));
     expect(
       find.byKey(const ValueKey('tap-zone-falling-slice-0')),
       findsOneWidget,
@@ -88,7 +92,11 @@ void main() {
       find.byKey(const ValueKey('tap-zone-cash-splash-1')),
     );
     expect(secondCashSplashRect.center.dx, greaterThan(bottomTapPosition.dx));
-    expect(secondCashSplashRect.top, lessThanOrEqualTo(bottomTapPosition.dy));
+    expect(
+      secondCashSplashRect.top,
+      greaterThanOrEqualTo(bottomTapPosition.dy - 4),
+    );
+    expect(secondCashSplashRect.top, lessThan(bottomTapPosition.dy + 48));
     expect(
       find.byKey(const ValueKey('tap-zone-falling-slice-1')),
       findsOneWidget,

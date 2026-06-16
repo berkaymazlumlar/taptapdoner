@@ -24,13 +24,19 @@ enum AchievementRewardType {
   cosmeticToken,
 }
 
-enum ChestType { small, master, gold }
+enum ChestType { small, master, gold, recipe, staff, decor, prestige }
 
 enum ChestRewardType {
   money,
+  reputation,
   temporaryIncomeBoost,
   turboCharge,
   cosmeticToken,
+  recipeShard,
+  staffCardShard,
+  decorShard,
+  knifeSkinShard,
+  prestigeShard,
   permanentTapBonus,
   permanentPassiveBonus,
   permanentGlobalBonus,
@@ -80,12 +86,14 @@ class ChestReward {
     required this.amount,
     this.durationSeconds,
     this.itemId,
+    this.rarity = Rarity.common,
   });
 
   final ChestRewardType rewardType;
   final double amount;
   final int? durationSeconds;
   final String? itemId;
+  final Rarity rarity;
 }
 
 class PermanentBonus {
@@ -136,6 +144,10 @@ String chestTypeKey(ChestType type) {
     ChestType.small => 'small',
     ChestType.master => 'master',
     ChestType.gold => 'gold',
+    ChestType.recipe => 'recipe',
+    ChestType.staff => 'staff',
+    ChestType.decor => 'decor',
+    ChestType.prestige => 'prestige',
   };
 }
 
@@ -144,6 +156,10 @@ ChestType? chestTypeFromKey(String key) {
     'small' => ChestType.small,
     'master' => ChestType.master,
     'gold' => ChestType.gold,
+    'recipe' => ChestType.recipe,
+    'staff' => ChestType.staff,
+    'decor' || 'shop' => ChestType.decor,
+    'prestige' => ChestType.prestige,
     _ => null,
   };
 }

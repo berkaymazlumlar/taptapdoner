@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/services/audio/purchase_sfx_player.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/doner_game_primitives.dart';
@@ -126,9 +129,13 @@ class PrestigeShopPage extends StatelessWidget {
                             _PrestigeShopUpgradeCard(
                               upgrade: snapshot.shopUpgrades[index],
                               onBuy: () async {
-                                await controller.buyPrestigeUpgrade(
-                                  snapshot.shopUpgrades[index].id,
-                                );
+                                final bought = await controller
+                                    .buyPrestigeUpgrade(
+                                      snapshot.shopUpgrades[index].id,
+                                    );
+                                if (bought) {
+                                  unawaited(PurchaseSfxPlayer.play());
+                                }
                               },
                             ),
                             if (index != snapshot.shopUpgrades.length - 1)

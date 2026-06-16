@@ -7,6 +7,7 @@ import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/services/audio/purchase_sfx_player.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/doner_game_primitives.dart';
@@ -1411,7 +1412,12 @@ Future<void> _buyUpgradeWithFeedback(
   );
 
   final bought = await controller.buyUpgrade(upgrade.id);
-  if (!bought || !context.mounted) {
+  if (!bought) {
+    return;
+  }
+
+  unawaited(PurchaseSfxPlayer.play());
+  if (!context.mounted) {
     return;
   }
 

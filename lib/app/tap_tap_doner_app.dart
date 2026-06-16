@@ -149,26 +149,63 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
   }
 }
 
-class _GameHome extends StatelessWidget {
+class _GameHome extends StatefulWidget {
   const _GameHome({required this.controller});
 
   final GameController controller;
 
   @override
+  State<_GameHome> createState() => _GameHomeState();
+}
+
+class _GameHomeState extends State<_GameHome> {
+  late bool _showOfflineReward;
+
+  @override
+  void initState() {
+    super.initState();
+    _showOfflineReward = widget.controller.hasPendingOfflineReward;
+    widget.controller.addListener(_handleControllerUpdate);
+  }
+
+  @override
+  void didUpdateWidget(covariant _GameHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) {
+      return;
+    }
+    oldWidget.controller.removeListener(_handleControllerUpdate);
+    _showOfflineReward = widget.controller.hasPendingOfflineReward;
+    widget.controller.addListener(_handleControllerUpdate);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleControllerUpdate);
+    super.dispose();
+  }
+
+  void _handleControllerUpdate() {
+    final nextShowOfflineReward = widget.controller.hasPendingOfflineReward;
+    if (_showOfflineReward == nextShowOfflineReward || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _showOfflineReward = nextShowOfflineReward;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              GameShellOverlay(controller: controller),
-              if (controller.hasPendingOfflineReward)
-                OfflineRewardOverlay(controller: controller),
-            ],
-          );
-        },
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          GameShellOverlay(controller: widget.controller),
+          if (_showOfflineReward)
+            OfflineRewardOverlay(controller: widget.controller),
+        ],
       ),
     );
   }

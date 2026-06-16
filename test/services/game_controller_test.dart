@@ -2,7 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
+import 'package:taptapdoner/domain/customers/customer_order_models.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/goals/goal_catalog.dart';
+import 'package:taptapdoner/domain/goals/goal_engine.dart';
+import 'package:taptapdoner/domain/goals/goal_models.dart';
+import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
@@ -210,7 +215,78 @@ void main() {
     },
   );
 
-  test('combo increases tap income and expires after its window', () async {
+  test(
+    'recipe chest shards unlock recipes and auto-claim completed set bonuses',
+    () async {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+            random: _FixedRandom(0.01),
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              chestInventory: const ChestInventoryState(
+                counts: {ChestType.recipe: 1},
+              ),
+              collection2: const Collection2State(
+                recipeShards: {'recipe_chicken_doner': 8},
+                staffCardLevels: {'staff_apprentice': 1},
+                unlockedDecorIds: {'decor_new_sign'},
+                unlockedKnifeSkinIds: {'knife_skin_rusty'},
+              ),
+            ),
+          );
+
+      final reward = await controller.openChest(ChestType.recipe);
+
+      expect(reward, isNotNull);
+      expect(reward!.rewardType, ChestRewardType.recipeShard);
+      expect(
+        controller.state.collection2.recipeLevel('recipe_chicken_doner'),
+        1,
+      );
+      expect(
+        controller.state.collection2.recipeShardCount('recipe_chicken_doner'),
+        1,
+      );
+      expect(
+        controller.state.collection2.claimedSetBonuses,
+        contains('street_set'),
+      );
+      expect(controller.state.chestInventory.count(ChestType.recipe), 0);
+    },
+  );
+
+  test('maxed collection shard duplicate overflows into reputation', () async {
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+          random: _FixedRandom(0.01),
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            chestInventory: const ChestInventoryState(
+              counts: {ChestType.recipe: 1},
+            ),
+            collection2: const Collection2State(
+              recipeLevels: {'recipe_chicken_doner': 5},
+            ),
+          ),
+        );
+
+    await controller.openChest(ChestType.recipe);
+
+    expect(controller.state.collection2.recipeLevel('recipe_chicken_doner'), 5);
+    expect(controller.state.customerReputation.totalReputation, 3);
+  });
+
+  test('combo activates after ten taps and expires after its window', () async {
     var nowUtc = DateTime.utc(2026, 4, 1, 12);
     final comboConfig = _activePlayConfig(baseTapValue: 10);
     final controller =
@@ -226,21 +302,57 @@ void main() {
         );
 
     final first = await controller.tap();
-    TapOutcome fifth = first;
-    for (var index = 0; index < 4; index += 1) {
-      fifth = await controller.tap();
+    TapOutcome ninth = first;
+    for (var index = 0; index < 8; index += 1) {
+      ninth = await controller.tap();
     }
+    expect(controller.state.stats.maxCombo, 0);
+    final tenth = await controller.tap();
 
-    expect(first.combo, 1);
-    expect(fifth.combo, 5);
-    expect(fifth.comboMultiplier, closeTo(1.10, 0.0001));
-    expect(fifth.coins, greaterThan(first.coins));
-    expect(controller.activePlaySnapshotListenable.value.currentCombo, 5);
+    expect(first.combo, 0);
+    expect(first.comboMultiplier, 1);
+    expect(ninth.combo, 0);
+    expect(ninth.comboMultiplier, 1);
+    expect(tenth.combo, 10);
+    expect(tenth.comboMultiplier, closeTo(1.20, 0.0001));
+    expect(tenth.coins, greaterThan(first.coins));
+    expect(controller.activePlaySnapshotListenable.value.currentCombo, 10);
 
     nowUtc = nowUtc.add(const Duration(seconds: 3));
     controller.tick(const Duration(seconds: 3));
 
     expect(controller.activePlaySnapshotListenable.value.currentCombo, 0);
+  });
+
+  test('combo multiplier bonus does not affect warmup taps', () async {
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final comboConfig = _activePlayConfig(baseTapValue: 10);
+    final controller =
+        GameController(
+          config: comboConfig,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+        )..hydrate(
+          GameState.initial(comboConfig, nowUtc: nowUtc).copyWith(
+            milestones: const MilestoneState(
+              unlockedFeatureKeys: {'combo'},
+              comboMultiplierBonus: 0.05,
+            ),
+          ),
+        );
+
+    final first = await controller.tap();
+    for (var index = 0; index < 8; index += 1) {
+      await controller.tap();
+    }
+    final tenth = await controller.tap();
+
+    expect(first.combo, 0);
+    expect(first.comboMultiplier, 1);
+    expect(first.coins, 10);
+    expect(tenth.combo, 10);
+    expect(tenth.comboMultiplier, closeTo(1.25, 0.0001));
   });
 
   test('critical cut randomly multiplies an unlocked tap', () async {
@@ -357,6 +469,437 @@ void main() {
       expect(controller.state.stats.goldenDonerCollected, 0);
     },
   );
+
+  test('customer order spawn advances only during active ticking', () async {
+    var nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+          random: _FixedRandom(0),
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            customerOrders: CustomerSystemState.initial(nowUtc: nowUtc)
+                .copyWith(
+                  lastSpawnTimeMillis: nowUtc.millisecondsSinceEpoch,
+                  spawnRemainingSeconds: 1,
+                  nextSpawnTimeMillis: nowUtc
+                      .add(const Duration(seconds: 1))
+                      .millisecondsSinceEpoch,
+                ),
+          ),
+        );
+
+    nowUtc = nowUtc.add(const Duration(hours: 1));
+    await controller.reconcileBackground();
+
+    expect(controller.state.customerOrders.activeOrder, isNull);
+    expect(controller.state.customerOrders.spawnRemainingSeconds, 1);
+
+    controller.tick(const Duration(seconds: 1));
+
+    expect(controller.state.customerOrders.activeOrder, isNotNull);
+    expect(
+      controller.state.customerOrders.activeOrder!.customerTypeId,
+      CustomerOrderCatalog.regularCustomer,
+    );
+  });
+
+  test(
+    'customer order completion grants reward once and unlocks reputation type',
+    () async {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final order = CustomerOrder(
+        id: 'test_order',
+        customerTypeId: CustomerOrderCatalog.regularCustomer,
+        customerName: 'Regular Customer',
+        title: 'Simple Order',
+        description: 'Cut 2 doners.',
+        objectiveType: OrderObjectiveType.tapCount,
+        targetValue: 2,
+        durationSeconds: 20,
+        remainingSeconds: 20,
+        rarity: OrderRarity.common,
+        minShopLevel: 1,
+        rewards: const [
+          OrderReward(type: OrderRewardType.money, amount: 10),
+          OrderReward(type: OrderRewardType.reputation, amount: 50),
+        ],
+      );
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              customerOrders: CustomerSystemState.initial(nowUtc: nowUtc)
+                  .copyWith(
+                    activeOrder: order,
+                    lastSpawnTimeMillis: nowUtc.millisecondsSinceEpoch,
+                  ),
+            ),
+          );
+
+      await controller.tap();
+      await controller.tap();
+
+      final cashAfterCompletion = controller.state.cash;
+      expect(controller.state.customerOrders.activeOrder, isNull);
+      expect(controller.state.customerOrders.completedOrderCount, 1);
+      expect(
+        controller.state.customerOrders.completedOrderIds,
+        contains('test_order'),
+      );
+      expect(controller.state.customerReputation.totalReputation, 50);
+      expect(controller.state.customerReputation.currentLevel, 2);
+      expect(
+        controller.state.customerOrders.unlockedCustomerTypeIds,
+        contains(CustomerOrderCatalog.hurryCustomer),
+      );
+
+      await controller.tap();
+
+      expect(controller.state.customerOrders.completedOrderCount, 1);
+      expect(controller.state.cash, cashAfterCompletion + 1);
+    },
+  );
+
+  test(
+    'prestige clears active customer order but preserves reputation',
+    () async {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final order = CustomerOrder(
+        id: 'prestige_order',
+        customerTypeId: CustomerOrderCatalog.regularCustomer,
+        customerName: 'Regular Customer',
+        title: 'Simple Order',
+        description: 'Cut 10 doners.',
+        objectiveType: OrderObjectiveType.tapCount,
+        targetValue: 10,
+        durationSeconds: 20,
+        remainingSeconds: 20,
+        rarity: OrderRarity.common,
+        minShopLevel: 1,
+        rewards: const [
+          OrderReward(type: OrderRewardType.reputation, amount: 1),
+        ],
+      );
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              prestige: PrestigeState(
+                reputation: 0,
+                runCashEarned: config.prestigeThreshold,
+              ),
+              customerReputation: CustomerReputationState.fromTotal(50),
+              customerOrders: CustomerSystemState.initial(nowUtc: nowUtc)
+                  .copyWith(
+                    activeOrder: order,
+                    completedOrderCount: 3,
+                    lastSpawnTimeMillis: nowUtc.millisecondsSinceEpoch,
+                  ),
+            ),
+          );
+
+      final applied = await controller.applyPrestige();
+
+      expect(applied, isTrue);
+      expect(controller.state.customerOrders.activeOrder, isNull);
+      expect(controller.state.customerOrders.completedOrderCount, 3);
+      expect(controller.state.customerReputation.totalReputation, 50);
+      expect(controller.state.customerReputation.currentLevel, 2);
+      expect(controller.state.customerOrders.spawnRemainingSeconds, 240);
+    },
+  );
+
+  test(
+    'daily and weekly goals generate on hydrate and avoid locked systems',
+    () {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller = GameController(
+        config: config,
+        saveRepository: _RecordingSaveRepository(),
+        adService: const NoopRewardedAdService(),
+        clock: () => nowUtc,
+        random: const _FixedRandom(0),
+      )..hydrate(GameState.initial(config, nowUtc: nowUtc));
+
+      final dailyIds = controller.state.goals.activeDailyGoals
+          .map((goal) => goal.goalId)
+          .toSet();
+      final weeklyIds = controller.state.goals.activeWeeklyGoals
+          .map((goal) => goal.goalId)
+          .toSet();
+
+      expect(controller.state.goals.activeDailyGoals, hasLength(3));
+      expect(controller.state.goals.activeWeeklyGoals, hasLength(5));
+      expect(controller.state.goals.activePrestigeRunGoals, isEmpty);
+      expect(controller.state.goals.activeEventGoals, isEmpty);
+      expect(dailyIds, isNot(contains('daily_golden_1')));
+      expect(weeklyIds, isNot(contains('weekly_golden_10')));
+      expect(
+        GoalCatalog.byId[dailyIds.first]!.objectiveType,
+        isNot(GoalObjectiveType.completeEvent),
+      );
+    },
+  );
+
+  test('goal progress completes and reward can be claimed once', () async {
+    final repository = _RecordingSaveRepository();
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: repository,
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            goals: _goalsWithDaily(
+              nowUtc,
+              const GoalProgress(
+                goalId: 'daily_tap_300',
+                targetValue: 2,
+                generatedAtMillis: 1775044800000,
+                expiresAtMillis: 1775131200000,
+              ),
+            ),
+          ),
+        );
+
+    await controller.tap();
+    await controller.tap();
+
+    expect(
+      controller.state.goals.progressFor('daily_tap_300')?.status,
+      GoalStatus.completed,
+    );
+
+    final claimed = await controller.claimGoalReward('daily_tap_300');
+    final duplicate = await controller.claimGoalReward('daily_tap_300');
+
+    expect(claimed, isTrue);
+    expect(duplicate, isFalse);
+    expect(controller.state.cash, 302);
+    expect(controller.state.customerReputation.totalReputation, 5);
+    expect(
+      controller.state.goals.progressFor('daily_tap_300')?.rewardClaimed,
+      isTrue,
+    );
+    expect(
+      repository.savedState?.goals.progressFor('daily_tap_300')?.rewardClaimed,
+      isTrue,
+    );
+  });
+
+  test('expired goal cannot be claimed', () async {
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            goals: _goalsWithDaily(
+              nowUtc,
+              GoalProgress(
+                goalId: 'daily_tap_300',
+                currentValue: 2,
+                targetValue: 2,
+                status: GoalStatus.completed,
+                generatedAtMillis: nowUtc.millisecondsSinceEpoch,
+                expiresAtMillis: nowUtc
+                    .subtract(const Duration(milliseconds: 1))
+                    .millisecondsSinceEpoch,
+              ),
+            ),
+          ),
+        );
+
+    final claimed = await controller.claimGoalReward('daily_tap_300');
+
+    expect(claimed, isFalse);
+    expect(
+      controller.state.goals.progressFor('daily_tap_300')?.status,
+      GoalStatus.expired,
+    );
+    expect(controller.state.cash, 0);
+  });
+
+  test('daily and weekly reset regenerates active goals', () async {
+    var nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+          random: const _FixedRandom(0),
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            goals: _goalsWithDaily(
+              nowUtc,
+              GoalProgress(
+                goalId: 'daily_tap_300',
+                currentValue: 1,
+                targetValue: 2,
+                generatedAtMillis: nowUtc.millisecondsSinceEpoch,
+                expiresAtMillis: nowUtc
+                    .add(const Duration(days: 1))
+                    .millisecondsSinceEpoch,
+              ),
+            ),
+          ),
+        );
+
+    nowUtc = DateTime.utc(2026, 4, 2, 12);
+    await controller.reconcileBackground();
+
+    expect(controller.state.goals.lastDailyResetDate, goalLocalDateKey(nowUtc));
+    expect(
+      controller.state.goals.activeDailyGoals.every(
+        (goal) =>
+            goal.currentValue == 0 &&
+            goal.generatedAtMillis == nowUtc.millisecondsSinceEpoch,
+      ),
+      isTrue,
+    );
+
+    nowUtc = DateTime.utc(2026, 4, 6, 12);
+    await controller.reconcileBackground();
+
+    expect(controller.state.goals.lastWeeklyResetWeek, goalIsoWeekKey(nowUtc));
+    expect(
+      controller.state.goals.activeWeeklyGoals.every(
+        (goal) => goal.generatedAtMillis == nowUtc.millisecondsSinceEpoch,
+      ),
+      isTrue,
+    );
+  });
+
+  test('prestige generates new prestige run goals after reset', () async {
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+          random: const _FixedRandom(0),
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            prestige: PrestigeState(
+              reputation: 0,
+              runCashEarned: config.prestigeThreshold,
+            ),
+          ),
+        );
+
+    expect(controller.state.goals.activePrestigeRunGoals, isEmpty);
+
+    final applied = await controller.applyPrestige();
+
+    expect(applied, isTrue);
+    expect(controller.state.prestige.prestigeCount, 1);
+    expect(controller.state.goals.activePrestigeRunGoals, hasLength(3));
+    expect(controller.state.goals.runGoalPrestigeCount, 1);
+  });
+
+  test(
+    'branch unlock and level up persist and record branch goal progress',
+    () async {
+      final repository = _RecordingSaveRepository();
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: repository,
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              cash: 5_000_000,
+              lifetimeCash: 20_000_000,
+              prestige: const PrestigeState(
+                reputation: 0,
+                prestigeCount: 1,
+                runCashEarned: 0,
+              ),
+              shopProgression: const ShopProgressionState(
+                currentShopLevel: 7,
+                highestShopLevel: 7,
+                unlockedShopIds: {'street_stand', 'doner_chain'},
+              ),
+              goals: _goalsWithDaily(
+                nowUtc,
+                GoalProgress(
+                  goalId: 'daily_unlock_branch_1',
+                  targetValue: 1,
+                  generatedAtMillis: nowUtc.millisecondsSinceEpoch,
+                  expiresAtMillis: nowUtc
+                      .add(const Duration(days: 1))
+                      .millisecondsSinceEpoch,
+                ),
+              ),
+            ),
+          );
+
+      final unlocked = await controller.unlockBranch('main_branch');
+      final leveled = await controller.levelUpBranch('main_branch');
+
+      expect(unlocked, isTrue);
+      expect(leveled, isTrue);
+      expect(
+        controller.state.branches.progressFor('main_branch').isUnlocked,
+        isTrue,
+      );
+      expect(controller.state.branches.progressFor('main_branch').level, 2);
+      expect(
+        controller.state.goals.progressFor('daily_unlock_branch_1')?.status,
+        GoalStatus.completed,
+      );
+      expect(
+        repository.savedState?.branches.progressFor('main_branch').level,
+        2,
+      );
+    },
+  );
+
+  test('goal eligibility blocks locked customer and golden systems', () {
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      customerOrders: const CustomerSystemState(unlockedCustomerTypeIds: {}),
+    );
+    const engine = GoalEngine();
+
+    expect(
+      engine.isGoalEligible(
+        GoalCatalog.byId['daily_customer_orders_2']!,
+        state,
+        config: config,
+      ),
+      isFalse,
+    );
+    expect(
+      engine.isGoalEligible(
+        GoalCatalog.byId['daily_golden_1']!,
+        state,
+        config: config,
+      ),
+      isFalse,
+    );
+  });
 }
 
 EconomyConfig _activePlayConfig({
@@ -442,4 +985,12 @@ class _FixedRandom implements math.Random {
 
   @override
   int nextInt(int max) => (value * max).floor().clamp(0, max - 1);
+}
+
+GoalSystemState _goalsWithDaily(DateTime nowUtc, GoalProgress dailyGoal) {
+  return GoalSystemState(
+    activeDailyGoals: [dailyGoal],
+    lastDailyResetDate: goalLocalDateKey(nowUtc),
+    lastWeeklyResetWeek: goalIsoWeekKey(nowUtc),
+  );
 }

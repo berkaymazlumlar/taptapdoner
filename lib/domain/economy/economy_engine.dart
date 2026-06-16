@@ -1,8 +1,10 @@
 import 'dart:math';
 
+import 'package:taptapdoner/domain/branches/branch_catalog.dart';
 import 'package:taptapdoner/domain/economy/economy_calculator.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/progression/achievement_catalog.dart';
+import 'package:taptapdoner/domain/progression/collection2_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection_catalog.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
@@ -71,7 +73,6 @@ class EconomyEngine {
   final EconomyConfig config;
 
   static const _comboMultiplierThresholds = <int, double>{
-    5: 1.10,
     10: 1.20,
     20: 1.40,
     30: 1.60,
@@ -93,6 +94,9 @@ class EconomyEngine {
   double upgradeEffect(GameState state, UpgradeId id) {
     final baseEffect = getTrackEffectById(_activeUpgradeTracks(state), id.key);
     final milestones = state.milestones;
+    final collection2Bonuses = Collection2Catalog.bonusTotalsFor(
+      state.collection2,
+    );
     return switch (id) {
       UpgradeId.knife =>
         baseEffect * _bonusMultiplier(milestones.tapBonusPercent),
@@ -101,10 +105,15 @@ class EconomyEngine {
       UpgradeId.oven =>
         baseEffect * _bonusMultiplier(milestones.globalBonusPercent),
       UpgradeId.menu =>
-        baseEffect * _bonusMultiplier(milestones.menuBonusPercent),
+        baseEffect *
+            _bonusMultiplier(
+              milestones.menuBonusPercent + collection2Bonuses.menuBonusPercent,
+            ),
       UpgradeId.turbo =>
         baseEffect * _bonusMultiplier(milestones.turboBonusPercent),
-      UpgradeId.offline => baseEffect + milestones.offlineEfficiencyBonus,
+      UpgradeId.offline =>
+        (baseEffect + milestones.offlineEfficiencyBonus) *
+            _bonusMultiplier(collection2Bonuses.offlineIncomeBonusPercent),
     };
   }
 
@@ -177,6 +186,8 @@ class EconomyEngine {
   }) {
     final now = (nowUtc ?? DateTime.now()).toUtc();
     final collectionBonuses = _permanentBonuses(state);
+    final temporaryBoostMultiplier =
+        includeRush && state.passiveBoost.isActiveAt(now) ? 2.0 : 1.0;
     final baseIncome = calculatePassiveIncomePerSecond(
       staffEffect: _staffEffect(state),
       ovenEffect: _ovenEffect(state),
@@ -188,10 +199,29 @@ class EconomyEngine {
           _prestigePassiveMultiplier(state),
       collectionGlobalMultiplier:
           collectionBonuses.globalMultiplier * _prestigeGlobalMultiplier(state),
+      temporaryBoostMultiplier: temporaryBoostMultiplier,
+    );
+    return baseIncome +
+        _branchIncomePerSecond(
+          state,
+          collectionBonuses: collectionBonuses,
+          temporaryBoostMultiplier: temporaryBoostMultiplier,
+        );
+  }
+
+  double branchIncomePerSecond(
+    GameState state, {
+    DateTime? nowUtc,
+    bool includeRush = true,
+  }) {
+    final now = (nowUtc ?? DateTime.now()).toUtc();
+    final collectionBonuses = _permanentBonuses(state);
+    return _branchIncomePerSecond(
+      state,
+      collectionBonuses: collectionBonuses,
       temporaryBoostMultiplier:
           includeRush && state.passiveBoost.isActiveAt(now) ? 2 : 1,
     );
-    return baseIncome;
   }
 
   double offlineEfficiency(GameState state) {
@@ -262,7 +292,7 @@ class EconomyEngine {
   }
 
   double comboMultiplierForCount(int comboCount, GameState state) {
-    if (comboCount <= 0 || !state.milestones.hasFeature('combo')) {
+    if (activeComboForCount(comboCount, state) <= 0) {
       return 1;
     }
     var multiplier = 1.0;
@@ -273,6 +303,14 @@ class EconomyEngine {
     }
     multiplier += state.milestones.comboMultiplierBonus;
     return min(config.comboMaxMultiplier, max(1.0, multiplier));
+  }
+
+  int activeComboForCount(int comboCount, GameState state) {
+    if (!state.milestones.hasFeature('combo')) {
+      return 0;
+    }
+    final threshold = max(1, config.comboActivationThreshold);
+    return comboCount >= threshold ? comboCount : 0;
   }
 
   double criticalChance(GameState state) {
@@ -292,7 +330,11 @@ class EconomyEngine {
 
   double shopMultiplier(GameState state) {
     final level = state.shopProgression.currentShopLevel;
-    return ShopProgressionCatalog.byLevel(level).incomeMultiplier;
+    final collection2Bonuses = Collection2Catalog.bonusTotalsFor(
+      state.collection2,
+    );
+    return ShopProgressionCatalog.byLevel(level).incomeMultiplier *
+        _bonusMultiplier(collection2Bonuses.shopBonusPercent);
   }
 
   double shopMultiplierForLevel(int level) {
@@ -347,6 +389,27 @@ class EconomyEngine {
     return 1 + max(0, prestigeShopGlobalBonusPercent(state));
   }
 
+  double _branchIncomePerSecond(
+    GameState state, {
+    required CollectionBonusTotals collectionBonuses,
+    required double temporaryBoostMultiplier,
+  }) {
+    if (!BranchCatalog.isBranchIncomeActive(state)) {
+      return 0;
+    }
+    final rawBranchIncome = BranchCatalog.rawBranchIncomePerSecond(state);
+    if (rawBranchIncome <= 0) {
+      return 0;
+    }
+    return rawBranchIncome *
+        _prestigeMultiplier(state) *
+        collectionBonuses.passiveMultiplier *
+        _prestigePassiveMultiplier(state) *
+        collectionBonuses.globalMultiplier *
+        _prestigeGlobalMultiplier(state) *
+        temporaryBoostMultiplier;
+  }
+
   double _criticalChanceBeforeCap(GameState state) {
     return max(
       0.0,
@@ -376,7 +439,11 @@ class EconomyEngine {
         .round();
     final reward =
         max(100, max(tapBased, passiveBased)) *
-        (1 + state.milestones.goldenDonerRewardPercent);
+        (1 +
+            state.milestones.goldenDonerRewardPercent +
+            Collection2Catalog.bonusTotalsFor(
+              state.collection2,
+            ).goldenDonerRewardBonusPercent);
     return max(100, reward.round());
   }
 
@@ -539,10 +606,18 @@ class EconomyEngine {
       quests: StarterQuestCatalog.initialProgress(),
       achievements: state.achievements,
       collection: state.collection,
+      collection2: state.collection2,
       chestInventory: chestType == null
           ? state.chestInventory
           : state.chestInventory.add(chestType),
       shopProgression: state.shopProgression.resetCurrentRun(),
+      customerReputation: state.customerReputation,
+      customerOrders: state.customerOrders.resetForPrestige(now),
+      goals: state.goals.copyWith(
+        activePrestigeRunGoals: const [],
+        runGoalPrestigeCount: 0,
+      ),
+      branches: state.branches,
       lastActiveAtUtc: now,
       lastSavedAtUtc: now,
     );
@@ -702,16 +777,22 @@ class EconomyEngine {
       config: config,
       claimedBonusItemIds: state.collection.claimedBonusItemIds,
     );
+    final collection2Bonuses = Collection2Catalog.bonusTotalsFor(
+      state.collection2,
+    );
     final achievementBonuses = _achievementBonuses(state);
     return CollectionBonusTotals(
       tapBonusPercent:
           collectionBonuses.tapBonusPercent +
+          collection2Bonuses.tapBonusPercent +
           achievementBonuses.tapBonusPercent,
       passiveBonusPercent:
           collectionBonuses.passiveBonusPercent +
+          collection2Bonuses.passiveBonusPercent +
           achievementBonuses.passiveBonusPercent,
       globalBonusPercent:
           collectionBonuses.globalBonusPercent +
+          collection2Bonuses.globalBonusPercent +
           achievementBonuses.globalBonusPercent,
     );
   }

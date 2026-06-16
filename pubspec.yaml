@@ -39,6 +39,7 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_screenutil: ^5.9.3
   google_fonts: ^8.1.0
+  audioplayers: ^6.7.1
 
 dev_dependencies:
   flutter_test:
@@ -67,6 +68,7 @@ flutter:
     - 'assets/ui/tap/tap_doner.png'
     - 'assets/ui/tap/slices/'
     - 'assets/ui/portraits/chef_portrait.jpg'
+    - 'assets/audio/sfx/'
 
   fonts:
     - family: Plus Jakarta Sans

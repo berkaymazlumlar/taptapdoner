@@ -7,10 +7,13 @@ import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/ui/overlays/action_dock_overlay.dart';
+import 'package:taptapdoner/ui/overlays/combo_badge.dart';
+import 'package:taptapdoner/ui/overlays/customer_order_overlay.dart';
 import 'package:taptapdoner/ui/overlays/game_hud_overlay.dart';
 import 'package:taptapdoner/ui/overlays/settings_overlay.dart';
 import 'package:taptapdoner/ui/overlays/starter_quest_overlay.dart';
 import 'package:taptapdoner/ui/overlays/tap_zone_overlay.dart';
+import 'package:taptapdoner/ui/pages/branch_page.dart';
 import 'package:taptapdoner/ui/pages/goals_page.dart';
 import 'package:taptapdoner/ui/pages/prestige_page.dart';
 import 'package:taptapdoner/ui/pages/shop_page.dart';
@@ -38,11 +41,32 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
     if (tab == GameBottomNavTab.prestige) {
       widget.controller.markPrestigeScreenOpened();
     }
+    _prepareTab(tab);
 
     setState(() {
       _activeTab = tab;
       _settingsVisible = false;
     });
+  }
+
+  void _prepareTab(GameBottomNavTab tab) {
+    switch (tab) {
+      case GameBottomNavTab.kitchen:
+        widget.controller.prepareKitchenView();
+        break;
+      case GameBottomNavTab.shop:
+        widget.controller.prepareShopView();
+        break;
+      case GameBottomNavTab.branches:
+        widget.controller.prepareBranchView();
+        break;
+      case GameBottomNavTab.goals:
+        widget.controller.prepareGoalsView();
+        break;
+      case GameBottomNavTab.prestige:
+        widget.controller.preparePrestigeView();
+        break;
+    }
   }
 
   void _openSettings() {
@@ -109,6 +133,11 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
             presentation: ShopPagePresentation.tab,
           ),
         );
+      case GameBottomNavTab.branches:
+        return KeyedSubtree(
+          key: const ValueKey('branches-tab-root'),
+          child: BranchPage(controller: widget.controller),
+        );
       case GameBottomNavTab.goals:
         return KeyedSubtree(
           key: const ValueKey('goals-tab-root'),
@@ -136,6 +165,7 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
       activeTab: _activeTab,
       onOpenKitchen: () => _selectTab(GameBottomNavTab.kitchen),
       onOpenShop: () => _selectTab(GameBottomNavTab.shop),
+      onOpenBranches: () => _selectTab(GameBottomNavTab.branches),
       onOpenGoals: () => _selectTab(GameBottomNavTab.goals),
       onOpenPrestige: () => _selectTab(GameBottomNavTab.prestige),
     );
@@ -186,6 +216,8 @@ class _KitchenTabPageState extends State<_KitchenTabPage> {
               controller: widget.controller,
               onOpenSettings: widget.onOpenSettings,
             ),
+            SizedBox(height: 6 * metrics.scale),
+            CustomerOrderOverlay(controller: widget.controller),
             SizedBox(height: metrics.mainTopGap),
             Expanded(
               child: Stack(
@@ -274,14 +306,72 @@ class _KitchenTabPageState extends State<_KitchenTabPage> {
                     ),
                   ),
                   Positioned(
-                    top: metrics.fpsTopInset,
-                    left: metrics.fpsSideInset,
+                    top: metrics.comboTopInset,
+                    left: 0,
+                    right: 0,
                     child: IgnorePointer(
-                      child: ValueListenableBuilder<int>(
-                        valueListenable: _game.fpsListenable,
-                        builder: (context, fps, _) {
-                          return _FpsBadge(scale: metrics.scale, fps: fps);
-                        },
+                      child: Center(
+                        child: ValueListenableBuilder<ActivePlaySnapshot>(
+                          valueListenable:
+                              widget.controller.activePlaySnapshotListenable,
+                          builder: (context, snapshot, _) {
+                            return AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 260),
+                              reverseDuration: const Duration(
+                                milliseconds: 210,
+                              ),
+                              layoutBuilder: (currentChild, previousChildren) {
+                                return Stack(
+                                  clipBehavior: Clip.none,
+                                  alignment: Alignment.center,
+                                  children: [
+                                    ...previousChildren,
+                                    if (currentChild != null) currentChild,
+                                  ],
+                                );
+                              },
+                              transitionBuilder: (child, animation) {
+                                final curved = CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOutBack,
+                                  reverseCurve: Curves.easeInCubic,
+                                );
+                                final fade = CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                  reverseCurve: Curves.easeIn,
+                                );
+                                return FadeTransition(
+                                  opacity: fade,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, -0.16),
+                                      end: Offset.zero,
+                                    ).animate(curved),
+                                    child: ScaleTransition(
+                                      scale: Tween<double>(
+                                        begin: 0.86,
+                                        end: 1,
+                                      ).animate(curved),
+                                      child: child,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: snapshot.hasCombo
+                                  ? ComboBadge(
+                                      key: const ValueKey(
+                                        'combo-badge-visible',
+                                      ),
+                                      snapshot: snapshot,
+                                      scale: metrics.scale,
+                                    )
+                                  : const SizedBox.shrink(
+                                      key: ValueKey('combo-badge-hidden'),
+                                    ),
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
@@ -289,7 +379,6 @@ class _KitchenTabPageState extends State<_KitchenTabPage> {
               ),
             ),
             SizedBox(height: metrics.mainBottomGap),
-            ActionDockOverlay(controller: widget.controller),
           ],
         ),
       ],
@@ -308,7 +397,7 @@ class _ShellMetrics {
 
   final double scale;
 
-  double get mainTopGap => 16 * scale;
+  double get mainTopGap => 10 * scale;
   double get mainBottomGap => 0;
   double get rushButtonTopInset => 8 * scale;
   double get rushButtonSideInset => 22 * scale;
@@ -317,8 +406,7 @@ class _ShellMetrics {
   double get questPanelTopInset => questButtonTopInset + (64 * scale);
   double get progressionPopupSideInset => 22 * scale;
   double get progressionPopupBottomInset => 12 * scale;
-  double get fpsTopInset => 16 * scale;
-  double get fpsSideInset => 24 * scale;
+  double get comboTopInset => 4 * scale;
 }
 
 class _AchievementPopup extends StatelessWidget {
@@ -380,43 +468,6 @@ class _AchievementPopup extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _FpsBadge extends StatelessWidget {
-  const _FpsBadge({required this.scale, required this.fps});
-
-  final double scale;
-  final int fps;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: DonerColors.panelDark.withValues(alpha: 0.90),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: DonerColors.borderPrimary, width: 1),
-        boxShadow: DonerShadows.soft,
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: 10 * scale,
-          vertical: 5 * scale,
-        ),
-        child: Text(
-          'FPS ${fps.clamp(0, 999)}',
-          key: const ValueKey('fps-badge'),
-          style: DonerTypography.body(
-            Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
-              color: DonerColors.goldBright,
-              fontSize: 12 * scale,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

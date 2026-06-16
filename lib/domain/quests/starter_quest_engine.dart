@@ -146,7 +146,10 @@ class StarterQuestEngine {
         _totalUpgradeLevel(state, UpgradeId.staff) >= 1 ? 1.0 : 0.0,
       StarterQuestGoalType.passiveIncomeActiveSeconds =>
         state.stats.passiveIncomeActiveSeconds,
-      StarterQuestGoalType.maxCombo => state.stats.maxCombo.toDouble(),
+      StarterQuestGoalType.maxCombo => _activeComboForCount(
+        state.stats.maxCombo,
+        state,
+      ).toDouble(),
       StarterQuestGoalType.turboUsedCount =>
         state.stats.turboUsedCount.toDouble(),
       StarterQuestGoalType.goldenDonerCollected =>
@@ -180,6 +183,14 @@ class StarterQuestEngine {
 
   int _shopLevel(GameState state) {
     return math.max(state.stats.shopLevel, _derivedShopLevel(state));
+  }
+
+  int _activeComboForCount(int comboCount, GameState state) {
+    if (!state.milestones.hasFeature('combo')) {
+      return 0;
+    }
+    final threshold = math.max(1, config.comboActivationThreshold);
+    return comboCount >= threshold ? comboCount : 0;
   }
 
   double _rustyKnifeLevel(GameState state) {

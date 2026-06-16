@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:taptapdoner/domain/goals/goal_models.dart';
+import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
@@ -142,6 +144,127 @@ class ActivePlaySnapshot {
 }
 
 @immutable
+class CustomerOrderSnapshot {
+  const CustomerOrderSnapshot({
+    required this.reputationLevel,
+    required this.reputationInCurrentLevel,
+    required this.reputationRequiredForNextLevel,
+    required this.totalReputation,
+    required this.completedOrderCount,
+    required this.failedOrderCount,
+    required this.unlockedCustomerTypeCount,
+    required this.nextSpawnRemaining,
+    this.activeOrder,
+  });
+
+  final int reputationLevel;
+  final int reputationInCurrentLevel;
+  final int reputationRequiredForNextLevel;
+  final int totalReputation;
+  final int completedOrderCount;
+  final int failedOrderCount;
+  final int unlockedCustomerTypeCount;
+  final Duration nextSpawnRemaining;
+  final ActiveCustomerOrderSnapshot? activeOrder;
+
+  double get reputationProgress {
+    if (reputationRequiredForNextLevel <= 0) {
+      return 0;
+    }
+    return (reputationInCurrentLevel / reputationRequiredForNextLevel)
+        .clamp(0, 1)
+        .toDouble();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is CustomerOrderSnapshot &&
+        reputationLevel == other.reputationLevel &&
+        reputationInCurrentLevel == other.reputationInCurrentLevel &&
+        reputationRequiredForNextLevel ==
+            other.reputationRequiredForNextLevel &&
+        totalReputation == other.totalReputation &&
+        completedOrderCount == other.completedOrderCount &&
+        failedOrderCount == other.failedOrderCount &&
+        unlockedCustomerTypeCount == other.unlockedCustomerTypeCount &&
+        nextSpawnRemaining == other.nextSpawnRemaining &&
+        activeOrder == other.activeOrder;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    reputationLevel,
+    reputationInCurrentLevel,
+    reputationRequiredForNextLevel,
+    totalReputation,
+    completedOrderCount,
+    failedOrderCount,
+    unlockedCustomerTypeCount,
+    nextSpawnRemaining,
+    activeOrder,
+  );
+}
+
+@immutable
+class ActiveCustomerOrderSnapshot {
+  const ActiveCustomerOrderSnapshot({
+    required this.id,
+    required this.customerTypeId,
+    required this.customerName,
+    required this.title,
+    required this.description,
+    required this.currentValue,
+    required this.targetValue,
+    required this.remaining,
+    required this.rewardLabel,
+  });
+
+  final String id;
+  final String customerTypeId;
+  final String customerName;
+  final String title;
+  final String description;
+  final double currentValue;
+  final double targetValue;
+  final Duration remaining;
+  final String rewardLabel;
+
+  double get progress {
+    if (targetValue <= 0) {
+      return 0;
+    }
+    return (currentValue / targetValue).clamp(0, 1).toDouble();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ActiveCustomerOrderSnapshot &&
+        id == other.id &&
+        customerTypeId == other.customerTypeId &&
+        customerName == other.customerName &&
+        title == other.title &&
+        description == other.description &&
+        currentValue == other.currentValue &&
+        targetValue == other.targetValue &&
+        remaining == other.remaining &&
+        rewardLabel == other.rewardLabel;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    customerTypeId,
+    customerName,
+    title,
+    description,
+    currentValue,
+    targetValue,
+    remaining,
+    rewardLabel,
+  );
+}
+
+@immutable
 class QuestSnapshot {
   const QuestSnapshot({
     required this.questId,
@@ -180,6 +303,124 @@ class QuestSnapshot {
   @override
   int get hashCode =>
       Object.hash(questId, status, currentValue, targetValue, rewardClaimed);
+}
+
+@immutable
+class GoalBoardSnapshot {
+  const GoalBoardSnapshot({
+    required this.dailyGoals,
+    required this.weeklyGoals,
+    required this.prestigeRunGoals,
+    required this.eventGoals,
+  });
+
+  final List<GoalProgressSnapshot> dailyGoals;
+  final List<GoalProgressSnapshot> weeklyGoals;
+  final List<GoalProgressSnapshot> prestigeRunGoals;
+  final List<GoalProgressSnapshot> eventGoals;
+
+  Iterable<GoalProgressSnapshot> get allGoals sync* {
+    yield* dailyGoals;
+    yield* weeklyGoals;
+    yield* prestigeRunGoals;
+    yield* eventGoals;
+  }
+
+  int get claimableCount {
+    return allGoals.where((goal) => goal.canClaim).length;
+  }
+
+  int get completedDailyCount {
+    return dailyGoals.where((goal) => goal.completed).length;
+  }
+
+  int get completedWeeklyCount {
+    return weeklyGoals.where((goal) => goal.completed).length;
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is GoalBoardSnapshot &&
+        listEquals(dailyGoals, other.dailyGoals) &&
+        listEquals(weeklyGoals, other.weeklyGoals) &&
+        listEquals(prestigeRunGoals, other.prestigeRunGoals) &&
+        listEquals(eventGoals, other.eventGoals);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAll(dailyGoals),
+    Object.hashAll(weeklyGoals),
+    Object.hashAll(prestigeRunGoals),
+    Object.hashAll(eventGoals),
+  );
+}
+
+@immutable
+class GoalProgressSnapshot {
+  const GoalProgressSnapshot({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.category,
+    required this.currentValue,
+    required this.targetValue,
+    required this.status,
+    required this.rewardClaimed,
+    required this.rewardLabel,
+    required this.expiresAtMillis,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final GoalCategory category;
+  final double currentValue;
+  final double targetValue;
+  final GoalStatus status;
+  final bool rewardClaimed;
+  final String rewardLabel;
+  final int? expiresAtMillis;
+
+  bool get completed => status == GoalStatus.completed || rewardClaimed;
+
+  bool get canClaim => status == GoalStatus.completed && !rewardClaimed;
+
+  double get progress {
+    if (targetValue <= 0) {
+      return 0;
+    }
+    return (currentValue / targetValue).clamp(0, 1).toDouble();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is GoalProgressSnapshot &&
+        id == other.id &&
+        title == other.title &&
+        description == other.description &&
+        category == other.category &&
+        currentValue == other.currentValue &&
+        targetValue == other.targetValue &&
+        status == other.status &&
+        rewardClaimed == other.rewardClaimed &&
+        rewardLabel == other.rewardLabel &&
+        expiresAtMillis == other.expiresAtMillis;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    title,
+    description,
+    category,
+    currentValue,
+    targetValue,
+    status,
+    rewardClaimed,
+    rewardLabel,
+    expiresAtMillis,
+  );
 }
 
 @immutable
@@ -381,6 +622,248 @@ class ShopLevelUpSnapshot {
   final String currentLevelName;
   final String unlockLabel;
   final double incomeMultiplier;
+}
+
+@immutable
+class BranchBoardSnapshot {
+  const BranchBoardSnapshot({
+    required this.systemVisible,
+    required this.incomeActive,
+    required this.branchIncomePerSecond,
+    required this.totalBranchIncomeEarned,
+    required this.unlockedBranchCount,
+    required this.totalBranchCount,
+    required this.totalBranchLevel,
+    required this.regions,
+    required this.branches,
+  });
+
+  final bool systemVisible;
+  final bool incomeActive;
+  final double branchIncomePerSecond;
+  final double totalBranchIncomeEarned;
+  final int unlockedBranchCount;
+  final int totalBranchCount;
+  final int totalBranchLevel;
+  final List<BranchRegionSnapshot> regions;
+  final List<BranchProgressSnapshot> branches;
+
+  @override
+  bool operator ==(Object other) {
+    return other is BranchBoardSnapshot &&
+        systemVisible == other.systemVisible &&
+        incomeActive == other.incomeActive &&
+        branchIncomePerSecond == other.branchIncomePerSecond &&
+        totalBranchIncomeEarned == other.totalBranchIncomeEarned &&
+        unlockedBranchCount == other.unlockedBranchCount &&
+        totalBranchCount == other.totalBranchCount &&
+        totalBranchLevel == other.totalBranchLevel &&
+        listEquals(regions, other.regions) &&
+        listEquals(branches, other.branches);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    systemVisible,
+    incomeActive,
+    branchIncomePerSecond,
+    totalBranchIncomeEarned,
+    unlockedBranchCount,
+    totalBranchCount,
+    totalBranchLevel,
+    Object.hashAll(regions),
+    Object.hashAll(branches),
+  );
+}
+
+@immutable
+class BranchRegionSnapshot {
+  const BranchRegionSnapshot({
+    required this.id,
+    required this.name,
+    required this.unlocked,
+    required this.completed,
+    required this.unlockedBranchCount,
+    required this.totalBranchCount,
+    required this.assetKey,
+  });
+
+  final String id;
+  final String name;
+  final bool unlocked;
+  final bool completed;
+  final int unlockedBranchCount;
+  final int totalBranchCount;
+  final String assetKey;
+
+  @override
+  bool operator ==(Object other) {
+    return other is BranchRegionSnapshot &&
+        id == other.id &&
+        name == other.name &&
+        unlocked == other.unlocked &&
+        completed == other.completed &&
+        unlockedBranchCount == other.unlockedBranchCount &&
+        totalBranchCount == other.totalBranchCount &&
+        assetKey == other.assetKey;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    unlocked,
+    completed,
+    unlockedBranchCount,
+    totalBranchCount,
+    assetKey,
+  );
+}
+
+@immutable
+class BranchProgressSnapshot {
+  const BranchProgressSnapshot({
+    required this.id,
+    required this.name,
+    required this.cityName,
+    required this.regionId,
+    required this.regionName,
+    required this.description,
+    required this.assetKey,
+    required this.unlocked,
+    required this.level,
+    required this.maxLevel,
+    required this.unlockCost,
+    required this.levelUpCost,
+    required this.canUnlock,
+    required this.canLevelUp,
+    required this.incomePerSecond,
+    required this.nextIncomePerSecond,
+    required this.requirements,
+    required this.reachedMilestoneCount,
+    required this.totalMilestoneCount,
+    required this.managerSlotUnlocked,
+    required this.canAssignManager,
+    this.assignedManagerId,
+    this.assignedManagerName,
+    this.suggestedManagerId,
+    this.suggestedManagerName,
+  });
+
+  final String id;
+  final String name;
+  final String cityName;
+  final String regionId;
+  final String regionName;
+  final String description;
+  final String assetKey;
+  final bool unlocked;
+  final int level;
+  final int maxLevel;
+  final int unlockCost;
+  final int levelUpCost;
+  final bool canUnlock;
+  final bool canLevelUp;
+  final double incomePerSecond;
+  final double nextIncomePerSecond;
+  final List<BranchRequirementSnapshot> requirements;
+  final int reachedMilestoneCount;
+  final int totalMilestoneCount;
+  final bool managerSlotUnlocked;
+  final bool canAssignManager;
+  final String? assignedManagerId;
+  final String? assignedManagerName;
+  final String? suggestedManagerId;
+  final String? suggestedManagerName;
+
+  bool get maxed => unlocked && level >= maxLevel;
+
+  double get levelProgress {
+    if (!unlocked || maxLevel <= 0) {
+      return 0;
+    }
+    return (level / maxLevel).clamp(0, 1).toDouble();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is BranchProgressSnapshot &&
+        id == other.id &&
+        name == other.name &&
+        cityName == other.cityName &&
+        regionId == other.regionId &&
+        regionName == other.regionName &&
+        description == other.description &&
+        assetKey == other.assetKey &&
+        unlocked == other.unlocked &&
+        level == other.level &&
+        maxLevel == other.maxLevel &&
+        unlockCost == other.unlockCost &&
+        levelUpCost == other.levelUpCost &&
+        canUnlock == other.canUnlock &&
+        canLevelUp == other.canLevelUp &&
+        incomePerSecond == other.incomePerSecond &&
+        nextIncomePerSecond == other.nextIncomePerSecond &&
+        listEquals(requirements, other.requirements) &&
+        reachedMilestoneCount == other.reachedMilestoneCount &&
+        totalMilestoneCount == other.totalMilestoneCount &&
+        managerSlotUnlocked == other.managerSlotUnlocked &&
+        canAssignManager == other.canAssignManager &&
+        assignedManagerId == other.assignedManagerId &&
+        assignedManagerName == other.assignedManagerName &&
+        suggestedManagerId == other.suggestedManagerId &&
+        suggestedManagerName == other.suggestedManagerName;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    name,
+    cityName,
+    regionId,
+    regionName,
+    description,
+    assetKey,
+    unlocked,
+    level,
+    maxLevel,
+    unlockCost,
+    levelUpCost,
+    canUnlock,
+    canLevelUp,
+    incomePerSecond,
+    nextIncomePerSecond,
+    Object.hashAll(requirements),
+    reachedMilestoneCount,
+    totalMilestoneCount,
+    managerSlotUnlocked,
+    canAssignManager,
+    assignedManagerId,
+    assignedManagerName,
+    suggestedManagerId,
+    suggestedManagerName,
+  ]);
+}
+
+@immutable
+class BranchRequirementSnapshot {
+  const BranchRequirementSnapshot({
+    required this.label,
+    required this.completed,
+  });
+
+  final String label;
+  final bool completed;
+
+  @override
+  bool operator ==(Object other) {
+    return other is BranchRequirementSnapshot &&
+        label == other.label &&
+        completed == other.completed;
+  }
+
+  @override
+  int get hashCode => Object.hash(label, completed);
 }
 
 @immutable
@@ -602,6 +1085,114 @@ class CollectionItemSnapshot {
 }
 
 @immutable
+class Collection2ItemSnapshot {
+  const Collection2ItemSnapshot({
+    required this.id,
+    required this.kind,
+    required this.name,
+    required this.rarity,
+    required this.currentShards,
+    required this.requiredShards,
+    required this.level,
+    required this.maxLevel,
+    required this.unlocked,
+    required this.equipped,
+    required this.bonusLabel,
+    required this.assetKey,
+  });
+
+  final String id;
+  final Collection2ItemKind kind;
+  final String name;
+  final Rarity rarity;
+  final int currentShards;
+  final int requiredShards;
+  final int level;
+  final int maxLevel;
+  final bool unlocked;
+  final bool equipped;
+  final String bonusLabel;
+  final String assetKey;
+
+  double get progress {
+    if (unlocked && maxLevel <= 1) {
+      return 1;
+    }
+    if (requiredShards <= 0) {
+      return 0;
+    }
+    return (currentShards / requiredShards).clamp(0, 1).toDouble();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is Collection2ItemSnapshot &&
+        id == other.id &&
+        kind == other.kind &&
+        name == other.name &&
+        rarity == other.rarity &&
+        currentShards == other.currentShards &&
+        requiredShards == other.requiredShards &&
+        level == other.level &&
+        maxLevel == other.maxLevel &&
+        unlocked == other.unlocked &&
+        equipped == other.equipped &&
+        bonusLabel == other.bonusLabel &&
+        assetKey == other.assetKey;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    kind,
+    name,
+    rarity,
+    currentShards,
+    requiredShards,
+    level,
+    maxLevel,
+    unlocked,
+    equipped,
+    bonusLabel,
+    assetKey,
+  );
+}
+
+@immutable
+class CollectionSetSnapshot {
+  const CollectionSetSnapshot({
+    required this.id,
+    required this.name,
+    required this.completed,
+    required this.claimed,
+    required this.bonusLabel,
+    required this.requirementLabel,
+  });
+
+  final String id;
+  final String name;
+  final bool completed;
+  final bool claimed;
+  final String bonusLabel;
+  final String requirementLabel;
+
+  @override
+  bool operator ==(Object other) {
+    return other is CollectionSetSnapshot &&
+        id == other.id &&
+        name == other.name &&
+        completed == other.completed &&
+        claimed == other.claimed &&
+        bonusLabel == other.bonusLabel &&
+        requirementLabel == other.requirementLabel;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, completed, claimed, bonusLabel, requirementLabel);
+}
+
+@immutable
 class ChestInventorySnapshot {
   const ChestInventorySnapshot({required this.counts});
 
@@ -656,6 +1247,11 @@ class ProgressionSnapshot {
   const ProgressionSnapshot({
     required this.achievements,
     required this.collections,
+    required this.recipeCollections,
+    required this.staffCollections,
+    required this.decorCollections,
+    required this.knifeSkinCollections,
+    required this.collectionSets,
     required this.chests,
     this.latestClaimableAchievement,
     this.lastChestReward,
@@ -663,6 +1259,11 @@ class ProgressionSnapshot {
 
   final List<AchievementProgressSnapshot> achievements;
   final List<CollectionItemSnapshot> collections;
+  final List<Collection2ItemSnapshot> recipeCollections;
+  final List<Collection2ItemSnapshot> staffCollections;
+  final List<Collection2ItemSnapshot> decorCollections;
+  final List<Collection2ItemSnapshot> knifeSkinCollections;
+  final List<CollectionSetSnapshot> collectionSets;
   final ChestInventorySnapshot chests;
   final AchievementProgressSnapshot? latestClaimableAchievement;
   final LastChestRewardSnapshot? lastChestReward;
@@ -672,7 +1273,21 @@ class ProgressionSnapshot {
   }
 
   int get unlockedCollectionCount {
-    return collections.where((item) => item.unlocked).length;
+    return collections.where((item) => item.unlocked).length +
+        recipeCollections.where((item) => item.unlocked).length +
+        staffCollections.where((item) => item.unlocked).length +
+        decorCollections.where((item) => item.unlocked).length +
+        knifeSkinCollections.where((item) => item.unlocked).length +
+        collectionSets.where((item) => item.claimed).length;
+  }
+
+  int get totalCollectionCount {
+    return collections.length +
+        recipeCollections.length +
+        staffCollections.length +
+        decorCollections.length +
+        knifeSkinCollections.length +
+        collectionSets.length;
   }
 
   @override
@@ -680,6 +1295,11 @@ class ProgressionSnapshot {
     return other is ProgressionSnapshot &&
         listEquals(achievements, other.achievements) &&
         listEquals(collections, other.collections) &&
+        listEquals(recipeCollections, other.recipeCollections) &&
+        listEquals(staffCollections, other.staffCollections) &&
+        listEquals(decorCollections, other.decorCollections) &&
+        listEquals(knifeSkinCollections, other.knifeSkinCollections) &&
+        listEquals(collectionSets, other.collectionSets) &&
         chests == other.chests &&
         latestClaimableAchievement == other.latestClaimableAchievement &&
         lastChestReward == other.lastChestReward;
@@ -689,6 +1309,11 @@ class ProgressionSnapshot {
   int get hashCode => Object.hash(
     Object.hashAll(achievements),
     Object.hashAll(collections),
+    Object.hashAll(recipeCollections),
+    Object.hashAll(staffCollections),
+    Object.hashAll(decorCollections),
+    Object.hashAll(knifeSkinCollections),
+    Object.hashAll(collectionSets),
     chests,
     latestClaimableAchievement,
     lastChestReward,

@@ -12,6 +12,7 @@ class EconomyConfig {
     required this.upgrades,
     this.comboBaseExpireDuration = const Duration(seconds: 2),
     this.comboMaxExpireDuration = const Duration(seconds: 5),
+    this.comboActivationThreshold = 10,
     this.comboMaxMultiplier = 5,
     this.criticalBaseChance = 0.03,
     this.criticalMaxChance = 0.40,
@@ -47,6 +48,7 @@ class EconomyConfig {
   final List<UpgradeDefinition> upgrades;
   final Duration comboBaseExpireDuration;
   final Duration comboMaxExpireDuration;
+  final int comboActivationThreshold;
   final double comboMaxMultiplier;
   final double criticalBaseChance;
   final double criticalMaxChance;

@@ -8,6 +8,9 @@ abstract final class DonerIcons {
   static const FaIconData shop = FontAwesomeIcons.store;
   static const FaIconData prestige = FontAwesomeIcons.award;
   static const FaIconData goals = FontAwesomeIcons.trophy;
+  static const FaIconData branch = FontAwesomeIcons.codeBranch;
+  static const FaIconData city = FontAwesomeIcons.city;
+  static const FaIconData manager = FontAwesomeIcons.userTie;
   static const FaIconData chest = FontAwesomeIcons.boxOpen;
   static const FaIconData collection = FontAwesomeIcons.layerGroup;
 

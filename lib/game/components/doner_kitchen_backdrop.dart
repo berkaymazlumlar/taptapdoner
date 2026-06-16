@@ -135,7 +135,7 @@ class DonerKitchenBackdrop extends Component
         image: image,
         fit: BoxFit.fill,
         opacity: drop.opacity,
-        filterQuality: FilterQuality.medium,
+        filterQuality: FilterQuality.low,
       );
       canvas.restore();
     }

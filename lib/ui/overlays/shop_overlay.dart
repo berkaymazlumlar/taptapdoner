@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/services/audio/purchase_sfx_player.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/widgets/value_formatters.dart';
@@ -181,7 +184,12 @@ class _UpgradeCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                 ),
                 onPressed: canAfford
-                    ? () => controller.buyUpgrade(upgrade.id)
+                    ? () async {
+                        final bought = await controller.buyUpgrade(upgrade.id);
+                        if (bought) {
+                          unawaited(PurchaseSfxPlayer.play());
+                        }
+                      }
                     : null,
                 child: Text(
                   maxed

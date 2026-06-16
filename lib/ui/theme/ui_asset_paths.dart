@@ -16,4 +16,9 @@ abstract final class UiAssetPaths {
     tapDonerSlice4,
   ];
   static const chefPortrait = 'assets/ui/portraits/chef_portrait.jpg';
+  static const criticalHit1 = 'assets/audio/sfx/critical_hit_1.m4a';
+  static const criticalHit2 = 'assets/audio/sfx/critical_hit_2.m4a';
+  static const criticalHitSounds = <String>[criticalHit1, criticalHit2];
+  static const buySound = 'assets/audio/sfx/buy_sound.m4a';
+  static const basicHitSound = 'assets/audio/sfx/basic_hit.wav';
 }

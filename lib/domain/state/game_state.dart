@@ -1,7 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:taptapdoner/domain/branches/branch_models.dart';
+import 'package:taptapdoner/domain/customers/customer_order_models.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/goals/goal_models.dart';
 import 'package:taptapdoner/domain/progression/achievement_catalog.dart';
+import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/progression/shop_progression_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
@@ -1070,14 +1074,19 @@ class GameState {
     required this.quests,
     required this.achievements,
     required this.collection,
+    required this.collection2,
     required this.chestInventory,
     required this.shopProgression,
+    required this.customerReputation,
+    required this.customerOrders,
+    required this.goals,
+    required this.branches,
     required this.lastActiveAtUtc,
     required this.lastSavedAtUtc,
     required this.localeCode,
   });
 
-  static const currentSchemaVersion = 10;
+  static const currentSchemaVersion = 14;
 
   final int schemaVersion;
   final int cash;
@@ -1093,8 +1102,13 @@ class GameState {
   final Map<String, QuestProgress> quests;
   final Map<String, AchievementProgress> achievements;
   final CollectionState collection;
+  final Collection2State collection2;
   final ChestInventoryState chestInventory;
   final ShopProgressionState shopProgression;
+  final CustomerReputationState customerReputation;
+  final CustomerSystemState customerOrders;
+  final GoalSystemState goals;
+  final BranchSystemState branches;
   final DateTime lastActiveAtUtc;
   final DateTime lastSavedAtUtc;
   final String localeCode;
@@ -1123,8 +1137,13 @@ class GameState {
       quests: StarterQuestCatalog.initialProgress(),
       achievements: _initialAchievementProgress(),
       collection: const CollectionState(),
+      collection2: const Collection2State(),
       chestInventory: const ChestInventoryState(),
       shopProgression: const ShopProgressionState(),
+      customerReputation: const CustomerReputationState(),
+      customerOrders: CustomerSystemState.initial(nowUtc: now),
+      goals: GoalSystemState.initial(nowUtc: now),
+      branches: const BranchSystemState(),
       lastActiveAtUtc: now,
       lastSavedAtUtc: now,
       localeCode: localeCode,
@@ -1148,8 +1167,13 @@ class GameState {
     Map<String, QuestProgress>? quests,
     Map<String, AchievementProgress>? achievements,
     CollectionState? collection,
+    Collection2State? collection2,
     ChestInventoryState? chestInventory,
     ShopProgressionState? shopProgression,
+    CustomerReputationState? customerReputation,
+    CustomerSystemState? customerOrders,
+    GoalSystemState? goals,
+    BranchSystemState? branches,
     DateTime? lastActiveAtUtc,
     DateTime? lastSavedAtUtc,
     String? localeCode,
@@ -1169,8 +1193,13 @@ class GameState {
       quests: quests ?? this.quests,
       achievements: achievements ?? this.achievements,
       collection: collection ?? this.collection,
+      collection2: collection2 ?? this.collection2,
       chestInventory: chestInventory ?? this.chestInventory,
       shopProgression: shopProgression ?? this.shopProgression,
+      customerReputation: customerReputation ?? this.customerReputation,
+      customerOrders: customerOrders ?? this.customerOrders,
+      goals: goals ?? this.goals,
+      branches: branches ?? this.branches,
       lastActiveAtUtc: lastActiveAtUtc ?? this.lastActiveAtUtc,
       lastSavedAtUtc: lastSavedAtUtc ?? this.lastSavedAtUtc,
       localeCode: localeCode ?? this.localeCode,
@@ -1195,8 +1224,13 @@ class GameState {
           .map((value) => value.toJson())
           .toList(),
       'collection': collection.toJson(),
+      'collection2': collection2.toJson(),
       'chestInventory': chestInventory.toJson(),
       'shopProgression': shopProgression.toJson(),
+      'customerReputation': customerReputation.toJson(),
+      'customerOrders': customerOrders.toJson(),
+      'goals': goals.toJson(),
+      'branches': branches.toJson(),
       'lastActiveAtUtc': lastActiveAtUtc.toIso8601String(),
       'lastSavedAtUtc': lastSavedAtUtc.toIso8601String(),
       'localeCode': localeCode,
@@ -1254,6 +1288,18 @@ class GameState {
     final milestones = MilestoneState.fromJson(
       _stringKeyMap(json['milestones']),
     );
+    final customerReputation = CustomerReputationState.fromJson(
+      _stringKeyMap(json['customerReputation']),
+    );
+    final parsedCustomerOrders = CustomerSystemState.fromJson(
+      _stringKeyMap(json['customerOrders']),
+    );
+    final customerOrders = parsedCustomerOrders.copyWith(
+      unlockedCustomerTypeIds: CustomerOrderCatalog.unlockedTypeIdsForLevel(
+        customerReputation.currentLevel,
+        existing: parsedCustomerOrders.unlockedCustomerTypeIds,
+      ),
+    );
 
     return GameState(
       schemaVersion: schemaVersion,
@@ -1280,6 +1326,9 @@ class GameState {
       quests: _questProgressMap(json['quests']),
       achievements: _achievementProgressMap(json['achievements']),
       collection: CollectionState.fromJson(_stringKeyMap(json['collection'])),
+      collection2: Collection2State.fromJson(
+        _stringKeyMap(json['collection2']),
+      ),
       chestInventory: ChestInventoryState.fromJson(
         _stringKeyMap(json['chestInventory']),
         legacySmallChests: milestones.chests,
@@ -1287,6 +1336,10 @@ class GameState {
       shopProgression: ShopProgressionState.fromJson(
         _stringKeyMap(json['shopProgression']),
       ),
+      customerReputation: customerReputation,
+      customerOrders: customerOrders,
+      goals: GoalSystemState.fromJson(_stringKeyMap(json['goals'])),
+      branches: BranchSystemState.fromJson(_stringKeyMap(json['branches'])),
       lastActiveAtUtc:
           _dateTimeValue(json['lastActiveAtUtc']) ?? fallback.lastActiveAtUtc,
       lastSavedAtUtc:

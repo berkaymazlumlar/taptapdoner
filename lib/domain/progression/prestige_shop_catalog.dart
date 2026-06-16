@@ -183,7 +183,7 @@ class PrestigeShopCatalog {
 
   static ChestType? prestigeChestForLevel(int level) {
     if (level >= 5) {
-      return ChestType.gold;
+      return ChestType.prestige;
     }
     if (level >= 3) {
       return ChestType.master;

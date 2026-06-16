@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:taptapdoner/domain/branches/branch_catalog.dart';
+import 'package:taptapdoner/domain/branches/branch_models.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/economy/economy_engine.dart';
+import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
@@ -102,6 +105,22 @@ void main() {
     expect(state.milestones.criticalChance, closeTo(0.01, 0.0001));
     expect(state.milestones.comboDurationSeconds, closeTo(0.25, 0.0001));
     expect(state.milestones.goldenDonerChance, closeTo(0.0025, 0.0001));
+  });
+
+  test('combo multiplier and bonus stay inactive before ten taps', () {
+    final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      milestones: const MilestoneState(
+        unlockedFeatureKeys: {'combo'},
+        comboMultiplierBonus: 0.05,
+      ),
+    );
+
+    expect(engine.activeComboForCount(1, state), 0);
+    expect(engine.activeComboForCount(9, state), 0);
+    expect(engine.comboMultiplierForCount(1, state), 1);
+    expect(engine.comboMultiplierForCount(9, state), 1);
+    expect(engine.activeComboForCount(10, state), 10);
+    expect(engine.comboMultiplierForCount(10, state), closeTo(1.25, 0.0001));
   });
 
   test('each next item starts stronger than the previous item cap', () {
@@ -242,6 +261,51 @@ void main() {
     expect(highTapEngine.tapValue(collectionState, nowUtc: nowUtc), 101);
   });
 
+  test('collection2 bonuses are included in income formulas', () {
+    final highTapConfig = EconomyConfig(
+      baseTapValue: 100,
+      rushIncomeMultiplier: config.rushIncomeMultiplier,
+      rushDuration: config.rushDuration,
+      rushCooldown: config.rushCooldown,
+      offlineCap: config.offlineCap,
+      prestigeThreshold: config.prestigeThreshold,
+      prestigeBonusPerPoint: config.prestigeBonusPerPoint,
+      upgrades: config.upgrades,
+    );
+    final highTapEngine = EconomyEngine(highTapConfig);
+    final baseState = GameState.initial(highTapConfig, nowUtc: nowUtc);
+    final bonusState = baseState.copyWith(
+      collection2: const Collection2State(
+        recipeLevels: {'recipe_chicken_doner': 1},
+        unlockedDecorIds: {'decor_spice_shelf'},
+        unlockedKnifeSkinIds: {'knife_skin_rusty'},
+        claimedSetBonuses: {'street_set'},
+      ),
+    );
+
+    expect(highTapEngine.tapValue(baseState, nowUtc: nowUtc), 100);
+    expect(
+      highTapEngine.tapValue(bonusState, nowUtc: nowUtc),
+      greaterThan(100),
+    );
+
+    final passiveBase = highTapEngine
+        .buyUpgrade(baseState, UpgradeId.staff)
+        .state;
+    final passiveBonus = passiveBase.copyWith(
+      collection2: const Collection2State(
+        staffCardLevels: {'staff_apprentice': 1},
+      ),
+    );
+
+    expect(
+      highTapEngine.passiveIncomePerSecond(passiveBonus, nowUtc: nowUtc),
+      greaterThan(
+        highTapEngine.passiveIncomePerSecond(passiveBase, nowUtc: nowUtc),
+      ),
+    );
+  });
+
   test('shop level multiplier is included in tap and passive income', () {
     final highTapConfig = EconomyConfig(
       baseTapValue: 100,
@@ -283,6 +347,44 @@ void main() {
         highTapEngine.passiveIncomePerSecond(staffState, nowUtc: nowUtc) * 1.05,
         0.0001,
       ),
+    );
+  });
+
+  test('branch income joins passive income only after shop level seven', () {
+    final branchState = const BranchSystemState(
+      branchProgress: {
+        'main_branch': BranchProgress(
+          branchId: 'main_branch',
+          isUnlocked: true,
+          level: 1,
+        ),
+      },
+      unlockedRegionIds: {'local'},
+    );
+    final gatedState = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      branches: branchState,
+      shopProgression: const ShopProgressionState(
+        currentShopLevel: 1,
+        highestShopLevel: 7,
+        unlockedShopIds: {'street_stand', 'doner_chain'},
+      ),
+    );
+    final activeState = gatedState.copyWith(
+      shopProgression: const ShopProgressionState(
+        currentShopLevel: 7,
+        highestShopLevel: 7,
+        unlockedShopIds: {'street_stand', 'doner_chain'},
+      ),
+    );
+
+    expect(engine.branchIncomePerSecond(gatedState, nowUtc: nowUtc), 0);
+    expect(
+      engine.branchIncomePerSecond(activeState, nowUtc: nowUtc),
+      closeTo(BranchCatalog.byId['main_branch']!.baseIncomePerSecond, 0.0001),
+    );
+    expect(
+      engine.passiveIncomePerSecond(activeState, nowUtc: nowUtc),
+      greaterThan(engine.passiveIncomePerSecond(gatedState, nowUtc: nowUtc)),
     );
   });
 
@@ -418,6 +520,29 @@ void main() {
           unlockedItemIds: {'knife_rusty_knife'},
           claimedBonusItemIds: {'knife_rusty_knife'},
         ),
+        collection2: const Collection2State(
+          recipeShards: {'recipe_chicken_doner': 4},
+          recipeLevels: {'recipe_chicken_doner': 1},
+          staffCards: {'staff_apprentice': 2},
+          staffCardLevels: {'staff_apprentice': 1},
+          unlockedDecorIds: {'decor_new_sign'},
+          unlockedKnifeSkinIds: {'knife_skin_rusty'},
+          equippedKnifeSkinId: 'knife_skin_rusty',
+          claimedSetBonuses: {'street_set'},
+        ),
+        branches: const BranchSystemState(
+          branchProgress: {
+            'main_branch': BranchProgress(
+              branchId: 'main_branch',
+              isUnlocked: true,
+              level: 10,
+              assignedManagerId: 'staff_apprentice',
+            ),
+          },
+          unlockedRegionIds: {'local'},
+          claimedBranchMilestones: {'main_branch:10'},
+          totalBranchIncomeEarned: 55,
+        ),
       );
 
       final prestiged = engine.applyPrestige(state, nowUtc: nowUtc);
@@ -435,6 +560,8 @@ void main() {
       expect(prestiged.shopProgression.currentShopLevel, 1);
       expect(prestiged.shopProgression.highestShopLevel, 4);
       expect(prestiged.collection, state.collection);
+      expect(prestiged.collection2, state.collection2);
+      expect(prestiged.branches, state.branches);
       expect(prestiged.chestInventory.count(ChestType.master), 1);
       expect(prestiged.quests['starter_tap_10']?.status, QuestStatus.active);
     },

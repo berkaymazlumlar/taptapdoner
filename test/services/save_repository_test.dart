@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:taptapdoner/domain/branches/branch_models.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/goals/goal_models.dart';
+import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
@@ -78,6 +81,20 @@ void main() {
             unlockedItemIds: {'knife_rusty_knife'},
             claimedBonusItemIds: {'knife_rusty_knife'},
           ),
+          collection2: const Collection2State(
+            recipeShards: {'recipe_chicken_doner': 4},
+            recipeLevels: {'recipe_chicken_doner': 1},
+            staffCards: {'staff_apprentice': 2},
+            staffCardLevels: {'staff_apprentice': 1},
+            decorShards: {'decor_new_sign': 3},
+            unlockedDecorIds: {'decor_new_sign'},
+            equippedDecorIds: {'decor_new_sign'},
+            knifeSkinShards: {'knife_skin_rusty': 1},
+            unlockedKnifeSkinIds: {'knife_skin_rusty'},
+            equippedKnifeSkinId: 'knife_skin_rusty',
+            claimedSetBonuses: {'street_set'},
+            prestigeShards: 6,
+          ),
           chestInventory: const ChestInventoryState(
             counts: {ChestType.small: 2, ChestType.master: 1},
           ),
@@ -89,6 +106,61 @@ void main() {
               'small_buffet',
               'neighborhood_doner',
             },
+          ),
+          goals: const GoalSystemState(
+            activeDailyGoals: [
+              GoalProgress(
+                goalId: 'daily_tap_300',
+                currentValue: 12,
+                targetValue: 300,
+                generatedAtMillis: 1775044800000,
+                expiresAtMillis: 1775131200000,
+              ),
+            ],
+            activeWeeklyGoals: [
+              GoalProgress(
+                goalId: 'weekly_tap_5000',
+                currentValue: 1000,
+                targetValue: 5000,
+                generatedAtMillis: 1775044800000,
+                expiresAtMillis: 1775476800000,
+              ),
+            ],
+            activePrestigeRunGoals: [
+              GoalProgress(
+                goalId: 'run_earn_100000',
+                currentValue: 7500,
+                targetValue: 100000,
+                generatedAtMillis: 1775044800000,
+              ),
+            ],
+            activeEventGoals: [
+              GoalProgress(
+                goalId: 'event_complete_1',
+                currentValue: 0,
+                targetValue: 1,
+                generatedAtMillis: 1775044800000,
+              ),
+            ],
+            lastDailyResetDate: '2026-04-01',
+            lastWeeklyResetWeek: '2026-W14',
+            runGoalPrestigeCount: 1,
+          ),
+          branches: const BranchSystemState(
+            branchProgress: {
+              'main_branch': BranchProgress(
+                branchId: 'main_branch',
+                isUnlocked: true,
+                level: 12,
+                assignedManagerId: 'staff_apprentice',
+              ),
+              'neighborhood_branch': BranchProgress(
+                branchId: 'neighborhood_branch',
+              ),
+            },
+            unlockedRegionIds: {'local'},
+            claimedBranchMilestones: {'main_branch:10'},
+            totalBranchIncomeEarned: 123.5,
           ),
           upgrades: {
             for (final definition in config.upgrades)
@@ -120,8 +192,15 @@ void main() {
     expect(raw, contains('"rewardClaimed":true'));
     expect(raw, contains('"achievementId":"tap_10"'));
     expect(raw, contains('"collection"'));
+    expect(raw, contains('"collection2"'));
+    expect(raw, contains('"recipe_chicken_doner"'));
     expect(raw, contains('"chestInventory"'));
     expect(raw, contains('"shopProgression"'));
+    expect(raw, contains('"goals"'));
+    expect(raw, contains('"daily_tap_300"'));
+    expect(raw, contains('"branches"'));
+    expect(raw, contains('"main_branch"'));
+    expect(raw, contains('"totalBranchIncomeEarned":123.5'));
     expect(raw, contains('"unspentPrestigePoints":2'));
     expect(raw, contains('"master_hand":1'));
     expect(raw, isNot(contains('stations')));
@@ -167,6 +246,19 @@ void main() {
       loaded.collection.claimedBonusItemIds,
       contains('knife_rusty_knife'),
     );
+    expect(loaded.collection2.recipeShards['recipe_chicken_doner'], 4);
+    expect(loaded.collection2.recipeLevels['recipe_chicken_doner'], 1);
+    expect(loaded.collection2.staffCards['staff_apprentice'], 2);
+    expect(loaded.collection2.staffCardLevels['staff_apprentice'], 1);
+    expect(loaded.collection2.unlockedDecorIds, contains('decor_new_sign'));
+    expect(loaded.collection2.equippedDecorIds, contains('decor_new_sign'));
+    expect(
+      loaded.collection2.unlockedKnifeSkinIds,
+      contains('knife_skin_rusty'),
+    );
+    expect(loaded.collection2.equippedKnifeSkinId, 'knife_skin_rusty');
+    expect(loaded.collection2.claimedSetBonuses, contains('street_set'));
+    expect(loaded.collection2.prestigeShards, 6);
     expect(loaded.chestInventory.count(ChestType.small), 2);
     expect(loaded.chestInventory.count(ChestType.master), 1);
     expect(loaded.shopProgression.currentShopLevel, 2);
@@ -175,6 +267,26 @@ void main() {
       loaded.shopProgression.unlockedShopIds,
       contains('neighborhood_doner'),
     );
+    expect(loaded.goals.activeDailyGoals.single.goalId, 'daily_tap_300');
+    expect(loaded.goals.activeDailyGoals.single.currentValue, 12);
+    expect(loaded.goals.activeWeeklyGoals.single.goalId, 'weekly_tap_5000');
+    expect(
+      loaded.goals.activePrestigeRunGoals.single.goalId,
+      'run_earn_100000',
+    );
+    expect(loaded.goals.activeEventGoals.single.goalId, 'event_complete_1');
+    expect(loaded.goals.lastDailyResetDate, '2026-04-01');
+    expect(loaded.goals.lastWeeklyResetWeek, '2026-W14');
+    expect(loaded.goals.runGoalPrestigeCount, 1);
+    expect(loaded.branches.progressFor('main_branch').isUnlocked, isTrue);
+    expect(loaded.branches.progressFor('main_branch').level, 12);
+    expect(
+      loaded.branches.progressFor('main_branch').assignedManagerId,
+      'staff_apprentice',
+    );
+    expect(loaded.branches.unlockedRegionIds, contains('local'));
+    expect(loaded.branches.claimedBranchMilestones, contains('main_branch:10'));
+    expect(loaded.branches.totalBranchIncomeEarned, 123.5);
   });
 
   test('corrupt payload returns null', () async {

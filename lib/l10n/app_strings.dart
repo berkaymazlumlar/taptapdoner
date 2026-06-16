@@ -91,6 +91,25 @@ class AppStrings {
   String get goldenDonerLabel => _value('goldenDonerLabel');
   String get goldenDonerRewardLabel => _value('goldenDonerRewardLabel');
 
+  String comboTierLabel(double multiplier) {
+    if (multiplier >= 4.0) {
+      return _value('comboTierCosmic');
+    }
+    if (multiplier >= 3.0) {
+      return _value('comboTierLegendary');
+    }
+    if (multiplier >= 2.0) {
+      return _value('comboTierInsane');
+    }
+    if (multiplier >= 1.4) {
+      return _value('comboTierFlaming');
+    }
+    if (multiplier >= 1.1) {
+      return _value('comboTierFast');
+    }
+    return _value('comboTierSimple');
+  }
+
   String goldenDonerProgress(int hits, int requiredHits) {
     return _template('goldenDonerProgress', {
       'hits': hits.toString(),
@@ -419,6 +438,12 @@ const Map<String, String> _en = {
   'quest.starter_open_prestige.title': 'View the Prestige Goal',
   'quest.starter_open_prestige.reward': '+500 cash',
   'comboLabel': 'Combo',
+  'comboTierSimple': 'Basic Combo',
+  'comboTierFast': 'Fast Combo',
+  'comboTierFlaming': 'Flaming Combo',
+  'comboTierInsane': 'Insane Combo',
+  'comboTierLegendary': 'Legendary Combo',
+  'comboTierCosmic': 'Cosmic Combo',
   'criticalCutLabel': 'Critical!',
   'goldenDonerLabel': 'Golden Doner',
   'goldenDonerRewardLabel': 'Reward',
@@ -671,7 +696,13 @@ const Map<String, String> _tr = {
   'quest.starter_shop_level_2.reward': 'Global gelir +%5',
   'quest.starter_open_prestige.title': 'Prestij hedefini gor',
   'quest.starter_open_prestige.reward': '+500 para',
-  'comboLabel': 'Combo',
+  'comboLabel': 'Kombo',
+  'comboTierSimple': 'Basit Kombo',
+  'comboTierFast': 'Seri Kombo',
+  'comboTierFlaming': 'Alevli Kombo',
+  'comboTierInsane': 'Manyak Kombo',
+  'comboTierLegendary': 'Efsane Kombo',
+  'comboTierCosmic': 'Kozmik Kombo',
   'criticalCutLabel': 'Kritik!',
   'goldenDonerLabel': 'Altin Doner',
   'goldenDonerRewardLabel': 'Odul',
