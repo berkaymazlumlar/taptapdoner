@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
 class ComboBadge extends StatefulWidget {
@@ -92,7 +93,7 @@ class _ComboBadgeState extends State<ComboBadge> with TickerProviderStateMixin {
     );
     final comboName = strings
         .comboTierLabel(widget.snapshot.comboMultiplier)
-        .toUpperCase();
+        .toLocaleUpperCase(context);
     final palette = _comboTierPalette(widget.snapshot.comboMultiplier);
 
     return AnimatedBuilder(

@@ -17,9 +17,15 @@ class DonerKitchenBackdrop extends Component
 
   final math.Random _random = math.Random();
   final List<_MoneyDrop> _drops = <_MoneyDrop>[];
-  final List<ui.Image> _moneyImages = <ui.Image>[];
+  final List<_MoneyDrop> _dropPool = <_MoneyDrop>[];
+  final List<_MoneySpriteVariant> _moneyVariants = <_MoneySpriteVariant>[];
+  final List<_MoneyAtlasBatch> _atlasBatches = <_MoneyAtlasBatch>[];
+  final Paint _billPaint = Paint()..filterQuality = FilterQuality.low;
   ui.Image? _backgroundImage;
   double _spawnAccumulator = 0;
+  double _cachedPassiveIncomePerSecond = double.nan;
+  double _cachedSpawnRate = 0;
+  int _cachedMaxActiveDrops = 0;
 
   @visibleForTesting
   int get debugActiveMoneyDropCount => _drops.length;
@@ -45,7 +51,9 @@ class DonerKitchenBackdrop extends Component
     }
     for (final assetPath in UiAssetPaths.moneyRainBills) {
       try {
-        _moneyImages.add(await _loadUiImage(assetPath));
+        final image = await _loadUiImage(assetPath);
+        _moneyVariants.add(_MoneySpriteVariant(image));
+        _atlasBatches.add(_MoneyAtlasBatch());
       } catch (_) {
         continue;
       }
@@ -61,10 +69,9 @@ class DonerKitchenBackdrop extends Component
     }
 
     final passiveIncomePerSecond = game.controller.passiveIncomePerSecond;
-    final spawnRate = _moneyImages.isEmpty
-        ? 0.0
-        : _spawnRateFor(passiveIncomePerSecond);
-    final maxActiveDrops = _maxActiveDropsFor(passiveIncomePerSecond);
+    _refreshIntensityCache(passiveIncomePerSecond);
+    final spawnRate = _cachedSpawnRate;
+    final maxActiveDrops = _cachedMaxActiveDrops;
 
     if (spawnRate > 0 && maxActiveDrops > 0) {
       _spawnAccumulator = math.min(
@@ -87,7 +94,7 @@ class DonerKitchenBackdrop extends Component
       drop.rotation += drop.angularVelocity * dt;
 
       if (drop.isOffscreen(game.size.toSize())) {
-        _drops.removeAt(index);
+        _dropPool.add(_drops.removeAt(index));
       }
     }
   }
@@ -110,44 +117,63 @@ class DonerKitchenBackdrop extends Component
       canvas.drawRect(rect, Paint()..shader = backgroundShader);
     }
 
+    if (_moneyVariants.isEmpty || _drops.isEmpty) {
+      return;
+    }
+
+    for (final batch in _atlasBatches) {
+      batch.clear();
+    }
+
     for (final drop in _drops) {
-      if (_moneyImages.isEmpty) {
-        break;
-      }
-      final image = _moneyImages[drop.variantIndex];
-      final frame = drop.frameFor(image);
+      final variant = _moneyVariants[drop.variantIndex];
+      final batch = _atlasBatches[drop.variantIndex];
       final center = Offset(
         drop.baseX +
             math.sin(drop.age * drop.swaySpeed + drop.phase) * drop.sway,
         drop.y,
       );
-
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate(drop.rotation);
-      paintImage(
-        canvas: canvas,
-        rect: Rect.fromCenter(
-          center: Offset.zero,
-          width: frame.width,
-          height: frame.height,
+      batch.transforms.add(
+        ui.RSTransform.fromComponents(
+          rotation: drop.rotation,
+          scale: drop.width / variant.image.width,
+          anchorX: variant.anchorX,
+          anchorY: variant.anchorY,
+          translateX: center.dx,
+          translateY: center.dy,
         ),
-        image: image,
-        fit: BoxFit.fill,
-        opacity: drop.opacity,
-        filterQuality: FilterQuality.low,
       );
-      canvas.restore();
+      batch.rects.add(variant.sourceRect);
+      batch.colors.add(drop.tint);
+    }
+
+    for (var index = 0; index < _moneyVariants.length; index++) {
+      final batch = _atlasBatches[index];
+      if (batch.transforms.isEmpty) {
+        continue;
+      }
+      canvas.drawAtlas(
+        _moneyVariants[index].image,
+        batch.transforms,
+        batch.rects,
+        batch.colors,
+        BlendMode.modulate,
+        null,
+        _billPaint,
+      );
     }
   }
 
   _MoneyDrop _createDrop() {
     final screenSize = game.size.toSize();
+    final variantIndex = _random.nextInt(_moneyVariants.length);
+    final variant = _moneyVariants[variantIndex];
     final width = screenSize.width * (0.12 + (_random.nextDouble() * 0.12));
-    final height = width * (0.48 + (_random.nextDouble() * 0.1));
+    final height = width * variant.aspectRatio;
+    final drop = _dropPool.isNotEmpty ? _dropPool.removeLast() : _MoneyDrop();
 
-    return _MoneyDrop(
-      variantIndex: _random.nextInt(_moneyImages.length),
+    drop.reset(
+      variantIndex: variantIndex,
       baseX: _random.nextDouble() * screenSize.width,
       y: -(height * (0.8 + _random.nextDouble() * 1.4)),
       width: width,
@@ -161,6 +187,7 @@ class DonerKitchenBackdrop extends Component
       angularVelocity: -0.22 + (_random.nextDouble() * 0.44),
       opacity: 0.2 + (_random.nextDouble() * 0.24),
     );
+    return drop;
   }
 
   double _spawnRateFor(double passiveIncomePerSecond) {
@@ -183,6 +210,20 @@ class DonerKitchenBackdrop extends Component
     );
   }
 
+  void _refreshIntensityCache(double passiveIncomePerSecond) {
+    if (passiveIncomePerSecond == _cachedPassiveIncomePerSecond) {
+      return;
+    }
+    _cachedPassiveIncomePerSecond = passiveIncomePerSecond;
+    if (_moneyVariants.isEmpty || passiveIncomePerSecond <= 0) {
+      _cachedSpawnRate = 0;
+      _cachedMaxActiveDrops = 0;
+      return;
+    }
+    _cachedSpawnRate = _spawnRateFor(passiveIncomePerSecond);
+    _cachedMaxActiveDrops = _maxActiveDropsFor(passiveIncomePerSecond);
+  }
+
   Future<ui.Image> _loadUiImage(String assetPath, {int? targetWidth}) async {
     final data = await rootBundle.load(assetPath);
     final codec = await ui.instantiateImageCodec(
@@ -196,46 +237,87 @@ class DonerKitchenBackdrop extends Component
 }
 
 class _MoneyDrop {
-  _MoneyDrop({
-    required this.variantIndex,
-    required this.baseX,
-    required this.y,
-    required this.width,
-    required this.height,
-    required this.velocityY,
-    required this.horizontalDrift,
-    required this.sway,
-    required this.swaySpeed,
-    required this.phase,
-    required this.rotation,
-    required this.angularVelocity,
-    required this.opacity,
-  });
-
-  final int variantIndex;
-  double baseX;
-  double y;
-  final double width;
-  final double height;
-  final double velocityY;
-  final double horizontalDrift;
-  final double sway;
-  final double swaySpeed;
-  final double phase;
-  double rotation;
-  final double angularVelocity;
-  final double opacity;
-  double age = 0;
-
-  Size frameFor(ui.Image image) {
-    final aspectRatio = image.height / image.width;
-    return Size(width, width * aspectRatio);
+  void reset({
+    required int variantIndex,
+    required double baseX,
+    required double y,
+    required double width,
+    required double height,
+    required double velocityY,
+    required double horizontalDrift,
+    required double sway,
+    required double swaySpeed,
+    required double phase,
+    required double rotation,
+    required double angularVelocity,
+    required double opacity,
+  }) {
+    this.variantIndex = variantIndex;
+    this.baseX = baseX;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.velocityY = velocityY;
+    this.horizontalDrift = horizontalDrift;
+    this.sway = sway;
+    this.swaySpeed = swaySpeed;
+    this.phase = phase;
+    this.rotation = rotation;
+    this.angularVelocity = angularVelocity;
+    tint = Color.fromRGBO(255, 255, 255, opacity);
+    age = 0;
   }
+
+  int variantIndex = 0;
+  double baseX = 0;
+  double y = 0;
+  double width = 0;
+  double height = 0;
+  double velocityY = 0;
+  double horizontalDrift = 0;
+  double sway = 0;
+  double swaySpeed = 0;
+  double phase = 0;
+  double rotation = 0;
+  double angularVelocity = 0;
+  Color tint = const Color(0xFFFFFFFF);
+  double age = 0;
 
   bool isOffscreen(Size screenSize) {
     final margin = width * 1.4;
     return y - height > screenSize.height + margin ||
         baseX < -margin ||
         baseX > screenSize.width + margin;
+  }
+}
+
+class _MoneySpriteVariant {
+  _MoneySpriteVariant(this.image)
+    : aspectRatio = image.height / image.width,
+      sourceRect = Rect.fromLTWH(
+        0,
+        0,
+        image.width.toDouble(),
+        image.height.toDouble(),
+      ),
+      anchorX = image.width / 2,
+      anchorY = image.height / 2;
+
+  final ui.Image image;
+  final double aspectRatio;
+  final Rect sourceRect;
+  final double anchorX;
+  final double anchorY;
+}
+
+class _MoneyAtlasBatch {
+  final List<ui.RSTransform> transforms = <ui.RSTransform>[];
+  final List<Rect> rects = <Rect>[];
+  final List<Color> colors = <Color>[];
+
+  void clear() {
+    transforms.clear();
+    rects.clear();
+    colors.clear();
   }
 }

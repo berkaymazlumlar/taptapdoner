@@ -2,13 +2,16 @@ import 'dart:math' as math;
 
 import 'package:taptapdoner/domain/branches/branch_models.dart';
 import 'package:taptapdoner/domain/customers/customer_order_models.dart';
+import 'package:taptapdoner/domain/economy/currency_math.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/economy/game_number.dart';
 import 'package:taptapdoner/domain/goals/goal_models.dart';
 import 'package:taptapdoner/domain/progression/achievement_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/progression/shop_progression_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
+import 'package:taptapdoner/domain/random_events/random_event_models.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
 class UpgradeState {
@@ -74,7 +77,7 @@ class PrestigeState {
            unspentPrestigePoints ?? totalPrestigePoints ?? reputation ?? 0;
 
   final int totalPrestigePoints;
-  final int runCashEarned;
+  final dynamic runCashEarned;
   final int unspentPrestigePoints;
   final int prestigeCount;
   final Map<String, int> purchasedPrestigeUpgrades;
@@ -88,15 +91,17 @@ class PrestigeState {
   PrestigeState copyWith({
     int? totalPrestigePoints,
     int? reputation,
-    int? runCashEarned,
+    dynamic runCashEarned,
     int? unspentPrestigePoints,
     int? prestigeCount,
     Map<String, int>? purchasedPrestigeUpgrades,
   }) {
     return PrestigeState(
-      totalPrestigePoints:
-          totalPrestigePoints ?? reputation ?? this.totalPrestigePoints,
-      runCashEarned: runCashEarned ?? this.runCashEarned,
+      totalPrestigePoints: math.max(
+        0,
+        totalPrestigePoints ?? reputation ?? this.totalPrestigePoints,
+      ),
+      runCashEarned: CurrencyMath.clamp(runCashEarned ?? this.runCashEarned),
       unspentPrestigePoints: math.max(
         0,
         unspentPrestigePoints ?? this.unspentPrestigePoints,
@@ -114,7 +119,7 @@ class PrestigeState {
       'totalPrestigePoints': totalPrestigePoints,
       'unspentPrestigePoints': unspentPrestigePoints,
       'prestigeCount': prestigeCount,
-      'runCashEarned': runCashEarned,
+      'runCashEarned': CurrencyMath.toJson(runCashEarned),
       'purchasedPrestigeUpgrades': purchasedPrestigeUpgrades,
     };
   }
@@ -134,7 +139,7 @@ class PrestigeState {
       totalPrestigePoints: total,
       unspentPrestigePoints: math.min(total, math.max(0, rawUnspent)),
       prestigeCount: math.max(0, _intValue(json?['prestigeCount'])),
-      runCashEarned: math.max(0, _intValue(json?['runCashEarned'])),
+      runCashEarned: _currencyValue(json?['runCashEarned']),
       purchasedPrestigeUpgrades: _intMap(json?['purchasedPrestigeUpgrades']),
     );
   }
@@ -279,97 +284,6 @@ class TimedEffectState {
   }
 }
 
-class GoldenDonerState {
-  const GoldenDonerState({
-    this.activeUntilUtc,
-    this.nextSpawnAtUtc,
-    this.lastSpawnAtUtc,
-    this.requiredHits = 0,
-    this.currentHits = 0,
-    this.rewardPreview = 0,
-  }) : assert(requiredHits >= 0, 'requiredHits cannot be negative.'),
-       assert(currentHits >= 0, 'currentHits cannot be negative.'),
-       assert(rewardPreview >= 0, 'rewardPreview cannot be negative.');
-
-  final DateTime? activeUntilUtc;
-  final DateTime? nextSpawnAtUtc;
-  final DateTime? lastSpawnAtUtc;
-  final int requiredHits;
-  final int currentHits;
-  final int rewardPreview;
-
-  bool isActiveAt(DateTime nowUtc) {
-    return activeUntilUtc?.isAfter(nowUtc) == true &&
-        requiredHits > 0 &&
-        currentHits < requiredHits;
-  }
-
-  Duration remainingActive(DateTime nowUtc) {
-    if (!isActiveAt(nowUtc)) {
-      return Duration.zero;
-    }
-    return activeUntilUtc!.difference(nowUtc);
-  }
-
-  GoldenDonerState copyWith({
-    DateTime? activeUntilUtc,
-    DateTime? nextSpawnAtUtc,
-    DateTime? lastSpawnAtUtc,
-    int? requiredHits,
-    int? currentHits,
-    int? rewardPreview,
-    bool clearActiveUntilUtc = false,
-    bool clearNextSpawnAtUtc = false,
-    bool clearLastSpawnAtUtc = false,
-  }) {
-    return GoldenDonerState(
-      activeUntilUtc: clearActiveUntilUtc
-          ? null
-          : (activeUntilUtc ?? this.activeUntilUtc),
-      nextSpawnAtUtc: clearNextSpawnAtUtc
-          ? null
-          : (nextSpawnAtUtc ?? this.nextSpawnAtUtc),
-      lastSpawnAtUtc: clearLastSpawnAtUtc
-          ? null
-          : (lastSpawnAtUtc ?? this.lastSpawnAtUtc),
-      requiredHits: math.max(0, requiredHits ?? this.requiredHits),
-      currentHits: math.max(0, currentHits ?? this.currentHits),
-      rewardPreview: math.max(0, rewardPreview ?? this.rewardPreview),
-    );
-  }
-
-  GoldenDonerState clearActive() {
-    return copyWith(
-      clearActiveUntilUtc: true,
-      requiredHits: 0,
-      currentHits: 0,
-      rewardPreview: 0,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'activeUntilUtc': activeUntilUtc?.toIso8601String(),
-      'nextSpawnAtUtc': nextSpawnAtUtc?.toIso8601String(),
-      'lastSpawnAtUtc': lastSpawnAtUtc?.toIso8601String(),
-      'requiredHits': requiredHits,
-      'currentHits': currentHits,
-      'rewardPreview': rewardPreview,
-    };
-  }
-
-  factory GoldenDonerState.fromJson(Map<String, dynamic>? json) {
-    return GoldenDonerState(
-      activeUntilUtc: _dateTimeValue(json?['activeUntilUtc']),
-      nextSpawnAtUtc: _dateTimeValue(json?['nextSpawnAtUtc']),
-      lastSpawnAtUtc: _dateTimeValue(json?['lastSpawnAtUtc']),
-      requiredHits: math.max(0, _intValue(json?['requiredHits'])),
-      currentHits: math.max(0, _intValue(json?['currentHits'])),
-      rewardPreview: math.max(0, _intValue(json?['rewardPreview'])),
-    );
-  }
-}
-
 class GameStatsState {
   const GameStatsState({
     this.tapCount = 0,
@@ -378,8 +292,6 @@ class GameStatsState {
     this.passiveIncomeActiveSeconds = 0,
     this.maxCombo = 0,
     this.currentCombo = 0,
-    this.turboUsedCount = 0,
-    this.goldenDonerCollected = 0,
     this.chestsOpened = 0,
     this.shopLevel = 1,
     this.openPrestigeScreenOnce = false,
@@ -396,11 +308,6 @@ class GameStatsState {
        ),
        assert(maxCombo >= 0, 'maxCombo cannot be negative.'),
        assert(currentCombo >= 0, 'currentCombo cannot be negative.'),
-       assert(turboUsedCount >= 0, 'turboUsedCount cannot be negative.'),
-       assert(
-         goldenDonerCollected >= 0,
-         'goldenDonerCollected cannot be negative.',
-       ),
        assert(chestsOpened >= 0, 'chestsOpened cannot be negative.'),
        assert(shopLevel >= 1, 'shopLevel must be at least 1.');
 
@@ -410,8 +317,6 @@ class GameStatsState {
   final double passiveIncomeActiveSeconds;
   final int maxCombo;
   final int currentCombo;
-  final int turboUsedCount;
-  final int goldenDonerCollected;
   final int chestsOpened;
   final int shopLevel;
   final bool openPrestigeScreenOnce;
@@ -424,8 +329,6 @@ class GameStatsState {
     double? passiveIncomeActiveSeconds,
     int? maxCombo,
     int? currentCombo,
-    int? turboUsedCount,
-    int? goldenDonerCollected,
     int? chestsOpened,
     int? shopLevel,
     bool? openPrestigeScreenOnce,
@@ -445,11 +348,6 @@ class GameStatsState {
       ),
       maxCombo: math.max(0, maxCombo ?? this.maxCombo),
       currentCombo: math.max(0, currentCombo ?? this.currentCombo),
-      turboUsedCount: math.max(0, turboUsedCount ?? this.turboUsedCount),
-      goldenDonerCollected: math.max(
-        0,
-        goldenDonerCollected ?? this.goldenDonerCollected,
-      ),
       chestsOpened: math.max(0, chestsOpened ?? this.chestsOpened),
       shopLevel: math.max(1, shopLevel ?? this.shopLevel),
       openPrestigeScreenOnce:
@@ -468,8 +366,6 @@ class GameStatsState {
       'passiveIncomeActiveSeconds': passiveIncomeActiveSeconds,
       'maxCombo': maxCombo,
       'currentCombo': currentCombo,
-      'turboUsedCount': turboUsedCount,
-      'goldenDonerCollected': goldenDonerCollected,
       'chestsOpened': chestsOpened,
       'shopLevel': shopLevel,
       'openPrestigeScreenOnce': openPrestigeScreenOnce,
@@ -490,11 +386,6 @@ class GameStatsState {
       ),
       maxCombo: math.max(0, _intValue(json?['maxCombo'])),
       currentCombo: math.max(0, _intValue(json?['currentCombo'])),
-      turboUsedCount: math.max(0, _intValue(json?['turboUsedCount'])),
-      goldenDonerCollected: math.max(
-        0,
-        _intValue(json?['goldenDonerCollected']),
-      ),
       chestsOpened: math.max(0, _intValue(json?['chestsOpened'])),
       shopLevel: math.max(1, _intValue(json?['shopLevel'], fallback: 1)),
       openPrestigeScreenOnce: _boolValue(json?['openPrestigeScreenOnce']),
@@ -516,15 +407,9 @@ class MilestoneState {
     this.criticalMultiplierBonus = 0,
     this.comboDurationSeconds = 0,
     this.comboMultiplierBonus = 0,
-    this.turboBonusPercent = 0,
-    this.turboChargeSpeedPercent = 0,
-    this.turboDurationSeconds = 0,
-    this.turboCooldownReductionPercent = 0,
     this.offlineEfficiencyBonus = 0,
     this.offlineMaxDurationSeconds = 0,
     this.offlineAdRewardPercent = 0,
-    this.goldenDonerChance = 0,
-    this.goldenDonerRewardPercent = 0,
     this.tipChance = 0,
     this.tipValuePercent = 0,
     this.specialOrderChance = 0,
@@ -543,15 +428,9 @@ class MilestoneState {
   final double criticalMultiplierBonus;
   final double comboDurationSeconds;
   final double comboMultiplierBonus;
-  final double turboBonusPercent;
-  final double turboChargeSpeedPercent;
-  final double turboDurationSeconds;
-  final double turboCooldownReductionPercent;
   final double offlineEfficiencyBonus;
   final double offlineMaxDurationSeconds;
   final double offlineAdRewardPercent;
-  final double goldenDonerChance;
-  final double goldenDonerRewardPercent;
   final double tipChance;
   final double tipValuePercent;
   final double specialOrderChance;
@@ -574,15 +453,9 @@ class MilestoneState {
     double? criticalMultiplierBonus,
     double? comboDurationSeconds,
     double? comboMultiplierBonus,
-    double? turboBonusPercent,
-    double? turboChargeSpeedPercent,
-    double? turboDurationSeconds,
-    double? turboCooldownReductionPercent,
     double? offlineEfficiencyBonus,
     double? offlineMaxDurationSeconds,
     double? offlineAdRewardPercent,
-    double? goldenDonerChance,
-    double? goldenDonerRewardPercent,
     double? tipChance,
     double? tipValuePercent,
     double? specialOrderChance,
@@ -602,21 +475,12 @@ class MilestoneState {
           criticalMultiplierBonus ?? this.criticalMultiplierBonus,
       comboDurationSeconds: comboDurationSeconds ?? this.comboDurationSeconds,
       comboMultiplierBonus: comboMultiplierBonus ?? this.comboMultiplierBonus,
-      turboBonusPercent: turboBonusPercent ?? this.turboBonusPercent,
-      turboChargeSpeedPercent:
-          turboChargeSpeedPercent ?? this.turboChargeSpeedPercent,
-      turboDurationSeconds: turboDurationSeconds ?? this.turboDurationSeconds,
-      turboCooldownReductionPercent:
-          turboCooldownReductionPercent ?? this.turboCooldownReductionPercent,
       offlineEfficiencyBonus:
           offlineEfficiencyBonus ?? this.offlineEfficiencyBonus,
       offlineMaxDurationSeconds:
           offlineMaxDurationSeconds ?? this.offlineMaxDurationSeconds,
       offlineAdRewardPercent:
           offlineAdRewardPercent ?? this.offlineAdRewardPercent,
-      goldenDonerChance: goldenDonerChance ?? this.goldenDonerChance,
-      goldenDonerRewardPercent:
-          goldenDonerRewardPercent ?? this.goldenDonerRewardPercent,
       tipChance: tipChance ?? this.tipChance,
       tipValuePercent: tipValuePercent ?? this.tipValuePercent,
       specialOrderChance: specialOrderChance ?? this.specialOrderChance,
@@ -703,35 +567,6 @@ class MilestoneState {
           collectionKeys: nextCollections,
           comboMultiplierBonus: comboMultiplierBonus + reward.value,
         );
-      case MilestoneRewardType.turboBonusPercent:
-        return copyWith(
-          claimedMilestoneKeys: nextClaimed,
-          unlockedFeatureKeys: nextFeatures,
-          collectionKeys: nextCollections,
-          turboBonusPercent: turboBonusPercent + reward.value,
-        );
-      case MilestoneRewardType.turboChargeSpeed:
-        return copyWith(
-          claimedMilestoneKeys: nextClaimed,
-          unlockedFeatureKeys: nextFeatures,
-          collectionKeys: nextCollections,
-          turboChargeSpeedPercent: turboChargeSpeedPercent + reward.value,
-        );
-      case MilestoneRewardType.turboDuration:
-        return copyWith(
-          claimedMilestoneKeys: nextClaimed,
-          unlockedFeatureKeys: nextFeatures,
-          collectionKeys: nextCollections,
-          turboDurationSeconds: turboDurationSeconds + reward.value,
-        );
-      case MilestoneRewardType.turboCooldownReduction:
-        return copyWith(
-          claimedMilestoneKeys: nextClaimed,
-          unlockedFeatureKeys: nextFeatures,
-          collectionKeys: nextCollections,
-          turboCooldownReductionPercent:
-              turboCooldownReductionPercent + reward.value,
-        );
       case MilestoneRewardType.offlineEfficiency:
         return copyWith(
           claimedMilestoneKeys: nextClaimed,
@@ -752,20 +587,6 @@ class MilestoneState {
           unlockedFeatureKeys: nextFeatures,
           collectionKeys: nextCollections,
           offlineAdRewardPercent: offlineAdRewardPercent + reward.value,
-        );
-      case MilestoneRewardType.goldenDonerChance:
-        return copyWith(
-          claimedMilestoneKeys: nextClaimed,
-          unlockedFeatureKeys: nextFeatures,
-          collectionKeys: nextCollections,
-          goldenDonerChance: goldenDonerChance + reward.value,
-        );
-      case MilestoneRewardType.goldenDonerRewardPercent:
-        return copyWith(
-          claimedMilestoneKeys: nextClaimed,
-          unlockedFeatureKeys: nextFeatures,
-          collectionKeys: nextCollections,
-          goldenDonerRewardPercent: goldenDonerRewardPercent + reward.value,
         );
       case MilestoneRewardType.tipChance:
         return copyWith(
@@ -826,15 +647,9 @@ class MilestoneState {
       'criticalMultiplierBonus': criticalMultiplierBonus,
       'comboDurationSeconds': comboDurationSeconds,
       'comboMultiplierBonus': comboMultiplierBonus,
-      'turboBonusPercent': turboBonusPercent,
-      'turboChargeSpeedPercent': turboChargeSpeedPercent,
-      'turboDurationSeconds': turboDurationSeconds,
-      'turboCooldownReductionPercent': turboCooldownReductionPercent,
       'offlineEfficiencyBonus': offlineEfficiencyBonus,
       'offlineMaxDurationSeconds': offlineMaxDurationSeconds,
       'offlineAdRewardPercent': offlineAdRewardPercent,
-      'goldenDonerChance': goldenDonerChance,
-      'goldenDonerRewardPercent': goldenDonerRewardPercent,
       'tipChance': tipChance,
       'tipValuePercent': tipValuePercent,
       'specialOrderChance': specialOrderChance,
@@ -858,14 +673,6 @@ class MilestoneState {
       ),
       comboDurationSeconds: _nonNegativeDouble(json?['comboDurationSeconds']),
       comboMultiplierBonus: _nonNegativeDouble(json?['comboMultiplierBonus']),
-      turboBonusPercent: _nonNegativeDouble(json?['turboBonusPercent']),
-      turboChargeSpeedPercent: _nonNegativeDouble(
-        json?['turboChargeSpeedPercent'],
-      ),
-      turboDurationSeconds: _nonNegativeDouble(json?['turboDurationSeconds']),
-      turboCooldownReductionPercent: _nonNegativeDouble(
-        json?['turboCooldownReductionPercent'],
-      ),
       offlineEfficiencyBonus: _nonNegativeDouble(
         json?['offlineEfficiencyBonus'],
       ),
@@ -874,10 +681,6 @@ class MilestoneState {
       ),
       offlineAdRewardPercent: _nonNegativeDouble(
         json?['offlineAdRewardPercent'],
-      ),
-      goldenDonerChance: _nonNegativeDouble(json?['goldenDonerChance']),
-      goldenDonerRewardPercent: _nonNegativeDouble(
-        json?['goldenDonerRewardPercent'],
       ),
       tipChance: _nonNegativeDouble(json?['tipChance']),
       tipValuePercent: _nonNegativeDouble(json?['tipValuePercent']),
@@ -1067,9 +870,7 @@ class GameState {
     required this.upgrades,
     required this.milestones,
     required this.prestige,
-    required this.rush,
     required this.passiveBoost,
-    required this.goldenDoner,
     required this.stats,
     required this.quests,
     required this.achievements,
@@ -1081,23 +882,22 @@ class GameState {
     required this.customerOrders,
     required this.goals,
     required this.branches,
+    required this.randomEvents,
     required this.lastActiveAtUtc,
     required this.lastSavedAtUtc,
     required this.localeCode,
   });
 
-  static const currentSchemaVersion = 14;
+  static const currentSchemaVersion = 16;
 
   final int schemaVersion;
-  final int cash;
-  final int lifetimeCash;
-  final int pendingOfflineCash;
+  final dynamic cash;
+  final dynamic lifetimeCash;
+  final dynamic pendingOfflineCash;
   final Map<UpgradeId, UpgradeState> upgrades;
   final MilestoneState milestones;
   final PrestigeState prestige;
-  final TimedEffectState rush;
   final TimedEffectState passiveBoost;
-  final GoldenDonerState goldenDoner;
   final GameStatsState stats;
   final Map<String, QuestProgress> quests;
   final Map<String, AchievementProgress> achievements;
@@ -1109,6 +909,7 @@ class GameState {
   final CustomerSystemState customerOrders;
   final GoalSystemState goals;
   final BranchSystemState branches;
+  final RandomEventRuntimeState randomEvents;
   final DateTime lastActiveAtUtc;
   final DateTime lastSavedAtUtc;
   final String localeCode;
@@ -1130,9 +931,7 @@ class GameState {
       },
       milestones: const MilestoneState(),
       prestige: const PrestigeState(reputation: 0, runCashEarned: 0),
-      rush: const TimedEffectState(),
       passiveBoost: const TimedEffectState(),
-      goldenDoner: const GoldenDonerState(),
       stats: const GameStatsState(),
       quests: StarterQuestCatalog.initialProgress(),
       achievements: _initialAchievementProgress(),
@@ -1144,6 +943,7 @@ class GameState {
       customerOrders: CustomerSystemState.initial(nowUtc: now),
       goals: GoalSystemState.initial(nowUtc: now),
       branches: const BranchSystemState(),
+      randomEvents: const RandomEventRuntimeState(),
       lastActiveAtUtc: now,
       lastSavedAtUtc: now,
       localeCode: localeCode,
@@ -1154,15 +954,13 @@ class GameState {
 
   GameState copyWith({
     int? schemaVersion,
-    int? cash,
-    int? lifetimeCash,
-    int? pendingOfflineCash,
+    dynamic cash,
+    dynamic lifetimeCash,
+    dynamic pendingOfflineCash,
     Map<UpgradeId, UpgradeState>? upgrades,
     MilestoneState? milestones,
     PrestigeState? prestige,
-    TimedEffectState? rush,
     TimedEffectState? passiveBoost,
-    GoldenDonerState? goldenDoner,
     GameStatsState? stats,
     Map<String, QuestProgress>? quests,
     Map<String, AchievementProgress>? achievements,
@@ -1174,21 +972,22 @@ class GameState {
     CustomerSystemState? customerOrders,
     GoalSystemState? goals,
     BranchSystemState? branches,
+    RandomEventRuntimeState? randomEvents,
     DateTime? lastActiveAtUtc,
     DateTime? lastSavedAtUtc,
     String? localeCode,
   }) {
     return GameState(
       schemaVersion: schemaVersion ?? this.schemaVersion,
-      cash: cash ?? this.cash,
-      lifetimeCash: lifetimeCash ?? this.lifetimeCash,
-      pendingOfflineCash: pendingOfflineCash ?? this.pendingOfflineCash,
+      cash: CurrencyMath.clamp(cash ?? this.cash),
+      lifetimeCash: CurrencyMath.clamp(lifetimeCash ?? this.lifetimeCash),
+      pendingOfflineCash: CurrencyMath.clamp(
+        pendingOfflineCash ?? this.pendingOfflineCash,
+      ),
       upgrades: upgrades ?? this.upgrades,
       milestones: milestones ?? this.milestones,
       prestige: prestige ?? this.prestige,
-      rush: rush ?? this.rush,
       passiveBoost: passiveBoost ?? this.passiveBoost,
-      goldenDoner: goldenDoner ?? this.goldenDoner,
       stats: stats ?? this.stats,
       quests: quests ?? this.quests,
       achievements: achievements ?? this.achievements,
@@ -1200,6 +999,7 @@ class GameState {
       customerOrders: customerOrders ?? this.customerOrders,
       goals: goals ?? this.goals,
       branches: branches ?? this.branches,
+      randomEvents: randomEvents ?? this.randomEvents,
       lastActiveAtUtc: lastActiveAtUtc ?? this.lastActiveAtUtc,
       lastSavedAtUtc: lastSavedAtUtc ?? this.lastSavedAtUtc,
       localeCode: localeCode ?? this.localeCode,
@@ -1209,15 +1009,13 @@ class GameState {
   Map<String, dynamic> toJson() {
     return {
       'schemaVersion': schemaVersion,
-      'cash': cash,
-      'lifetimeCash': lifetimeCash,
-      'pendingOfflineCash': pendingOfflineCash,
+      'cash': CurrencyMath.toJson(cash),
+      'lifetimeCash': CurrencyMath.toJson(lifetimeCash),
+      'pendingOfflineCash': CurrencyMath.toJson(pendingOfflineCash),
       'upgrades': upgrades.values.map((value) => value.toJson()).toList(),
       'milestones': milestones.toJson(),
       'prestige': prestige.toJson(),
-      'rush': rush.toJson(),
       'passiveBoost': passiveBoost.toJson(),
-      'goldenDoner': goldenDoner.toJson(),
       'stats': stats.toJson(),
       'quests': quests.values.map((value) => value.toJson()).toList(),
       'achievements': achievements.values
@@ -1231,6 +1029,7 @@ class GameState {
       'customerOrders': customerOrders.toJson(),
       'goals': goals.toJson(),
       'branches': branches.toJson(),
+      'randomEvents': randomEvents.toJson(),
       'lastActiveAtUtc': lastActiveAtUtc.toIso8601String(),
       'lastSavedAtUtc': lastSavedAtUtc.toIso8601String(),
       'localeCode': localeCode,
@@ -1303,9 +1102,9 @@ class GameState {
 
     return GameState(
       schemaVersion: schemaVersion,
-      cash: _intValue(json['cash']),
-      lifetimeCash: math.max(0, _intValue(json['lifetimeCash'])),
-      pendingOfflineCash: math.max(0, _intValue(json['pendingOfflineCash'])),
+      cash: _currencyValue(json['cash']),
+      lifetimeCash: _currencyValue(json['lifetimeCash']),
+      pendingOfflineCash: _currencyValue(json['pendingOfflineCash']),
       upgrades: {
         for (final definition in config.upgrades)
           definition.id: _clampedUpgradeState(
@@ -1315,12 +1114,8 @@ class GameState {
       },
       milestones: milestones,
       prestige: PrestigeState.fromJson(_stringKeyMap(json['prestige'])),
-      rush: TimedEffectState.fromJson(_stringKeyMap(json['rush'])),
       passiveBoost: TimedEffectState.fromJson(
         _stringKeyMap(json['passiveBoost']),
-      ),
-      goldenDoner: GoldenDonerState.fromJson(
-        _stringKeyMap(json['goldenDoner']),
       ),
       stats: GameStatsState.fromJson(_stringKeyMap(json['stats'])),
       quests: _questProgressMap(json['quests']),
@@ -1340,6 +1135,9 @@ class GameState {
       customerOrders: customerOrders,
       goals: GoalSystemState.fromJson(_stringKeyMap(json['goals'])),
       branches: BranchSystemState.fromJson(_stringKeyMap(json['branches'])),
+      randomEvents: RandomEventRuntimeState.fromJson(
+        _stringKeyMap(json['randomEvents']),
+      ),
       lastActiveAtUtc:
           _dateTimeValue(json['lastActiveAtUtc']) ?? fallback.lastActiveAtUtc,
       lastSavedAtUtc:
@@ -1492,6 +1290,13 @@ int? _nullableIntValue(Object? value) {
 
 int _intValue(Object? value, {int fallback = 0}) {
   return _nullableIntValue(value) ?? fallback;
+}
+
+dynamic _currencyValue(Object? value) {
+  if (value is num) return CurrencyMath.clamp(value);
+  if (value is Map) return GameNumber.fromJson(value);
+  if (value is String) return CurrencyMath.clamp(num.tryParse(value) ?? 0);
+  return 0;
 }
 
 double _doubleValue(Object? value, {double fallback = 0}) {

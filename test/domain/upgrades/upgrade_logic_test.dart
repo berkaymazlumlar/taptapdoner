@@ -11,9 +11,9 @@ void main() {
 
     expect(
       tracks.map((track) => track.id),
-      containsAll(['knife', 'oven', 'staff', 'menu', 'turbo', 'offline']),
+      containsAll(['knife', 'oven', 'staff', 'menu', 'offline']),
     );
-    expect(tracks, hasLength(6));
+    expect(tracks, hasLength(5));
 
     for (final track in tracks) {
       expect(track.itemIndex, 0, reason: '${track.id} starts on first item');
@@ -29,8 +29,7 @@ void main() {
     expect(UpgradeDefinitions.track('knife').tiers, hasLength(12));
     expect(UpgradeDefinitions.track('staff').tiers, hasLength(12));
     expect(UpgradeDefinitions.track('oven').tiers, hasLength(10));
-    expect(UpgradeDefinitions.track('menu').tiers, hasLength(10));
-    expect(UpgradeDefinitions.track('turbo').tiers, hasLength(9));
+    expect(UpgradeDefinitions.track('menu').tiers, hasLength(9));
     expect(UpgradeDefinitions.track('offline').tiers, hasLength(9));
   });
 
@@ -100,10 +99,6 @@ void main() {
     expect(
       UpgradeDefinitions.track('menu').effectType,
       UpgradeEffectType.menuMultiplier,
-    );
-    expect(
-      UpgradeDefinitions.track('turbo').effectType,
-      UpgradeEffectType.turboMultiplier,
     );
     expect(
       UpgradeDefinitions.track('offline').effectType,

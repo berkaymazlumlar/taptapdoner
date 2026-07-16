@@ -57,14 +57,6 @@ void main() {
             criticalCutCount: 2,
             maxCombo: 4,
           ),
-          goldenDoner: GoldenDonerState(
-            activeUntilUtc: DateTime.utc(2026, 4, 1, 12, 0, 5),
-            nextSpawnAtUtc: DateTime.utc(2026, 4, 1, 12, 2),
-            lastSpawnAtUtc: DateTime.utc(2026, 4, 1, 12),
-            requiredHits: 10,
-            currentHits: 3,
-            rewardPreview: 500,
-          ),
           quests: quests,
           achievements: {
             for (final entry in GameState.initial(config).achievements.entries)
@@ -186,8 +178,6 @@ void main() {
     expect(raw, contains('"level":6'));
     expect(raw, contains('"claimedMilestones":["knife_rusty_knife_5"]'));
     expect(raw, contains('"tapCount":12'));
-    expect(raw, contains('"goldenDoner"'));
-    expect(raw, contains('"currentHits":3'));
     expect(raw, contains('"questId":"starter_tap_10"'));
     expect(raw, contains('"rewardClaimed":true'));
     expect(raw, contains('"achievementId":"tap_10"'));
@@ -231,13 +221,6 @@ void main() {
     expect(loaded.stats.totalUpgradesPurchased, 1);
     expect(loaded.stats.criticalCutCount, 2);
     expect(loaded.stats.maxCombo, 4);
-    expect(loaded.goldenDoner.currentHits, 3);
-    expect(loaded.goldenDoner.requiredHits, 10);
-    expect(loaded.goldenDoner.rewardPreview, 500);
-    expect(
-      loaded.goldenDoner.activeUntilUtc,
-      DateTime.utc(2026, 4, 1, 12, 0, 5),
-    );
     expect(loaded.quests['starter_tap_10']?.status, QuestStatus.claimed);
     expect(loaded.quests['starter_tap_10']?.rewardClaimed, isTrue);
     expect(loaded.achievements['tap_10']?.isRewardClaimed, isTrue);
@@ -318,7 +301,6 @@ void main() {
           {"id":"futureUpgrade","purchased":true}
         ],
         "prestige": {"reputation": 0, "runCashEarned": 0},
-        "rush": {},
         "lastActiveAtUtc": "2026-04-01T12:00:00.000Z",
         "lastSavedAtUtc": "2026-04-01T12:00:00.000Z",
         "localeCode": "en"
@@ -345,7 +327,6 @@ void main() {
         "pendingOfflineCash": 0,
         "stations": [],
         "prestige": {"reputation": 4, "runCashEarned": 500},
-        "rush": {},
         "lastActiveAtUtc": "2026-04-01T12:00:00.000Z",
         "lastSavedAtUtc": "2026-04-01T12:00:00.000Z",
         "localeCode": "en"
@@ -382,7 +363,6 @@ void main() {
           {"id":"futureUpgrade","itemIndex":1,"level":4}
         ],
         "prestige": {"reputation": 0, "runCashEarned": 0},
-        "rush": {},
         "lastActiveAtUtc": "2026-04-01T12:00:00.000Z",
         "lastSavedAtUtc": "2026-04-01T12:00:00.000Z",
         "localeCode": "en"
@@ -426,11 +406,9 @@ void main() {
         "pendingOfflineCash": 432,
         "stations": [],
         "upgrades": [
-          {"id":"knife","level":10},
-          {"id":"rushTraining","purchased":true}
+          {"id":"knife","level":10}
         ],
         "prestige": {"reputation": 7, "runCashEarned": 7654321},
-        "rush": {},
         "lastActiveAtUtc": "2026-04-01T12:00:00.000Z",
         "lastSavedAtUtc": "2026-04-01T12:00:00.000Z",
         "localeCode": "tr"
@@ -450,8 +428,6 @@ void main() {
       expect(loaded.localeCode, 'tr');
       expect(loaded.upgrade(UpgradeId.knife).itemIndex, 0);
       expect(loaded.upgrade(UpgradeId.knife).level, 10);
-      expect(loaded.upgrade(UpgradeId.turbo).itemIndex, 0);
-      expect(loaded.upgrade(UpgradeId.turbo).level, 2);
     },
   );
 }

@@ -67,6 +67,7 @@ flutter:
     - 'assets/ui/effects/money_rain/'
     - 'assets/ui/tap/tap_doner.png'
     - 'assets/ui/tap/slices/'
+    - 'assets/ui/upgrades/knife/'
     - 'assets/ui/portraits/chef_portrait.jpg'
     - 'assets/audio/sfx/'
 

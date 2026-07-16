@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/doner_game_primitives.dart';
@@ -118,7 +119,7 @@ class _OfflineRewardHeader extends StatelessWidget {
         child: SizedBox(
           height: titleHeight,
           child: Text(
-            strings.offlineTitle.toUpperCase(),
+            strings.offlineTitle.toLocaleUpperCase(context),
             key: const ValueKey('offline-reward-popup-title'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -147,7 +148,7 @@ class _OfflineRewardHeader extends StatelessWidget {
 class _RewardSummaryCard extends StatelessWidget {
   const _RewardSummaryCard({required this.pendingReward});
 
-  final int pendingReward;
+  final dynamic pendingReward;
 
   @override
   Widget build(BuildContext context) {
@@ -212,7 +213,7 @@ class _RewardSummaryCard extends StatelessWidget {
 class _AdOfferCard extends StatelessWidget {
   const _AdOfferCard({required this.doubledReward, required this.compact});
 
-  final int doubledReward;
+  final dynamic doubledReward;
   final bool compact;
 
   @override
@@ -380,7 +381,7 @@ class _DoubleRewardBadge extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: DonerGradients.turbo,
+        gradient: DonerGradients.secondaryAction,
         border: Border.all(color: DonerColors.goldBright, width: 2),
         boxShadow: DonerShadows.goldGlow,
       ),
@@ -512,7 +513,7 @@ class _PreviewPill extends StatelessWidget {
           SizedBox(width: 7.w),
           Flexible(
             child: Text(
-              label.toUpperCase(),
+              label.toLocaleUpperCase(context),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -604,7 +605,7 @@ class _RewardActionButton extends StatelessWidget {
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        label.toUpperCase(),
+                        label.toLocaleUpperCase(context),
                         maxLines: 1,
                         textAlign: TextAlign.center,
                         style: TextStyle(

@@ -12,8 +12,6 @@ enum StarterQuestGoalType {
   staffPurchased,
   passiveIncomeActiveSeconds,
   maxCombo,
-  turboUsedCount,
-  goldenDonerCollected,
   knifeItemIndex,
   shopLevel,
   openPrestigeScreenOnce,
@@ -104,7 +102,6 @@ class StarterQuestReward {
     this.featureKey,
     this.passiveBoostDuration = Duration.zero,
     this.comboMultiplierBonus = 0,
-    this.turboChargeSpeedPercent = 0,
     this.globalBonusPercent = 0,
     this.shopLevel = 0,
   }) : assert(cash >= 0, 'cash cannot be negative.'),
@@ -117,7 +114,6 @@ class StarterQuestReward {
   final String? featureKey;
   final Duration passiveBoostDuration;
   final double comboMultiplierBonus;
-  final double turboChargeSpeedPercent;
   final double globalBonusPercent;
   final int shopLevel;
 }
@@ -161,16 +157,40 @@ abstract final class StarterQuestCatalog {
       reward: StarterQuestReward(cash: 25),
     ),
     StarterQuestDefinition(
+      id: 'starter_tap_50',
+      goalType: StarterQuestGoalType.tapCount,
+      targetValue: 50,
+      reward: StarterQuestReward(cash: 75),
+    ),
+    StarterQuestDefinition(
       id: 'starter_rusty_knife_5',
       goalType: StarterQuestGoalType.rustyKnifeLevel,
       targetValue: 5,
       reward: StarterQuestReward(cash: 100),
     ),
     StarterQuestDefinition(
+      id: 'starter_upgrades_10',
+      goalType: StarterQuestGoalType.totalUpgradesPurchased,
+      targetValue: 10,
+      reward: StarterQuestReward(cash: 125),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_tap_150',
+      goalType: StarterQuestGoalType.tapCount,
+      targetValue: 150,
+      reward: StarterQuestReward(cash: 150),
+    ),
+    StarterQuestDefinition(
       id: 'starter_lifetime_500',
       goalType: StarterQuestGoalType.lifetimeCash,
       targetValue: 500,
       reward: StarterQuestReward(chests: 1),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_upgrades_25',
+      goalType: StarterQuestGoalType.totalUpgradesPurchased,
+      targetValue: 25,
+      reward: StarterQuestReward(cash: 200),
     ),
     StarterQuestDefinition(
       id: 'starter_rusty_knife_10',
@@ -183,6 +203,12 @@ abstract final class StarterQuestCatalog {
       goalType: StarterQuestGoalType.criticalCutCount,
       targetValue: 3,
       reward: StarterQuestReward(cash: 150),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_lifetime_2500',
+      goalType: StarterQuestGoalType.lifetimeCash,
+      targetValue: 2500,
+      reward: StarterQuestReward(cash: 200),
     ),
     StarterQuestDefinition(
       id: 'starter_first_staff',
@@ -200,27 +226,129 @@ abstract final class StarterQuestCatalog {
       reward: StarterQuestReward(cash: 250),
     ),
     StarterQuestDefinition(
+      id: 'starter_passive_180',
+      goalType: StarterQuestGoalType.passiveIncomeActiveSeconds,
+      targetValue: 180,
+      reward: StarterQuestReward(cash: 300),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_staff_5',
+      goalType: StarterQuestGoalType.staffPurchased,
+      targetValue: 5,
+      reward: StarterQuestReward(chests: 1),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_staff_10',
+      goalType: StarterQuestGoalType.staffPurchased,
+      targetValue: 10,
+      reward: StarterQuestReward(cash: 350),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_staff_25',
+      goalType: StarterQuestGoalType.staffPurchased,
+      targetValue: 25,
+      reward: StarterQuestReward(chests: 1),
+    ),
+    StarterQuestDefinition(
       id: 'starter_combo_15',
       goalType: StarterQuestGoalType.maxCombo,
       targetValue: 15,
       reward: StarterQuestReward(comboMultiplierBonus: 0.05),
     ),
     StarterQuestDefinition(
-      id: 'starter_turbo_use',
-      goalType: StarterQuestGoalType.turboUsedCount,
-      targetValue: 1,
-      reward: StarterQuestReward(turboChargeSpeedPercent: 1),
+      id: 'starter_lifetime_5000',
+      goalType: StarterQuestGoalType.lifetimeCash,
+      targetValue: 5000,
+      reward: StarterQuestReward(cash: 300),
     ),
     StarterQuestDefinition(
-      id: 'starter_golden_1',
-      goalType: StarterQuestGoalType.goldenDonerCollected,
-      targetValue: 1,
-      reward: StarterQuestReward(chests: 1),
+      id: 'starter_passive_300',
+      goalType: StarterQuestGoalType.passiveIncomeActiveSeconds,
+      targetValue: 300,
+      reward: StarterQuestReward(cash: 350),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_passive_600',
+      goalType: StarterQuestGoalType.passiveIncomeActiveSeconds,
+      targetValue: 600,
+      reward: StarterQuestReward(cash: 450),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_critical_10',
+      goalType: StarterQuestGoalType.criticalCutCount,
+      targetValue: 10,
+      reward: StarterQuestReward(cash: 350),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_combo_30',
+      goalType: StarterQuestGoalType.maxCombo,
+      targetValue: 30,
+      reward: StarterQuestReward(comboMultiplierBonus: 0.05),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_critical_25',
+      goalType: StarterQuestGoalType.criticalCutCount,
+      targetValue: 25,
+      reward: StarterQuestReward(cash: 500),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_critical_50',
+      goalType: StarterQuestGoalType.criticalCutCount,
+      targetValue: 50,
+      reward: StarterQuestReward(cash: 650),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_combo_50',
+      goalType: StarterQuestGoalType.maxCombo,
+      targetValue: 50,
+      reward: StarterQuestReward(comboMultiplierBonus: 0.05),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_combo_75',
+      goalType: StarterQuestGoalType.maxCombo,
+      targetValue: 75,
+      reward: StarterQuestReward(comboMultiplierBonus: 0.05),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_tap_500',
+      goalType: StarterQuestGoalType.tapCount,
+      targetValue: 500,
+      reward: StarterQuestReward(cash: 500),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_tap_1000',
+      goalType: StarterQuestGoalType.tapCount,
+      targetValue: 1000,
+      reward: StarterQuestReward(cash: 600),
     ),
     StarterQuestDefinition(
       id: 'starter_knife_item_1',
       goalType: StarterQuestGoalType.knifeItemIndex,
       targetValue: 1,
+      reward: StarterQuestReward(chests: 1, chestType: ChestType.master),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_tap_2500',
+      goalType: StarterQuestGoalType.tapCount,
+      targetValue: 2500,
+      reward: StarterQuestReward(cash: 750),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_upgrades_50',
+      goalType: StarterQuestGoalType.totalUpgradesPurchased,
+      targetValue: 50,
+      reward: StarterQuestReward(chests: 1),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_upgrades_75',
+      goalType: StarterQuestGoalType.totalUpgradesPurchased,
+      targetValue: 75,
+      reward: StarterQuestReward(cash: 700),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_upgrades_100',
+      goalType: StarterQuestGoalType.totalUpgradesPurchased,
+      targetValue: 100,
       reward: StarterQuestReward(chests: 1, chestType: ChestType.master),
     ),
     StarterQuestDefinition(
@@ -234,6 +362,24 @@ abstract final class StarterQuestCatalog {
       goalType: StarterQuestGoalType.shopLevel,
       targetValue: 2,
       reward: StarterQuestReward(globalBonusPercent: 0.05),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_lifetime_25000',
+      goalType: StarterQuestGoalType.lifetimeCash,
+      targetValue: 25000,
+      reward: StarterQuestReward(cash: 750),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_lifetime_50000',
+      goalType: StarterQuestGoalType.lifetimeCash,
+      targetValue: 50000,
+      reward: StarterQuestReward(cash: 900),
+    ),
+    StarterQuestDefinition(
+      id: 'starter_lifetime_100000',
+      goalType: StarterQuestGoalType.lifetimeCash,
+      targetValue: 100000,
+      reward: StarterQuestReward(chests: 1, chestType: ChestType.master),
     ),
     StarterQuestDefinition(
       id: 'starter_open_prestige',

@@ -68,17 +68,6 @@ abstract final class AchievementCatalog {
       reward: AchievementReward(type: AchievementRewardType.cash, amount: 150),
     ),
     Achievement(
-      id: 'turbo_1',
-      title: 'First Turbo',
-      description: 'Use turbo once.',
-      category: AchievementCategory.turbo,
-      targetValue: 1,
-      reward: AchievementReward(
-        type: AchievementRewardType.chest,
-        chestType: ChestType.small,
-      ),
-    ),
-    Achievement(
       id: 'combo_15',
       title: 'Combo Cook',
       description: 'Reach a 15 combo.',
@@ -93,17 +82,6 @@ abstract final class AchievementCatalog {
       category: AchievementCategory.event,
       targetValue: 3,
       reward: AchievementReward(type: AchievementRewardType.cash, amount: 250),
-    ),
-    Achievement(
-      id: 'golden_1',
-      title: 'Golden Catch',
-      description: 'Catch 1 Golden Doner.',
-      category: AchievementCategory.event,
-      targetValue: 1,
-      reward: AchievementReward(
-        type: AchievementRewardType.chest,
-        chestType: ChestType.gold,
-      ),
     ),
     Achievement(
       id: 'chest_1',

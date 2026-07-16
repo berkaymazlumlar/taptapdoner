@@ -7,7 +7,6 @@ enum AchievementCategory {
   money,
   upgrade,
   staff,
-  turbo,
   offline,
   prestige,
   collection,
@@ -30,7 +29,6 @@ enum ChestRewardType {
   money,
   reputation,
   temporaryIncomeBoost,
-  turboCharge,
   cosmeticToken,
   recipeShard,
   staffCardShard,
@@ -42,7 +40,7 @@ enum ChestRewardType {
   permanentGlobalBonus,
 }
 
-enum CollectionCategory { knife, staff, oven, menu, turbo, offline, badges }
+enum CollectionCategory { knife, staff, oven, menu, offline, badges }
 
 enum Rarity { common, rare, epic, legendary, mythic }
 

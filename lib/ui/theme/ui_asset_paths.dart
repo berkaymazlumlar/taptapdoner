@@ -15,6 +15,17 @@ abstract final class UiAssetPaths {
     tapDonerSlice3,
     tapDonerSlice4,
   ];
+  static const upgradeRustyKnife = 'assets/ui/upgrades/knife/rusty_knife.png';
+  static const upgradeSharpKnife = 'assets/ui/upgrades/knife/sharp_knife.png';
+  static const upgradeDoubleKnife = 'assets/ui/upgrades/knife/double_knife.png';
+  static const upgradeElectricKnife =
+      'assets/ui/upgrades/knife/electric_knife.png';
+  static const upgradeGoldenKnife = 'assets/ui/upgrades/knife/golden_knife.png';
+  static const upgradeFlamingKnife =
+      'assets/ui/upgrades/knife/flaming_knife.png';
+  static const upgradeLaserKnife = 'assets/ui/upgrades/knife/laser_knife.png';
+  static const upgradeDonerExcalibur =
+      'assets/ui/upgrades/knife/doner_excalibur.png';
   static const chefPortrait = 'assets/ui/portraits/chef_portrait.jpg';
   static const criticalHit1 = 'assets/audio/sfx/critical_hit_1.m4a';
   static const criticalHit2 = 'assets/audio/sfx/critical_hit_2.m4a';

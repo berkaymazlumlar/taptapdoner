@@ -72,7 +72,7 @@ void main() {
       find.byKey(const ValueKey('tap-zone-cash-splash-fill')),
     );
 
-    expect(initialEntry.scale, closeTo(0.58, 0.001));
+    expect(initialEntry.scale, closeTo(0.88, 0.001));
     expect(initialFillText.style?.color, const Color(0xFFFFF6DD));
 
     await tester.pump();

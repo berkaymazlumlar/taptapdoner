@@ -4,13 +4,7 @@ import 'package:taptapdoner/domain/progression/faz5_models.dart';
 
 enum Collection2ItemKind { recipe, staff, decor, knifeSkin, setBonus }
 
-enum RecipeBonusType {
-  menuMultiplier,
-  tipValue,
-  customerReward,
-  goldenDonerReward,
-  globalIncome,
-}
+enum RecipeBonusType { menuMultiplier, tipValue, customerReward, globalIncome }
 
 enum StaffCardBonusType {
   passiveIncome,
@@ -158,7 +152,6 @@ class Collection2BonusTotals {
     this.reputationGainBonusPercent = 0,
     this.chestRewardBonusPercent = 0,
     this.shopBonusPercent = 0,
-    this.goldenDonerRewardBonusPercent = 0,
   });
 
   final double tapBonusPercent;
@@ -174,7 +167,6 @@ class Collection2BonusTotals {
   final double reputationGainBonusPercent;
   final double chestRewardBonusPercent;
   final double shopBonusPercent;
-  final double goldenDonerRewardBonusPercent;
 
   double get reputationGainMultiplier =>
       1 + math.max(0, reputationGainBonusPercent);

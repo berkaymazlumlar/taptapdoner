@@ -89,7 +89,7 @@ void main() {
           home: Scaffold(
             body: Center(
               child: UiActionButton(
-                label: 'Rush',
+                label: 'Start',
                 spec: spec,
                 onPressed: () {},
                 badge: '1',

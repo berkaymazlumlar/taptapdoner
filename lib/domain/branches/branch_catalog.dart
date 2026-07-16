@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:taptapdoner/domain/branches/branch_models.dart';
+import 'package:taptapdoner/domain/economy/number_units.dart';
 import 'package:taptapdoner/domain/progression/collection2_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
@@ -15,6 +16,7 @@ class BranchRequirementStatus {
 abstract final class BranchCatalog {
   static const branchIncomeUnlockShopLevel = 7;
   static const managerUnlockLevel = 20;
+  static const firstManagerGrantMarker = '__system:first_manager_grant';
   static const maxBranchLevel = 50;
   static const branchMilestoneIncomeBonus = 0.05;
   static const milestoneLevels = <int>[10, 20, 30, 40, 50];
@@ -22,21 +24,21 @@ abstract final class BranchCatalog {
   static const regions = <BranchRegionDefinition>[
     BranchRegionDefinition(
       id: 'local',
-      name: 'Local',
+      name: 'Yerel',
       order: 0,
       requiredRegionId: null,
       assetKey: 'placeholder_region_local',
     ),
     BranchRegionDefinition(
       id: 'istanbul',
-      name: 'Istanbul',
+      name: 'İstanbul',
       order: 1,
       requiredRegionId: 'local',
       assetKey: 'placeholder_region_istanbul',
     ),
     BranchRegionDefinition(
       id: 'turkiye',
-      name: 'Turkiye',
+      name: 'Türkiye',
       order: 2,
       requiredRegionId: 'istanbul',
       assetKey: 'placeholder_region_turkiye',
@@ -50,7 +52,7 @@ abstract final class BranchCatalog {
     ),
     BranchRegionDefinition(
       id: 'space',
-      name: 'Space',
+      name: 'Uzay',
       order: 4,
       requiredRegionId: 'global',
       assetKey: 'placeholder_region_space',
@@ -60,10 +62,10 @@ abstract final class BranchCatalog {
   static const branches = <BranchDefinition>[
     BranchDefinition(
       id: 'main_branch',
-      name: 'Ana Sube',
+      name: 'Ana Şube',
       cityName: 'Merkez',
       regionId: 'local',
-      description: 'Markanin ilk zincir subesi.',
+      description: 'Markanın ilk zincir şubesi.',
       baseUnlockCost: 1_000_000,
       baseIncomePerSecond: 12,
       incomeMultiplierPerLevel: 1.075,
@@ -75,10 +77,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'neighborhood_branch',
-      name: 'Mahalle Subesi',
-      cityName: 'Yerel Bolge',
+      name: 'Mahalle Şubesi',
+      cityName: 'Yerel Bölge',
       regionId: 'local',
-      description: 'Sadik mahalle musterilerini tasir.',
+      description: 'Sadık mahalle müşterilerini taşır.',
       baseUnlockCost: 2_500_000,
       baseIncomePerSecond: 22,
       incomeMultiplierPerLevel: 1.075,
@@ -90,10 +92,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'busy_street_branch',
-      name: 'Islek Cadde Subesi',
+      name: 'İşlek Cadde Şubesi',
       cityName: 'Cadde',
       regionId: 'local',
-      description: 'Yogun yaya trafiginden pasif gelir uretir.',
+      description: 'Yoğun yaya trafiğinden pasif gelir üretir.',
       baseUnlockCost: 7_500_000,
       baseIncomePerSecond: 45,
       incomeMultiplierPerLevel: 1.078,
@@ -105,10 +107,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'kadikoy_branch',
-      name: 'Kadikoy Subesi',
-      cityName: 'Kadikoy',
+      name: 'Kadıköy Şubesi',
+      cityName: 'Kadıköy',
       regionId: 'istanbul',
-      description: 'Istanbul zincirinin ilk kuvvetli duragi.',
+      description: 'İstanbul zincirinin ilk kuvvetli durağı.',
       baseUnlockCost: 20_000_000,
       baseIncomePerSecond: 85,
       incomeMultiplierPerLevel: 1.08,
@@ -120,10 +122,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'besiktas_branch',
-      name: 'Besiktas Subesi',
-      cityName: 'Besiktas',
+      name: 'Beşiktaş Şubesi',
+      cityName: 'Beşiktaş',
       regionId: 'istanbul',
-      description: 'Aksam yogunlugunu markaya cevirir.',
+      description: 'Akşam yoğunluğunu markaya çevirir.',
       baseUnlockCost: 35_000_000,
       baseIncomePerSecond: 125,
       incomeMultiplierPerLevel: 1.08,
@@ -135,10 +137,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'taksim_branch',
-      name: 'Taksim Subesi',
+      name: 'Taksim Şubesi',
       cityName: 'Taksim',
       regionId: 'istanbul',
-      description: 'Turist akisini pasif gelire baglar.',
+      description: 'Turist akışını pasif gelire bağlar.',
       baseUnlockCost: 55_000_000,
       baseIncomePerSecond: 175,
       incomeMultiplierPerLevel: 1.08,
@@ -150,10 +152,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'mall_branch',
-      name: 'AVM Subesi',
+      name: 'AVM Şubesi',
       cityName: 'AVM',
       regionId: 'istanbul',
-      description: 'Daha duzenli ve yuksek hacimli satis noktasi.',
+      description: 'Daha düzenli ve yüksek hacimli satış noktası.',
       baseUnlockCost: 85_000_000,
       baseIncomePerSecond: 240,
       incomeMultiplierPerLevel: 1.082,
@@ -165,10 +167,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'airport_branch',
-      name: 'Havalimani Subesi',
-      cityName: 'Havalimani',
+      name: 'Havalimanı Şubesi',
+      cityName: 'Havalimanı',
       regionId: 'istanbul',
-      description: 'Yuksek fiyatli hizli servis noktasi.',
+      description: 'Yüksek fiyatlı hızlı servis noktası.',
       baseUnlockCost: 130_000_000,
       baseIncomePerSecond: 330,
       incomeMultiplierPerLevel: 1.082,
@@ -180,10 +182,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'izmir_branch',
-      name: 'Izmir Subesi',
-      cityName: 'Izmir',
+      name: 'İzmir Şubesi',
+      cityName: 'İzmir',
       regionId: 'turkiye',
-      description: 'Ege kiyisinda ulusal buyumeyi baslatir.',
+      description: 'Ege kıyısında ulusal büyümeyi başlatır.',
       baseUnlockCost: 220_000_000,
       baseIncomePerSecond: 520,
       incomeMultiplierPerLevel: 1.084,
@@ -195,10 +197,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'ankara_branch',
-      name: 'Ankara Subesi',
+      name: 'Ankara Şubesi',
       cityName: 'Ankara',
       regionId: 'turkiye',
-      description: 'Baskentte kurumsal siparis akisi.',
+      description: 'Başkentte kurumsal sipariş akışı.',
       baseUnlockCost: 340_000_000,
       baseIncomePerSecond: 720,
       incomeMultiplierPerLevel: 1.084,
@@ -210,10 +212,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'antalya_branch',
-      name: 'Antalya Subesi',
+      name: 'Antalya Şubesi',
       cityName: 'Antalya',
       regionId: 'turkiye',
-      description: 'Sezonluk turizm yogunlugunu yakalar.',
+      description: 'Sezonluk turizm yoğunluğunu yakalar.',
       baseUnlockCost: 520_000_000,
       baseIncomePerSecond: 980,
       incomeMultiplierPerLevel: 1.084,
@@ -225,10 +227,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'bursa_branch',
-      name: 'Bursa Subesi',
+      name: 'Bursa Şubesi',
       cityName: 'Bursa',
       regionId: 'turkiye',
-      description: 'Sanayi ve aile musterilerini tasir.',
+      description: 'Sanayi ve aile müşterilerini taşır.',
       baseUnlockCost: 760_000_000,
       baseIncomePerSecond: 1_300,
       incomeMultiplierPerLevel: 1.086,
@@ -240,10 +242,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'cappadocia_branch',
-      name: 'Kapadokya Turist Subesi',
+      name: 'Kapadokya Turist Şubesi',
       cityName: 'Kapadokya',
       regionId: 'turkiye',
-      description: 'Turist rotasinda marka bilinirligi uretir.',
+      description: 'Turist rotasında marka bilinirliği üretir.',
       baseUnlockCost: 1_100_000_000,
       baseIncomePerSecond: 1_750,
       incomeMultiplierPerLevel: 1.086,
@@ -255,10 +257,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'berlin_branch',
-      name: 'Berlin Subesi',
+      name: 'Berlin Şubesi',
       cityName: 'Berlin',
       regionId: 'global',
-      description: 'Avrupa aciliminin ilk bayragi.',
+      description: 'Avrupa açılımının ilk bayrağı.',
       baseUnlockCost: 2_500_000_000,
       baseIncomePerSecond: 3_200,
       incomeMultiplierPerLevel: 1.088,
@@ -270,10 +272,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'london_branch',
-      name: 'Londra Subesi',
+      name: 'Londra Şubesi',
       cityName: 'Londra',
       regionId: 'global',
-      description: 'Global marka degerini buyutur.',
+      description: 'Global marka değerini büyütür.',
       baseUnlockCost: 4_000_000_000,
       baseIncomePerSecond: 4_400,
       incomeMultiplierPerLevel: 1.088,
@@ -285,10 +287,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'new_york_branch',
-      name: 'New York Subesi',
+      name: 'New York Şubesi',
       cityName: 'New York',
       regionId: 'global',
-      description: 'Yuksek kira, yuksek pasif gelir.',
+      description: 'Yüksek kira, yüksek pasif gelir.',
       baseUnlockCost: 6_500_000_000,
       baseIncomePerSecond: 6_000,
       incomeMultiplierPerLevel: 1.09,
@@ -300,10 +302,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'dubai_branch',
-      name: 'Dubai Subesi',
+      name: 'Dubai Şubesi',
       cityName: 'Dubai',
       regionId: 'global',
-      description: 'Premium servis gelirini pasife tasir.',
+      description: 'Premium servis gelirini pasife taşır.',
       baseUnlockCost: 9_000_000_000,
       baseIncomePerSecond: 8_000,
       incomeMultiplierPerLevel: 1.09,
@@ -315,10 +317,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'tokyo_branch',
-      name: 'Tokyo Subesi',
+      name: 'Tokyo Şubesi',
       cityName: 'Tokyo',
       regionId: 'global',
-      description: 'Verimli servis disipliniyle agir pasif gelir.',
+      description: 'Verimli servis disipliniyle ağır pasif gelir.',
       baseUnlockCost: 13_000_000_000,
       baseIncomePerSecond: 10_500,
       incomeMultiplierPerLevel: 1.09,
@@ -330,10 +332,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'moon_branch',
-      name: 'Ay Subesi',
+      name: 'Ay Şubesi',
       cityName: 'Ay',
       regionId: 'space',
-      description: 'Absurt endgame icin dusuk yercekimi servisi.',
+      description: 'Absürt oyun sonu için düşük yerçekimi servisi.',
       baseUnlockCost: 45_000_000_000,
       baseIncomePerSecond: 24_000,
       incomeMultiplierPerLevel: 1.092,
@@ -345,10 +347,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'mars_branch',
-      name: 'Mars Subesi',
+      name: 'Mars Şubesi',
       cityName: 'Mars',
       regionId: 'space',
-      description: 'Koloni ekonomisinde ilk doner noktasi.',
+      description: 'Koloni ekonomisinde ilk döner noktası.',
       baseUnlockCost: 90_000_000_000,
       baseIncomePerSecond: 42_000,
       incomeMultiplierPerLevel: 1.094,
@@ -360,10 +362,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'galactic_branch',
-      name: 'Galaktik Sube',
+      name: 'Galaktik Şube',
       cityName: 'Galaksi',
       regionId: 'space',
-      description: 'Yildizlar arasi marka agi.',
+      description: 'Yıldızlar arası marka ağı.',
       baseUnlockCost: 180_000_000_000,
       baseIncomePerSecond: 72_000,
       incomeMultiplierPerLevel: 1.096,
@@ -375,10 +377,10 @@ abstract final class BranchCatalog {
     ),
     BranchDefinition(
       id: 'infinite_doner_center',
-      name: 'Sonsuz Doner Merkezi',
+      name: 'Sonsuz Döner Merkezi',
       cityName: 'Sonsuzluk',
       regionId: 'space',
-      description: 'Markanin teorik son noktasi.',
+      description: 'Markanın teorik son noktası.',
       baseUnlockCost: 400_000_000_000,
       baseIncomePerSecond: 125_000,
       incomeMultiplierPerLevel: 1.10,
@@ -410,7 +412,9 @@ abstract final class BranchCatalog {
   }
 
   static bool isBranchIncomeActive(GameState state) {
-    return isBranchActionAvailable(state);
+    return state.shopProgression.highestShopLevel >=
+            branchIncomeUnlockShopLevel ||
+        state.branches.unlockedBranchCount > 0;
   }
 
   static int unlockCost(BranchDefinition definition) {
@@ -430,7 +434,11 @@ abstract final class BranchCatalog {
     return math.max(1000, scaled.round());
   }
 
-  static bool canUnlock(GameState state, BranchDefinition definition) {
+  static bool canUnlock(
+    GameState state,
+    BranchDefinition definition, {
+    bool ignoreCostRequirement = false,
+  }) {
     final progress = state.branches.progressFor(definition.id);
     if (progress.isUnlocked) {
       return false;
@@ -450,10 +458,15 @@ abstract final class BranchCatalog {
     if (state.lifetimeCash < definition.requiredLifetimeCash) {
       return false;
     }
-    return state.cash >= unlockCost(definition);
+    final cost = unlockCost(definition);
+    return ignoreCostRequirement || state.cash >= cost;
   }
 
-  static bool canLevelUp(GameState state, BranchDefinition definition) {
+  static bool canLevelUp(
+    GameState state,
+    BranchDefinition definition, {
+    bool ignoreCostRequirement = false,
+  }) {
     final progress = state.branches.progressFor(definition.id);
     if (!progress.isUnlocked || progress.level >= definition.maxLevel) {
       return false;
@@ -461,39 +474,53 @@ abstract final class BranchCatalog {
     if (!isBranchActionAvailable(state)) {
       return false;
     }
-    return state.cash >= levelUpCost(definition, progress);
+    final cost = levelUpCost(definition, progress);
+    return ignoreCostRequirement || state.cash >= cost;
   }
 
   static List<BranchRequirementStatus> unlockRequirements(
     GameState state,
-    BranchDefinition definition,
-  ) {
+    BranchDefinition definition, {
+    bool ignoreCostRequirement = false,
+  }) {
+    final cost = unlockCost(definition);
+    final locale = state.localeCode;
+    final isTurkish = locale == 'tr';
     return [
       BranchRequirementStatus(
-        label:
-            'Region ${regionById[definition.regionId]?.name ?? definition.regionId}',
+        label: isTurkish
+            ? 'Bölge: ${regionById[definition.regionId]?.name ?? definition.regionId}'
+            : 'Region: ${_englishRegionName(definition.regionId)}',
         completed: state.branches.unlockedRegionIds.contains(
           definition.regionId,
         ),
       ),
       BranchRequirementStatus(
-        label: 'Shop Lv. ${definition.requiredShopLevel}',
+        label: isTurkish
+            ? 'Dükkân Sv. ${definition.requiredShopLevel}'
+            : 'Shop Lv. ${definition.requiredShopLevel}',
         completed:
             state.shopProgression.currentShopLevel >=
             definition.requiredShopLevel,
       ),
       BranchRequirementStatus(
-        label: 'Prestige ${definition.requiredPrestigeCount}',
+        label: isTurkish
+            ? 'Prestij ${definition.requiredPrestigeCount}'
+            : 'Prestige ${definition.requiredPrestigeCount}',
         completed:
             state.prestige.prestigeCount >= definition.requiredPrestigeCount,
       ),
       BranchRequirementStatus(
-        label: 'Lifetime ${definition.requiredLifetimeCash.round()}',
+        label: isTurkish
+            ? 'Toplam kazanç ${formatNumberWithUnitNames(definition.requiredLifetimeCash, locale: locale)}'
+            : 'Lifetime ${formatNumberWithUnitNames(definition.requiredLifetimeCash, locale: locale)}',
         completed: state.lifetimeCash >= definition.requiredLifetimeCash,
       ),
       BranchRequirementStatus(
-        label: 'Cost ${unlockCost(definition)}',
-        completed: state.cash >= unlockCost(definition),
+        label: isTurkish
+            ? 'Maliyet ${formatNumberWithUnitNames(ignoreCostRequirement ? 0 : cost, locale: locale)}'
+            : 'Cost ${formatNumberWithUnitNames(ignoreCostRequirement ? 0 : cost, locale: locale)}',
+        completed: ignoreCostRequirement || state.cash >= cost,
       ),
     ];
   }
@@ -570,6 +597,12 @@ abstract final class BranchCatalog {
     return '$branchId:$level';
   }
 
+  static int claimedLevelMilestoneCount(BranchSystemState state) {
+    return state.claimedBranchMilestones
+        .where((key) => key != firstManagerGrantMarker)
+        .length;
+  }
+
   static bool isRegionComplete(BranchSystemState state, String regionId) {
     final regionBranches = branches
         .where((branch) => branch.regionId == regionId)
@@ -589,6 +622,24 @@ abstract final class BranchCatalog {
     return branches
         .where((branch) => branch.regionId == regionId)
         .toList(growable: false);
+  }
+
+  static String regionName(String regionId, {required String localeCode}) {
+    if (localeCode == 'tr') {
+      return regionById[regionId]?.name ?? regionId;
+    }
+    return _englishRegionName(regionId);
+  }
+
+  static String _englishRegionName(String regionId) {
+    return switch (regionId) {
+      'local' => 'Local',
+      'istanbul' => 'Istanbul',
+      'turkiye' => 'Turkey',
+      'global' => 'Global',
+      'space' => 'Space',
+      _ => regionId,
+    };
   }
 
   static double rawBranchIncomeFor(
@@ -667,6 +718,14 @@ abstract final class BranchCatalog {
       state,
       forBranchId: branchId,
     ).contains(managerId);
+  }
+
+  static bool canUnassignManager(GameState state, {required String branchId}) {
+    if (!byId.containsKey(branchId)) {
+      return false;
+    }
+    final managerId = state.branches.progressFor(branchId).assignedManagerId;
+    return managerId != null && managerId.isNotEmpty;
   }
 
   static String? managerName(String? managerId) {

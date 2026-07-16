@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/ui/pages/prestige_shop_page.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
@@ -20,6 +21,7 @@ class PrestigePage extends StatelessWidget {
     this.onOpenShop,
     this.onBack,
     this.onPrestigeApplied,
+    this.bottomInset = 0,
     this.presentation = PrestigePagePresentation.sheet,
   });
 
@@ -28,6 +30,7 @@ class PrestigePage extends StatelessWidget {
   final VoidCallback? onOpenShop;
   final VoidCallback? onBack;
   final Future<void> Function()? onPrestigeApplied;
+  final double bottomInset;
   final PrestigePagePresentation presentation;
 
   @override
@@ -116,7 +119,9 @@ class PrestigePage extends StatelessWidget {
                                   ),
                                   SizedBox(height: 4.h),
                                   Text(
-                                    strings.prestigeConfirm.toUpperCase(),
+                                    strings.prestigeConfirm.toLocaleUpperCase(
+                                      context,
+                                    ),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontFamily:
@@ -160,7 +165,12 @@ class PrestigePage extends StatelessWidget {
                           physics: const ClampingScrollPhysics(
                             parent: AlwaysScrollableScrollPhysics(),
                           ),
-                          padding: EdgeInsets.symmetric(horizontal: 20.w),
+                          padding: EdgeInsets.fromLTRB(
+                            20.w,
+                            0,
+                            20.w,
+                            isTab ? bottomInset : 0,
+                          ),
                           child: Column(
                             key: const ValueKey('prestige-card-stack'),
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -289,7 +299,7 @@ class _PrestigeHeroCard extends StatelessWidget {
                     ),
                     SizedBox(height: 3.h),
                     Text(
-                      _signedPoints(snapshot.pointsToGain),
+                      _signedPoints(context, snapshot.pointsToGain),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -348,11 +358,11 @@ class _PrestigeHeroCard extends StatelessWidget {
             metrics: [
               _PrestigeMetricData(
                 label: 'Unspent',
-                value: snapshot.unspentPoints.toString(),
+                value: formatCompactNumber(context, snapshot.unspentPoints),
               ),
               _PrestigeMetricData(
                 label: 'Total',
-                value: snapshot.reputation.toString(),
+                value: formatCompactNumber(context, snapshot.reputation),
               ),
               _PrestigeMetricData(
                 label: 'Runs',
@@ -851,6 +861,8 @@ double _prestigeProgress(PrestigeSnapshot snapshot) {
       .toDouble();
 }
 
-String _signedPoints(int points) => points > 0 ? '+$points' : '0';
+String _signedPoints(BuildContext context, int points) {
+  return points > 0 ? '+${formatCompactNumber(context, points)}' : '0';
+}
 
 String _multiplier(double value) => 'x${value.toStringAsFixed(2)}';

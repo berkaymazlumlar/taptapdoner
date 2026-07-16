@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:taptapdoner/domain/economy/number_units.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 
 enum PrestigeShopEffectType {
@@ -7,9 +8,7 @@ enum PrestigeShopEffectType {
   passiveBonus,
   globalBonus,
   startingCash,
-  startingTurbo,
   offlineCap,
-  goldenDonerChance,
   criticalChance,
   comboDuration,
   prestigeChest,
@@ -41,7 +40,7 @@ class PrestigeShopUpgradeDefinition {
     return math.max(1, baseCost + math.pow(currentLevel + 1, 1.7).floor());
   }
 
-  String effectLabel(int nextLevel) {
+  String effectLabel(int nextLevel, {String localeCode = 'en'}) {
     final clamped = math.max(0, math.min(nextLevel, maxLevel));
     final total = effectPerLevel * clamped;
     return switch (effectType) {
@@ -49,13 +48,10 @@ class PrestigeShopUpgradeDefinition {
       PrestigeShopEffectType.passiveBonus =>
         'Passive +${(total * 100).round()}%',
       PrestigeShopEffectType.globalBonus => 'Global +${(total * 100).round()}%',
-      PrestigeShopEffectType.startingCash => 'Start +${total.round()} cash',
-      PrestigeShopEffectType.startingTurbo =>
-        'Start turbo ${(total * 100).round()}%',
+      PrestigeShopEffectType.startingCash =>
+        'Start +${formatNumberWithUnitNames(total, locale: localeCode)} cash',
       PrestigeShopEffectType.offlineCap =>
         'Offline +${(total / 60).round()} min',
-      PrestigeShopEffectType.goldenDonerChance =>
-        'Golden +${(total * 100).round()}%',
       PrestigeShopEffectType.criticalChance =>
         'Critical +${(total * 100).round()}%',
       PrestigeShopEffectType.comboDuration =>
@@ -72,9 +68,7 @@ class PrestigeShopCatalog {
   static const loyalApprentices = 'loyal_apprentices';
   static const hotOven = 'hot_oven';
   static const fastStart = 'fast_start';
-  static const earlyTurbo = 'early_turbo';
   static const bigRegister = 'big_register';
-  static const goldenLuck = 'golden_luck';
   static const criticalMastery = 'critical_mastery';
   static const comboMaster = 'combo_master';
   static const masterChest = 'master_chest';
@@ -117,30 +111,12 @@ class PrestigeShopCatalog {
       baseCost: 0,
     ),
     PrestigeShopUpgradeDefinition(
-      id: earlyTurbo,
-      name: 'Early Turbo',
-      description: 'Begin prestige runs with turbo time.',
-      effectType: PrestigeShopEffectType.startingTurbo,
-      effectPerLevel: 0.10,
-      maxLevel: 10,
-      baseCost: 0,
-    ),
-    PrestigeShopUpgradeDefinition(
       id: bigRegister,
       name: 'Big Register',
       description: 'Extend maximum offline duration.',
       effectType: PrestigeShopEffectType.offlineCap,
       effectPerLevel: 1800,
       maxLevel: 12,
-      baseCost: 1,
-    ),
-    PrestigeShopUpgradeDefinition(
-      id: goldenLuck,
-      name: 'Golden Luck',
-      description: 'Golden Doner appears sooner.',
-      effectType: PrestigeShopEffectType.goldenDonerChance,
-      effectPerLevel: 0.02,
-      maxLevel: 10,
       baseCost: 1,
     ),
     PrestigeShopUpgradeDefinition(

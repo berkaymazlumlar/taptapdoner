@@ -2,11 +2,16 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
+import 'package:taptapdoner/domain/branches/branch_catalog.dart';
+import 'package:taptapdoner/domain/branches/branch_models.dart';
 import 'package:taptapdoner/domain/customers/customer_order_models.dart';
+import 'package:taptapdoner/domain/economy/currency_math.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/goals/goal_catalog.dart';
 import 'package:taptapdoner/domain/goals/goal_engine.dart';
 import 'package:taptapdoner/domain/goals/goal_models.dart';
+import 'package:taptapdoner/domain/progression/chest_drop_catalog.dart';
+import 'package:taptapdoner/domain/progression/collection2_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
@@ -50,7 +55,7 @@ void main() {
       clock: () => nowUtc,
     )..hydrate(GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 100));
 
-    await controller.startRush();
+    await controller.buyUpgrade(UpgradeId.knife);
     nowUtc = nowUtc.add(const Duration(minutes: 10));
     await controller.checkpointLifecycle();
 
@@ -89,6 +94,206 @@ void main() {
       expect(repository.savedState!.upgrade(config.upgrades.first.id).level, 2);
     },
   );
+
+  test(
+    'bulk upgrade purchase saves final progress and purchase count',
+    () async {
+      final repository = _RecordingSaveRepository();
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: repository,
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 1000),
+          );
+
+      final bought = await controller.buyUpgrade(UpgradeId.knife, quantity: 10);
+
+      expect(bought, isTrue);
+      expect(controller.lastPurchaseResult?.purchasedCount, 10);
+      expect(controller.state.upgrade(UpgradeId.knife).level, 11);
+      expect(controller.state.stats.totalUpgradesPurchased, 10);
+      expect(repository.savedState?.upgrade(UpgradeId.knife).level, 11);
+      expect(repository.savedState?.stats.totalUpgradesPurchased, 10);
+    },
+  );
+
+  test('max upgrade purchase buys every currently affordable level', () async {
+    final repository = _RecordingSaveRepository();
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller = GameController(
+      config: config,
+      saveRepository: repository,
+      adService: const NoopRewardedAdService(),
+      clock: () => nowUtc,
+    )..hydrate(GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 109));
+
+    final bought = await controller.buyMaxUpgrade(UpgradeId.knife);
+
+    expect(bought, isTrue);
+    expect(controller.lastPurchaseResult?.purchasedCount, 4);
+    expect(controller.state.cash, 0);
+    expect(controller.state.upgrade(UpgradeId.knife).level, 5);
+    expect(repository.savedState?.upgrade(UpgradeId.knife).level, 5);
+  });
+
+  test('maxed upgrade income tick remains finite and increases cash', () {
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final maxedUpgrades = {
+      for (final definition in config.upgrades)
+        definition.id: UpgradeState.fromTotalLevel(
+          definition: definition,
+          totalLevel: definition.maxLevel,
+        ),
+    };
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            cash: CurrencyMath.legacyInt64MaxCurrency,
+            lifetimeCash: CurrencyMath.legacyInt64MaxCurrency,
+            upgrades: maxedUpgrades,
+          ),
+        );
+
+    controller.tick(const Duration(seconds: 1));
+
+    expect(controller.passiveIncomePerSecond, isNonNegative);
+    expect(
+      controller.passiveIncomePerSecond,
+      lessThanOrEqualTo(double.maxFinite),
+    );
+    expect(
+      controller.state.cash,
+      greaterThan(CurrencyMath.legacyInt64MaxCurrency),
+    );
+    expect(
+      controller.state.lifetimeCash,
+      greaterThan(CurrencyMath.legacyInt64MaxCurrency),
+    );
+  });
+
+  test('free purchase mode upgrades without spending cash', () async {
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller = GameController(
+      config: config,
+      saveRepository: _RecordingSaveRepository(),
+      adService: const NoopRewardedAdService(),
+      clock: () => nowUtc,
+      freePurchasesEnabled: true,
+    )..hydrate(GameState.initial(config, nowUtc: nowUtc));
+
+    final bought = await controller.buyUpgrade(UpgradeId.knife);
+
+    expect(bought, isTrue);
+    expect(controller.state.cash, 0);
+    expect(controller.state.upgrade(UpgradeId.knife).level, 2);
+  });
+
+  test(
+    'free purchase mode provides unlimited chests for debug testing',
+    () async {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller = GameController(
+        config: config,
+        saveRepository: _RecordingSaveRepository(),
+        adService: const NoopRewardedAdService(),
+        clock: () => nowUtc,
+        random: _FixedRandom(0.1),
+        freePurchasesEnabled: true,
+      )..hydrate(GameState.initial(config, nowUtc: nowUtc));
+
+      expect(
+        controller.progressionSnapshotListenable.value.chests.count(
+          ChestType.small,
+        ),
+        99,
+      );
+
+      final reward = await controller.openChest(ChestType.small);
+
+      expect(reward, isNotNull);
+      expect(reward!.rewardType, ChestRewardType.money);
+      expect(controller.state.chestInventory.count(ChestType.small), 0);
+      expect(
+        controller.progressionSnapshotListenable.value.chests.count(
+          ChestType.small,
+        ),
+        99,
+      );
+      expect(controller.state.stats.chestsOpened, 1);
+    },
+  );
+
+  test(
+    'free purchase mode buys prestige upgrades without spending points',
+    () async {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+            freePurchasesEnabled: true,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              prestige: const PrestigeState(
+                totalPrestigePoints: 2,
+                unspentPrestigePoints: 0,
+                runCashEarned: 0,
+              ),
+            ),
+          );
+
+      final bought = await controller.buyPrestigeUpgrade('master_hand');
+
+      expect(bought, isTrue);
+      expect(controller.state.prestige.unspentPrestigePoints, 0);
+      expect(controller.state.prestige.prestigeUpgradeLevel('master_hand'), 1);
+    },
+  );
+
+  test('free purchase mode unlocks branches without cash cost', () async {
+    final nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final branch = BranchCatalog.byId['main_branch']!;
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+          freePurchasesEnabled: true,
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            lifetimeCash: branch.requiredLifetimeCash.round(),
+            prestige: PrestigeState(
+              totalPrestigePoints: branch.requiredPrestigeCount,
+              unspentPrestigePoints: 0,
+              prestigeCount: branch.requiredPrestigeCount,
+              runCashEarned: 0,
+            ),
+            shopProgression: const ShopProgressionState(
+              currentShopLevel: 7,
+              highestShopLevel: 7,
+              unlockedShopIds: {'street_stand', 'doner_chain'},
+            ),
+          ),
+        );
+
+    final bought = await controller.unlockBranch(branch.id);
+
+    expect(bought, isTrue);
+    expect(controller.state.cash, 0);
+    expect(controller.state.branches.isUnlocked(branch.id), isTrue);
+  });
 
   test(
     'starter quest chain completes, claims once, and unlocks next quest',
@@ -134,7 +339,7 @@ void main() {
       expect(controller.state.cash, 65);
       expect(
         controller.questSnapshotListenable.value?.questId,
-        'starter_rusty_knife_5',
+        'starter_tap_50',
       );
       expect(
         repository.savedState?.quests['starter_tap_10']?.rewardClaimed,
@@ -215,6 +420,17 @@ void main() {
     },
   );
 
+  test('chest drop tables only contain currently actionable rewards', () {
+    for (final type in ChestType.values) {
+      final table = ChestDropCatalog.tableFor(type);
+      expect(
+        table.drops.map((drop) => drop.rewardType),
+        isNot(contains(ChestRewardType.knifeSkinShard)),
+        reason: '${chestTypeKey(type)} chest should not drop inactive skins.',
+      );
+    }
+  });
+
   test(
     'recipe chest shards unlock recipes and auto-claim completed set bonuses',
     () async {
@@ -259,6 +475,59 @@ void main() {
       expect(controller.state.chestInventory.count(ChestType.recipe), 0);
     },
   );
+
+  test('temporary income boost is exposed with its remaining duration', () {
+    var nowUtc = DateTime.utc(2026, 4, 1, 12);
+    final controller =
+        GameController(
+          config: config,
+          saveRepository: _RecordingSaveRepository(),
+          adService: const NoopRewardedAdService(),
+          clock: () => nowUtc,
+        )..hydrate(
+          GameState.initial(config, nowUtc: nowUtc).copyWith(
+            passiveBoost: TimedEffectState(
+              endsAtUtc: nowUtc.add(const Duration(seconds: 120)),
+            ),
+          ),
+        );
+
+    expect(
+      controller.activePlaySnapshotListenable.value.temporaryIncomeBoostActive,
+      isTrue,
+    );
+    expect(
+      controller
+          .activePlaySnapshotListenable
+          .value
+          .temporaryIncomeBoostRemaining,
+      const Duration(seconds: 120),
+    );
+
+    nowUtc = nowUtc.add(const Duration(seconds: 45));
+    controller.tick(const Duration(seconds: 45));
+
+    expect(
+      controller.activePlaySnapshotListenable.value.temporaryIncomeBoostActive,
+      isTrue,
+    );
+    expect(
+      controller
+          .activePlaySnapshotListenable
+          .value
+          .temporaryIncomeBoostRemaining,
+      const Duration(seconds: 75),
+    );
+
+    nowUtc = nowUtc.add(const Duration(seconds: 80));
+    controller.tick(const Duration(seconds: 80));
+
+    expect(
+      controller.activePlaySnapshotListenable.value.temporaryIncomeBoostActive,
+      isFalse,
+    );
+    expect(controller.state.passiveBoost.endsAtUtc, isNull);
+  });
 
   test('maxed collection shard duplicate overflows into reputation', () async {
     final nowUtc = DateTime.utc(2026, 4, 1, 12);
@@ -318,8 +587,13 @@ void main() {
     expect(tenth.coins, greaterThan(first.coins));
     expect(controller.activePlaySnapshotListenable.value.currentCombo, 10);
 
-    nowUtc = nowUtc.add(const Duration(seconds: 3));
-    controller.tick(const Duration(seconds: 3));
+    nowUtc = nowUtc.add(const Duration(seconds: 1));
+    controller.tick(const Duration(seconds: 1));
+
+    expect(controller.activePlaySnapshotListenable.value.currentCombo, 10);
+
+    nowUtc = nowUtc.add(const Duration(milliseconds: 1));
+    controller.tick(const Duration(milliseconds: 1));
 
     expect(controller.activePlaySnapshotListenable.value.currentCombo, 0);
   });
@@ -383,92 +657,6 @@ void main() {
     expect(outcome.coins, 30);
     expect(controller.state.stats.criticalCutCount, 1);
   });
-
-  test(
-    'golden doner spawns while active and pays only when completed',
-    () async {
-      var nowUtc = DateTime.utc(2026, 4, 1, 12);
-      final goldenConfig = _activePlayConfig(
-        baseTapValue: 10,
-        goldenDonerMinSpawnInterval: const Duration(seconds: 1),
-        goldenDonerMaxSpawnInterval: const Duration(seconds: 1),
-        goldenDonerActiveDuration: const Duration(seconds: 5),
-        goldenDonerRequiredHits: 2,
-      );
-      final controller =
-          GameController(
-            config: goldenConfig,
-            saveRepository: _RecordingSaveRepository(),
-            adService: const NoopRewardedAdService(),
-            clock: () => nowUtc,
-          )..hydrate(
-            GameState.initial(goldenConfig, nowUtc: nowUtc).copyWith(
-              milestones: const MilestoneState(
-                unlockedFeatureKeys: {'golden_doner'},
-              ),
-            ),
-          );
-
-      nowUtc = nowUtc.add(const Duration(seconds: 1));
-      controller.tick(const Duration(seconds: 1));
-
-      expect(
-        controller.activePlaySnapshotListenable.value.goldenDonerActive,
-        isTrue,
-      );
-      expect(controller.state.goldenDoner.requiredHits, 2);
-
-      final firstHit = await controller.tap();
-      final secondHit = await controller.tap();
-
-      expect(firstHit.goldenDonerHit, isTrue);
-      expect(firstHit.goldenDonerCompleted, isFalse);
-      expect(secondHit.goldenDonerCompleted, isTrue);
-      expect(secondHit.goldenDonerReward, greaterThanOrEqualTo(500));
-      expect(controller.state.stats.goldenDonerCollected, 1);
-      expect(controller.state.goldenDoner.isActiveAt(nowUtc), isFalse);
-      expect(
-        controller.state.cash,
-        greaterThanOrEqualTo(secondHit.goldenDonerReward),
-      );
-    },
-  );
-
-  test(
-    'expired golden doner gives no reward after background checkpoint',
-    () async {
-      var nowUtc = DateTime.utc(2026, 4, 1, 12);
-      final goldenConfig = _activePlayConfig(
-        goldenDonerMinSpawnInterval: const Duration(seconds: 1),
-        goldenDonerMaxSpawnInterval: const Duration(seconds: 1),
-        goldenDonerActiveDuration: const Duration(seconds: 2),
-        goldenDonerRequiredHits: 2,
-      );
-      final controller =
-          GameController(
-            config: goldenConfig,
-            saveRepository: _RecordingSaveRepository(),
-            adService: const NoopRewardedAdService(),
-            clock: () => nowUtc,
-          )..hydrate(
-            GameState.initial(goldenConfig, nowUtc: nowUtc).copyWith(
-              milestones: const MilestoneState(
-                unlockedFeatureKeys: {'golden_doner'},
-              ),
-            ),
-          );
-
-      nowUtc = nowUtc.add(const Duration(seconds: 1));
-      controller.tick(const Duration(seconds: 1));
-      expect(controller.state.goldenDoner.isActiveAt(nowUtc), isTrue);
-
-      nowUtc = nowUtc.add(const Duration(seconds: 5));
-      await controller.checkpointLifecycle();
-
-      expect(controller.state.goldenDoner.isActiveAt(nowUtc), isFalse);
-      expect(controller.state.stats.goldenDonerCollected, 0);
-    },
-  );
 
   test('customer order spawn advances only during active ticking', () async {
     var nowUtc = DateTime.utc(2026, 4, 1, 12);
@@ -636,16 +824,10 @@ void main() {
       final dailyIds = controller.state.goals.activeDailyGoals
           .map((goal) => goal.goalId)
           .toSet();
-      final weeklyIds = controller.state.goals.activeWeeklyGoals
-          .map((goal) => goal.goalId)
-          .toSet();
-
       expect(controller.state.goals.activeDailyGoals, hasLength(3));
       expect(controller.state.goals.activeWeeklyGoals, hasLength(5));
       expect(controller.state.goals.activePrestigeRunGoals, isEmpty);
       expect(controller.state.goals.activeEventGoals, isEmpty);
-      expect(dailyIds, isNot(contains('daily_golden_1')));
-      expect(weeklyIds, isNot(contains('weekly_golden_10')));
       expect(
         GoalCatalog.byId[dailyIds.first]!.objectiveType,
         isNot(GoalObjectiveType.completeEvent),
@@ -876,7 +1058,210 @@ void main() {
     },
   );
 
-  test('goal eligibility blocks locked customer and golden systems', () {
+  test(
+    'branch managers can be changed and unassigned but not duplicated',
+    () async {
+      final repository = _RecordingSaveRepository();
+      final nowUtc = DateTime.utc(2026, 7, 16);
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: repository,
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              collection2: const Collection2State(
+                staffCards: {'staff_apprentice': 0, 'staff_journeyman': 0},
+                staffCardLevels: {'staff_apprentice': 1, 'staff_journeyman': 1},
+              ),
+              branches: const BranchSystemState(
+                branchProgress: {
+                  'main_branch': BranchProgress(
+                    branchId: 'main_branch',
+                    isUnlocked: true,
+                    level: 20,
+                  ),
+                  'neighborhood_branch': BranchProgress(
+                    branchId: 'neighborhood_branch',
+                    isUnlocked: true,
+                    level: 20,
+                  ),
+                },
+              ),
+            ),
+          );
+
+      expect(
+        await controller.assignBranchManager('main_branch', 'staff_apprentice'),
+        isTrue,
+      );
+      expect(
+        await controller.assignBranchManager(
+          'neighborhood_branch',
+          'staff_apprentice',
+        ),
+        isFalse,
+      );
+      expect(
+        await controller.assignBranchManager('main_branch', 'staff_journeyman'),
+        isTrue,
+      );
+      expect(
+        controller.state.branches.progressFor('main_branch').assignedManagerId,
+        'staff_journeyman',
+      );
+      expect(await controller.unassignBranchManager('main_branch'), isTrue);
+      expect(
+        controller.state.branches.progressFor('main_branch').assignedManagerId,
+        isNull,
+      );
+      expect(await controller.unassignBranchManager('main_branch'), isFalse);
+      expect(
+        repository.savedState?.branches
+            .progressFor('main_branch')
+            .assignedManagerId,
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'reaching branch level 20 grants Apprentice exactly once and saves it',
+    () async {
+      final repository = _RecordingSaveRepository();
+      final nowUtc = DateTime.utc(2026, 7, 16);
+      final apprentice = Collection2Catalog.staffCardById['staff_apprentice']!;
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: repository,
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+            freePurchasesEnabled: true,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              shopProgression: const ShopProgressionState(
+                currentShopLevel: 7,
+                highestShopLevel: 7,
+                unlockedShopIds: {'street_stand', 'doner_chain'},
+              ),
+              branches: const BranchSystemState(
+                branchProgress: {
+                  'main_branch': BranchProgress(
+                    branchId: 'main_branch',
+                    isUnlocked: true,
+                    level: 19,
+                  ),
+                },
+              ),
+            ),
+          );
+
+      expect(controller.state.collection2.staffCardLevel(apprentice.id), 0);
+      expect(await controller.levelUpBranch('main_branch'), isTrue);
+      expect(controller.state.collection2.staffCardLevel(apprentice.id), 1);
+      expect(
+        controller.state.branches.claimedBranchMilestones,
+        contains(BranchCatalog.firstManagerGrantMarker),
+      );
+      expect(
+        repository.savedState?.collection2.staffCardLevel(apprentice.id),
+        1,
+      );
+
+      controller.hydrate(controller.state);
+      expect(controller.state.collection2.staffCardLevel(apprentice.id), 1);
+      expect(controller.state.collection2.staffCardCount(apprentice.id), 0);
+    },
+  );
+
+  test(
+    'level 20 migration does not grant Apprentice when staff is unlocked',
+    () {
+      final nowUtc = DateTime.utc(2026, 7, 16);
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              collection2: const Collection2State(
+                staffCards: {'staff_journeyman': 0},
+                staffCardLevels: {'staff_journeyman': 1},
+              ),
+              branches: const BranchSystemState(
+                branchProgress: {
+                  'main_branch': BranchProgress(
+                    branchId: 'main_branch',
+                    isUnlocked: true,
+                    level: 20,
+                  ),
+                },
+              ),
+            ),
+          );
+
+      expect(
+        controller.state.collection2.staffCardLevel('staff_apprentice'),
+        0,
+      );
+      expect(
+        controller.state.branches.claimedBranchMilestones,
+        contains(BranchCatalog.firstManagerGrantMarker),
+      );
+    },
+  );
+
+  test(
+    'prestige preserves manager assignment and first-manager grant marker',
+    () async {
+      final nowUtc = DateTime.utc(2026, 7, 16);
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              prestige: PrestigeState(runCashEarned: config.prestigeThreshold),
+              collection2: const Collection2State(
+                staffCards: {'staff_apprentice': 0},
+                staffCardLevels: {'staff_apprentice': 1},
+              ),
+              branches: const BranchSystemState(
+                branchProgress: {
+                  'main_branch': BranchProgress(
+                    branchId: 'main_branch',
+                    isUnlocked: true,
+                    level: 20,
+                    assignedManagerId: 'staff_apprentice',
+                  ),
+                },
+              ),
+            ),
+          );
+
+      expect(await controller.applyPrestige(), isTrue);
+      expect(
+        controller.state.branches.progressFor('main_branch').assignedManagerId,
+        'staff_apprentice',
+      );
+      expect(
+        controller.state.branches.claimedBranchMilestones,
+        contains(BranchCatalog.firstManagerGrantMarker),
+      );
+      expect(
+        controller.state.collection2.staffCardLevel('staff_apprentice'),
+        1,
+      );
+    },
+  );
+
+  test('goal eligibility blocks locked customer systems', () {
     final nowUtc = DateTime.utc(2026, 4, 1, 12);
     final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
       customerOrders: const CustomerSystemState(unlockedCustomerTypeIds: {}),
@@ -891,14 +1276,6 @@ void main() {
       ),
       isFalse,
     );
-    expect(
-      engine.isGoalEligible(
-        GoalCatalog.byId['daily_golden_1']!,
-        state,
-        config: config,
-      ),
-      isFalse,
-    );
   });
 }
 
@@ -906,27 +1283,16 @@ EconomyConfig _activePlayConfig({
   int baseTapValue = 1,
   double criticalBaseChance = 0.03,
   double criticalMaxChance = 0.40,
-  Duration goldenDonerMinSpawnInterval = const Duration(seconds: 90),
-  Duration goldenDonerMaxSpawnInterval = const Duration(seconds: 240),
-  Duration goldenDonerActiveDuration = const Duration(seconds: 6),
-  int goldenDonerRequiredHits = 10,
 }) {
   final config = EconomyConfig.standard();
   return EconomyConfig(
     baseTapValue: baseTapValue,
-    rushIncomeMultiplier: config.rushIncomeMultiplier,
-    rushDuration: config.rushDuration,
-    rushCooldown: config.rushCooldown,
     offlineCap: config.offlineCap,
     prestigeThreshold: config.prestigeThreshold,
     prestigeBonusPerPoint: config.prestigeBonusPerPoint,
     upgrades: config.upgrades,
     criticalBaseChance: criticalBaseChance,
     criticalMaxChance: criticalMaxChance,
-    goldenDonerMinSpawnInterval: goldenDonerMinSpawnInterval,
-    goldenDonerMaxSpawnInterval: goldenDonerMaxSpawnInterval,
-    goldenDonerActiveDuration: goldenDonerActiveDuration,
-    goldenDonerRequiredHits: goldenDonerRequiredHits,
   );
 }
 

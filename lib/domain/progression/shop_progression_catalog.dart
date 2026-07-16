@@ -176,7 +176,7 @@ class ShopProgressionCatalog {
       id: 'busy_street_doner',
       name: 'Busy Street Doner',
       theme: 'Heavy customer flow',
-      unlockLabel: 'Golden Doner boost',
+      unlockLabel: 'Income boost',
       incomeBonusPercent: 0.15,
       requirements: [
         ShopLevelRequirement.runCashEarned(5000000),
@@ -186,7 +186,7 @@ class ShopProgressionCatalog {
         ),
         ShopLevelRequirement.upgradeItemUnlocked(
           upgradeId: UpgradeId.staff,
-          itemKey: 'kalfa',
+          itemKey: 'journeyman',
         ),
         ShopLevelRequirement.upgradeTotalLevel(
           upgradeId: UpgradeId.oven,
@@ -228,7 +228,7 @@ class ShopProgressionCatalog {
         ShopLevelRequirement.runCashEarned(1000000000),
         ShopLevelRequirement.upgradeItemUnlocked(
           upgradeId: UpgradeId.oven,
-          itemKey: 'stone_oven',
+          itemKey: 'large_oven',
         ),
         ShopLevelRequirement.prestigeCount(1),
       ],
@@ -244,7 +244,7 @@ class ShopProgressionCatalog {
         ShopLevelRequirement.runCashEarned(10000000000),
         ShopLevelRequirement.upgradeItemUnlocked(
           upgradeId: UpgradeId.staff,
-          itemKey: 'usta',
+          itemKey: 'doner_master',
         ),
         ShopLevelRequirement.prestigeCount(2),
       ],
@@ -260,7 +260,7 @@ class ShopProgressionCatalog {
         ShopLevelRequirement.runCashEarned(100000000000),
         ShopLevelRequirement.upgradeItemUnlocked(
           upgradeId: UpgradeId.menu,
-          itemKey: 'gourmet_menu',
+          itemKey: 'gourmet_doner',
         ),
         ShopLevelRequirement.prestigeCount(3),
       ],
@@ -316,10 +316,14 @@ class ShopProgressionCatalog {
   ];
 
   static ShopLevelDefinition byLevel(int level) {
-    return levels.firstWhere(
-      (definition) => definition.level == level,
-      orElse: () => levels.first,
-    );
+    var result = levels.first;
+    for (final definition in levels) {
+      if (definition.level > level) {
+        break;
+      }
+      result = definition;
+    }
+    return result;
   }
 
   static ShopLevelDefinition? nextAfter(int level) {
@@ -333,12 +337,14 @@ class ShopProgressionCatalog {
 
   static int eligibleLevel(GameState state, EconomyConfig config) {
     var eligible = 1;
-    for (final definition in levels) {
-      if (definition.requirements.every(
+    for (final definition in levels.skip(1)) {
+      final requirementsMet = definition.requirements.every(
         (requirement) => requirement.isMet(state, config),
-      )) {
-        eligible = math.max(eligible, definition.level);
+      );
+      if (!requirementsMet) {
+        break;
       }
+      eligible = math.max(eligible, definition.level);
     }
     return eligible;
   }

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/chef_portrait_avatar.dart';
@@ -12,11 +13,13 @@ import 'package:taptapdoner/ui/widgets/value_formatters.dart';
 class GameHudOverlay extends StatelessWidget {
   const GameHudOverlay({
     required this.controller,
+    required this.onOpenGoals,
     required this.onOpenSettings,
     super.key,
   });
 
   final GameController controller;
+  final VoidCallback onOpenGoals;
   final VoidCallback onOpenSettings;
 
   @override
@@ -36,6 +39,7 @@ class GameHudOverlay extends StatelessWidget {
             _TopRow(
               scale: metrics.scale,
               strings: strings,
+              onOpenGoals: onOpenGoals,
               onOpenSettings: onOpenSettings,
             ),
             SizedBox(height: 6 * metrics.scale),
@@ -73,7 +77,10 @@ class GameHudOverlay extends StatelessWidget {
                         child: _StatChip(
                           scale: metrics.scale,
                           label: strings.reputationLabel,
-                          value: '${snapshot.reputation}',
+                          value: formatCompactNumber(
+                            context,
+                            snapshot.reputation,
+                          ),
                           icon: DonerIcons.reputation,
                           accentColor: DonerColors.tealBright,
                         ),
@@ -118,7 +125,6 @@ class _HudMetrics {
   double get chipValueSize => 12 * scale;
   double get chipIconSize => 12 * scale;
   double get chipGap => 6 * scale;
-  double get rushBarHeight => 3 * scale;
 }
 
 class _TopShell extends StatelessWidget {
@@ -198,11 +204,13 @@ class _TopRow extends StatelessWidget {
   const _TopRow({
     required this.scale,
     required this.strings,
+    required this.onOpenGoals,
     required this.onOpenSettings,
   });
 
   final double scale;
   final AppStrings strings;
+  final VoidCallback onOpenGoals;
   final VoidCallback onOpenSettings;
 
   @override
@@ -214,8 +222,22 @@ class _TopRow extends StatelessWidget {
           ChefPortraitAvatar(size: 40 * scale),
           SizedBox(width: 10 * scale),
           Expanded(child: _BrandTitle(scale: scale)),
-          SizedBox(width: 10 * scale),
-          _SettingsButton(size: 38 * scale, onPressed: onOpenSettings),
+          SizedBox(width: 8 * scale),
+          _HeaderActionButton(
+            buttonKey: const ValueKey('hud-goals-button'),
+            size: 38 * scale,
+            icon: DonerIcons.goals,
+            tooltip: strings.isTurkish ? 'Hedefler' : 'Goals',
+            onPressed: onOpenGoals,
+          ),
+          SizedBox(width: 7 * scale),
+          _HeaderActionButton(
+            buttonKey: const ValueKey('hud-settings-button'),
+            size: 38 * scale,
+            icon: DonerIcons.settings,
+            tooltip: strings.settingsTitle,
+            onPressed: onOpenSettings,
+          ),
         ],
       ),
     );
@@ -323,10 +345,19 @@ class _BrandTitle extends StatelessWidget {
   }
 }
 
-class _SettingsButton extends StatelessWidget {
-  const _SettingsButton({required this.size, required this.onPressed});
+class _HeaderActionButton extends StatelessWidget {
+  const _HeaderActionButton({
+    required this.buttonKey,
+    required this.size,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
 
+  final Key buttonKey;
   final double size;
+  final FaIconData icon;
+  final String tooltip;
   final VoidCallback onPressed;
 
   @override
@@ -339,33 +370,37 @@ class _SettingsButton extends StatelessWidget {
         const Color(0xFF42100B).withValues(alpha: 0.72),
       ],
     );
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Material(
-        color: Colors.transparent,
-        child: InkResponse(
-          splashFactory: InkRipple.splashFactory,
-          onTap: onPressed,
-          radius: 24 * (size / 40),
-          child: Center(
-            child: Container(
-              width: size,
-              height: size,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: buttonGradient,
-                border: Border.all(
-                  color: DonerColors.borderPrimary.withValues(alpha: 0.60),
-                  width: 1.5,
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        key: buttonKey,
+        width: size,
+        height: size,
+        child: Material(
+          color: Colors.transparent,
+          child: InkResponse(
+            splashFactory: InkRipple.splashFactory,
+            onTap: onPressed,
+            radius: 24 * (size / 40),
+            child: Center(
+              child: Container(
+                width: size,
+                height: size,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: buttonGradient,
+                  border: Border.all(
+                    color: DonerColors.borderPrimary.withValues(alpha: 0.60),
+                    width: 1.5,
+                  ),
+                  boxShadow: DonerShadows.soft,
                 ),
-                boxShadow: DonerShadows.soft,
-              ),
-              child: FaIcon(
-                DonerIcons.settings,
-                color: DonerColors.goldPrimary,
-                size: 24 * (size / 40),
+                child: FaIcon(
+                  icon,
+                  color: DonerColors.goldPrimary,
+                  size: 22 * (size / 40),
+                ),
               ),
             ),
           ),
@@ -423,7 +458,7 @@ class _StatChip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label.toUpperCase(),
+            label.toLocaleUpperCase(context),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textHeightBehavior: const TextHeightBehavior(
@@ -446,20 +481,24 @@ class _StatChip extends StatelessWidget {
               FaIcon(icon, color: accentColor, size: 12 * scale),
               SizedBox(width: 3 * scale),
               Expanded(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textHeightBehavior: const TextHeightBehavior(
-                    applyHeightToFirstAscent: false,
-                    applyHeightToLastDescent: false,
-                  ),
-                  style: DonerTypography.body(
-                    Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: DonerColors.creamText,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12 * scale,
-                      height: 1,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.visible,
+                    textHeightBehavior: const TextHeightBehavior(
+                      applyHeightToFirstAscent: false,
+                      applyHeightToLastDescent: false,
+                    ),
+                    style: DonerTypography.body(
+                      Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: DonerColors.creamText,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12 * scale,
+                        height: 1,
+                      ),
                     ),
                   ),
                 ),

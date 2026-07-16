@@ -1,10 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:taptapdoner/domain/economy/number_units.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
 class AppStrings {
   AppStrings(this.locale);
+
+  AppStrings.forLanguageCode(String languageCode)
+    : locale = Locale(languageCode);
 
   final Locale locale;
 
@@ -29,7 +33,15 @@ class AppStrings {
   String get cashLabel => _value('cashLabel');
   String get idleIncomeLabel => _value('idleIncomeLabel');
   String get reputationLabel => _value('reputationLabel');
+  String get customerQueueTitle => _value('customerQueueTitle');
+  String get customerQueueHint => _value('customerQueueHint');
   String get shopTitle => _value('shopTitle');
+  String get shopLevelLabel => _value('shopLevelLabel');
+  String get shopLevelUpTitle => _value('shopLevelUpTitle');
+  String get shopUnlockedLabel => _value('shopUnlockedLabel');
+  String get shopIncomeLabel => _value('shopIncomeLabel');
+  String get shopNextLabel => _value('shopNextLabel');
+  String get shopMaxLevelLabel => _value('shopMaxLevelLabel');
   String get upgradesTitle => _value('upgradesTitle');
   String get buyLabel => _value('buyLabel');
   String get boughtLabel => _value('boughtLabel');
@@ -47,18 +59,23 @@ class AppStrings {
   String get upgradeCostLabel => _value('upgradeCostLabel');
   String get upgradeLevelUpAction => _value('upgradeLevelUpAction');
   String get upgradeTierUpAction => _value('upgradeTierUpAction');
+  String get upgradeBuyTenAction => _value('upgradeBuyTenAction');
+  String get upgradeBuyMaxAction => _value('upgradeBuyMaxAction');
   String get insufficientFundsLabel => _value('insufficientFundsLabel');
   String get upgradeMaxLevelLabel => _value('upgradeMaxLevelLabel');
   String get upgradeUnlockTitle => _value('upgradeUnlockTitle');
   String get milestoneUnlockTitle => _value('milestoneUnlockTitle');
   String get upgradeNewEffectLabel => _value('upgradeNewEffectLabel');
   String get closeLabel => _value('closeLabel');
-  String get rushLabel => _value('rushLabel');
-  String get rushReady => _value('rushReady');
   String get prestigeTitle => _value('prestigeTitle');
   String get prestigeConfirm => _value('prestigeConfirm');
   String get settingsTitle => _value('settingsTitle');
+  String get settingsSubtitle => _value('settingsSubtitle');
   String get languageTitle => _value('languageTitle');
+  String get preferencesTitle => _value('preferencesTitle');
+  String get soundTitle => _value('soundTitle');
+  String get hapticsTitle => _value('hapticsTitle');
+  String get comingSoonLabel => _value('comingSoonLabel');
   String get englishLabel => _value('englishLabel');
   String get turkishLabel => _value('turkishLabel');
   String get offlineTitle => _value('offlineTitle');
@@ -88,8 +105,6 @@ class AppStrings {
   String get questComboUnlockInfo => _value('questComboUnlockInfo');
   String get comboLabel => _value('comboLabel');
   String get criticalCutLabel => _value('criticalCutLabel');
-  String get goldenDonerLabel => _value('goldenDonerLabel');
-  String get goldenDonerRewardLabel => _value('goldenDonerRewardLabel');
 
   String comboTierLabel(double multiplier) {
     if (multiplier >= 4.0) {
@@ -110,23 +125,6 @@ class AppStrings {
     return _value('comboTierSimple');
   }
 
-  String goldenDonerProgress(int hits, int requiredHits) {
-    return _template('goldenDonerProgress', {
-      'hits': hits.toString(),
-      'required': requiredHits.toString(),
-    });
-  }
-
-  String rushStatus(Duration remaining, Duration cooldown) {
-    if (remaining > Duration.zero) {
-      return _template('rushActive', {'time': _formatDuration(remaining)});
-    }
-    if (cooldown > Duration.zero) {
-      return _template('rushCooling', {'time': _formatDuration(cooldown)});
-    }
-    return rushReady;
-  }
-
   String offlineSummary(int hours) {
     return _template('offlineSummary', {'hours': hours.toString()});
   }
@@ -143,9 +141,49 @@ class AppStrings {
     return _template('prestigeAvailable', {'points': points.toString()});
   }
 
+  String customerArrivalIn(String time) {
+    return _template('customerArrivalIn', {'time': time});
+  }
+
+  String customerReputationLevel(int level) {
+    return _template('customerReputationLevel', {'level': level.toString()});
+  }
+
+  String customerTypesUnlocked(int count) {
+    return _template('customerTypesUnlocked', {'count': count.toString()});
+  }
+
   String upgradeItemUnlocked(String itemName) {
     return _template('upgradeItemUnlocked', {'item': itemName});
   }
+
+  String shopRunCashRequirement(Object amount) {
+    return _template('shopRunCashRequirement', {
+      'amount': formatNumberWithUnitNames(amount, locale: locale.languageCode),
+    });
+  }
+
+  String shopUpgradeCountRequirement(String upgradeName, int count) {
+    return _template('shopUpgradeCountRequirement', {
+      'upgrade': upgradeName,
+      'count': count.toString(),
+    });
+  }
+
+  String shopUpgradeItemRequirement(String upgradeName, String itemName) {
+    return _template('shopUpgradeItemRequirement', {
+      'upgrade': upgradeName,
+      'item': itemName,
+    });
+  }
+
+  String shopPrestigeRequirement(int count) {
+    return _template('shopPrestigeRequirement', {'count': count.toString()});
+  }
+
+  String shopLevelName(String id) => _value('shop.$id.name');
+
+  String shopUnlockLabel(String id) => _value('shop.$id.unlock');
 
   String upgradeItemTransition(String previousItem, String nextItem) {
     return _template('upgradeItemTransition', {
@@ -201,21 +239,6 @@ class AppStrings {
         'milestoneComboMultiplier',
         {'value': _multiplierBonus(reward.value)},
       ),
-      MilestoneRewardType.turboBonusPercent => _template(
-        'milestoneTurboBonus',
-        {'value': _signedPercent(reward.value)},
-      ),
-      MilestoneRewardType.turboChargeSpeed => _template(
-        'milestoneTurboCharge',
-        {'value': _signedPercent(reward.value)},
-      ),
-      MilestoneRewardType.turboDuration => _template('milestoneTurboDuration', {
-        'value': _seconds(reward.value),
-      }),
-      MilestoneRewardType.turboCooldownReduction => _template(
-        'milestoneTurboCooldown',
-        {'value': _signedPercent(reward.value)},
-      ),
       MilestoneRewardType.offlineEfficiency => _template(
         'milestoneOfflineEfficiency',
         {'value': _signedPercent(reward.value)},
@@ -226,14 +249,6 @@ class AppStrings {
       ),
       MilestoneRewardType.offlineAdRewardPercent => _template(
         'milestoneOfflineAdReward',
-        {'value': _signedPercent(reward.value)},
-      ),
-      MilestoneRewardType.goldenDonerChance => _template(
-        'milestoneGoldenChance',
-        {'value': _signedPercent(reward.value)},
-      ),
-      MilestoneRewardType.goldenDonerRewardPercent => _template(
-        'milestoneGoldenReward',
         {'value': _signedPercent(reward.value)},
       ),
       MilestoneRewardType.tipChance => _template('milestoneTipChance', {
@@ -247,7 +262,10 @@ class AppStrings {
         {'value': _signedPercent(reward.value)},
       ),
       MilestoneRewardType.instantMoney => _template('milestoneInstantMoney', {
-        'value': reward.value.round().toString(),
+        'value': formatNumberWithUnitNames(
+          reward.value,
+          locale: locale.languageCode,
+        ),
       }),
       MilestoneRewardType.chest => _template('milestoneChest', {
         'count': _quantity(reward.quantity),
@@ -284,15 +302,6 @@ class AppStrings {
 
   String questReward(String questId) => _value('quest.$questId.reward');
 
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds.remainder(60);
-    if (minutes <= 0) {
-      return '${seconds}s';
-    }
-    return '${minutes}m ${seconds.toString().padLeft(2, '0')}s';
-  }
-
   String _template(String key, Map<String, String> values) {
     var text = _value(key);
     for (final entry in values.entries) {
@@ -321,12 +330,14 @@ class AppStrings {
   }
 
   String _seconds(double value) {
-    return '+${_trimNumber(value)}s';
+    return isTurkish ? '+${_trimNumber(value)} sn' : '+${_trimNumber(value)}s';
   }
 
   String _minutes(double seconds) {
     final minutes = seconds / 60;
-    return '+${_trimNumber(minutes)}m';
+    return isTurkish
+        ? '+${_trimNumber(minutes)} dk'
+        : '+${_trimNumber(minutes)}m';
   }
 
   String _quantity(int quantity) {
@@ -369,7 +380,18 @@ const Map<String, String> _en = {
   'cashLabel': 'Cash',
   'idleIncomeLabel': 'Idle / sec',
   'reputationLabel': 'Reputation',
+  'customerQueueTitle': 'Next customer',
+  'customerQueueHint': 'New orders show up here.',
+  'customerArrivalIn': 'In {time}',
+  'customerReputationLevel': 'Customer tier {level}',
+  'customerTypesUnlocked': 'Can arrive: {count}',
   'shopTitle': 'Kitchen Shop',
+  'shopLevelLabel': 'Shop Level',
+  'shopLevelUpTitle': 'Shop Level Up',
+  'shopUnlockedLabel': 'Unlocked',
+  'shopIncomeLabel': 'Income',
+  'shopNextLabel': 'Next',
+  'shopMaxLevelLabel': 'Maximum shop level reached',
   'upgradesTitle': 'Upgrades',
   'buyLabel': 'Buy',
   'boughtLabel': 'Owned',
@@ -386,16 +408,14 @@ const Map<String, String> _en = {
   'upgradeCostLabel': 'Cost',
   'upgradeLevelUpAction': 'Level Up',
   'upgradeTierUpAction': 'Upgrade Tier',
+  'upgradeBuyTenAction': '10x',
+  'upgradeBuyMaxAction': 'Max',
   'insufficientFundsLabel': 'Need Cash',
   'upgradeMaxLevelLabel': 'Maximum level',
   'upgradeUnlockTitle': 'New Equipment Unlocked!',
   'milestoneUnlockTitle': 'Milestone Unlocked!',
   'upgradeNewEffectLabel': 'New effect:',
   'closeLabel': 'Close',
-  'rushLabel': 'Turbo',
-  'rushReady': 'Turbo ready',
-  'rushActive': 'Turbo active: {time}',
-  'rushCooling': 'Cooling down: {time}',
   'prestigeTitle': 'Prestige',
   'prestigeConfirm': 'Reset this run and collect reputation',
   'prestigeAvailable': '{points} reputation ready',
@@ -410,31 +430,81 @@ const Map<String, String> _en = {
   'quest.starter_tap_10.reward': '+50 cash',
   'quest.starter_first_upgrade.title': 'Buy the First Upgrade',
   'quest.starter_first_upgrade.reward': '+25 cash',
+  'quest.starter_tap_50.title': 'Cut 50 Doners',
+  'quest.starter_tap_50.reward': '+75 cash',
   'quest.starter_rusty_knife_5.title': 'Make Rusty Knife Lv. 5',
   'quest.starter_rusty_knife_5.reward': '+100 cash',
+  'quest.starter_upgrades_10.title': 'Buy 10 Upgrades',
+  'quest.starter_upgrades_10.reward': '+125 cash',
+  'quest.starter_tap_150.title': 'Cut 150 Doners',
+  'quest.starter_tap_150.reward': '+150 cash',
   'quest.starter_lifetime_500.title': 'Collect 500 cash',
   'quest.starter_lifetime_500.reward': 'Small Chest',
+  'quest.starter_upgrades_25.title': 'Buy 25 Upgrades',
+  'quest.starter_upgrades_25.reward': '+200 cash',
   'quest.starter_rusty_knife_10.title': 'Make Rusty Knife Lv. 10',
   'quest.starter_rusty_knife_10.reward': 'Critical Cut unlock',
   'quest.starter_critical_3.title': 'Do 3 Critical Cuts',
   'quest.starter_critical_3.reward': '+150 cash',
+  'quest.starter_lifetime_2500.title': 'Collect 2,500 cash',
+  'quest.starter_lifetime_2500.reward': '+200 cash',
   'quest.starter_first_staff.title': 'Hire the First Staff',
   'quest.starter_first_staff.reward': 'Small Chest + 60s passive x2',
   'quest.starter_passive_60.title': 'Earn passive income for 1 minute',
   'quest.starter_passive_60.reward': '+250 cash',
+  'quest.starter_passive_180.title': 'Earn passive income for 3 minutes',
+  'quest.starter_passive_180.reward': '+300 cash',
+  'quest.starter_staff_5.title': 'Hire 5 Staff',
+  'quest.starter_staff_5.reward': 'Small Chest',
+  'quest.starter_staff_10.title': 'Hire 10 Staff',
+  'quest.starter_staff_10.reward': '+350 cash',
+  'quest.starter_staff_25.title': 'Hire 25 Staff',
+  'quest.starter_staff_25.reward': 'Small Chest',
   'quest.starter_combo_15.title': 'Reach 15 Combo',
   'questComboUnlockInfo': 'Combo unlocks at Rusty Knife Lv. 15.',
   'quest.starter_combo_15.reward': 'Combo bonus +5%',
-  'quest.starter_turbo_use.title': 'Use Turbo',
-  'quest.starter_turbo_use.reward': 'Turbo charge +100%',
-  'quest.starter_golden_1.title': 'Catch 1 Golden Doner',
-  'quest.starter_golden_1.reward': 'Small Chest',
+  'quest.starter_lifetime_5000.title': 'Collect 5,000 cash',
+  'quest.starter_lifetime_5000.reward': '+300 cash',
+  'quest.starter_passive_300.title': 'Earn passive income for 5 minutes',
+  'quest.starter_passive_300.reward': '+350 cash',
+  'quest.starter_passive_600.title': 'Earn passive income for 10 minutes',
+  'quest.starter_passive_600.reward': '+450 cash',
+  'quest.starter_critical_10.title': 'Do 10 Critical Cuts',
+  'quest.starter_critical_10.reward': '+350 cash',
+  'quest.starter_combo_30.title': 'Reach 30 Combo',
+  'quest.starter_combo_30.reward': 'Combo bonus +5%',
+  'quest.starter_critical_25.title': 'Do 25 Critical Cuts',
+  'quest.starter_critical_25.reward': '+500 cash',
+  'quest.starter_critical_50.title': 'Do 50 Critical Cuts',
+  'quest.starter_critical_50.reward': '+650 cash',
+  'quest.starter_combo_50.title': 'Reach 50 Combo',
+  'quest.starter_combo_50.reward': 'Combo bonus +5%',
+  'quest.starter_combo_75.title': 'Reach 75 Combo',
+  'quest.starter_combo_75.reward': 'Combo bonus +5%',
+  'quest.starter_tap_500.title': 'Cut 500 Doners',
+  'quest.starter_tap_500.reward': '+500 cash',
+  'quest.starter_tap_1000.title': 'Cut 1,000 Doners',
+  'quest.starter_tap_1000.reward': '+600 cash',
   'quest.starter_knife_item_1.title': 'Complete the First Knife',
   'quest.starter_knife_item_1.reward': 'Master Chest',
+  'quest.starter_tap_2500.title': 'Cut 2,500 Doners',
+  'quest.starter_tap_2500.reward': '+750 cash',
+  'quest.starter_upgrades_50.title': 'Buy 50 Upgrades',
+  'quest.starter_upgrades_50.reward': 'Small Chest',
+  'quest.starter_upgrades_75.title': 'Buy 75 Upgrades',
+  'quest.starter_upgrades_75.reward': '+700 cash',
+  'quest.starter_upgrades_100.title': 'Buy 100 Upgrades',
+  'quest.starter_upgrades_100.reward': 'Master Chest',
   'quest.starter_shop_prepare.title': 'Prepare for the Small Buffet',
   'quest.starter_shop_prepare.reward': 'Shop progression unlock',
   'quest.starter_shop_level_2.title': 'Open the Small Buffet',
   'quest.starter_shop_level_2.reward': 'Global income +5%',
+  'quest.starter_lifetime_25000.title': 'Collect 25,000 cash',
+  'quest.starter_lifetime_25000.reward': '+750 cash',
+  'quest.starter_lifetime_50000.title': 'Collect 50,000 cash',
+  'quest.starter_lifetime_50000.reward': '+900 cash',
+  'quest.starter_lifetime_100000.title': 'Collect 100,000 cash',
+  'quest.starter_lifetime_100000.reward': 'Master Chest',
   'quest.starter_open_prestige.title': 'View the Prestige Goal',
   'quest.starter_open_prestige.reward': '+500 cash',
   'comboLabel': 'Combo',
@@ -445,11 +515,13 @@ const Map<String, String> _en = {
   'comboTierLegendary': 'Legendary Combo',
   'comboTierCosmic': 'Cosmic Combo',
   'criticalCutLabel': 'Critical!',
-  'goldenDonerLabel': 'Golden Doner',
-  'goldenDonerRewardLabel': 'Reward',
-  'goldenDonerProgress': '{hits}/{required} cuts',
   'settingsTitle': 'Settings',
+  'settingsSubtitle': 'Game preferences',
   'languageTitle': 'Language',
+  'preferencesTitle': 'Preferences',
+  'soundTitle': 'Sound',
+  'hapticsTitle': 'Haptics',
+  'comingSoonLabel': 'Soon',
   'englishLabel': 'English',
   'turkishLabel': 'Turkish',
   'offlineTitle': 'While you were away',
@@ -464,6 +536,34 @@ const Map<String, String> _en = {
   'offlineSummary': 'Production continued for up to {hours}h.',
   'offlineAmount': 'Offline earnings: {amount}',
   'upgradeItemUnlocked': '{item} unlocked',
+  'shopRunCashRequirement': 'Earn {amount} this run',
+  'shopUpgradeCountRequirement': 'Upgrade {upgrade} {count} times',
+  'shopUpgradeItemRequirement': 'Unlock {item} in {upgrade}',
+  'shopPrestigeRequirement': 'Prestige {count} times',
+  'shop.street_stand.name': 'Street Stand',
+  'shop.street_stand.unlock': 'Tap + Knife',
+  'shop.small_buffet.name': 'Small Buffet',
+  'shop.small_buffet.unlock': 'Staff',
+  'shop.neighborhood_doner.name': 'Neighborhood Doner',
+  'shop.neighborhood_doner.unlock': 'Oven',
+  'shop.busy_street_doner.name': 'Busy Street Doner',
+  'shop.busy_street_doner.unlock': 'Menu',
+  'shop.mall_doner.name': 'Mall Doner',
+  'shop.mall_doner.unlock': 'Offline earnings',
+  'shop.luxury_restaurant.name': 'Luxury Restaurant',
+  'shop.luxury_restaurant.unlock': 'Offline earnings',
+  'shop.doner_chain.name': 'Doner Chain',
+  'shop.doner_chain.unlock': 'Branches',
+  'shop.city_brand.name': 'City Brand',
+  'shop.city_brand.unlock': 'Collections',
+  'shop.national_chain.name': 'National Chain',
+  'shop.national_chain.unlock': 'Advanced goals',
+  'shop.global_doner_empire.name': 'Global Doner Empire',
+  'shop.global_doner_empire.unlock': 'Global expansion',
+  'shop.galactic_doner_center.name': 'Galactic Doner Center',
+  'shop.galactic_doner_center.unlock': 'Galactic upgrades',
+  'shop.infinite_doner_universe.name': 'Infinite Doner Universe',
+  'shop.infinite_doner_universe.unlock': 'Infinite progression',
   'upgradeItemTransition': '{previous} -> {next}',
   'upgradeMilestonePreview': '{item} Lv. {level}',
   'milestoneTapBonus': 'Tap income {value}',
@@ -474,15 +574,9 @@ const Map<String, String> _en = {
   'milestoneCriticalMultiplier': 'Critical multiplier {value}',
   'milestoneComboDuration': 'Combo duration {value}',
   'milestoneComboMultiplier': 'Combo multiplier {value}',
-  'milestoneTurboBonus': 'Turbo power {value}',
-  'milestoneTurboCharge': 'Turbo charge speed {value}',
-  'milestoneTurboDuration': 'Turbo duration {value}',
-  'milestoneTurboCooldown': 'Turbo cooldown {value}',
   'milestoneOfflineEfficiency': 'Offline efficiency {value}',
   'milestoneOfflineMaxDuration': 'Offline cap {value}',
   'milestoneOfflineAdReward': 'Offline ad reward {value}',
-  'milestoneGoldenChance': 'Golden Doner chance {value}',
-  'milestoneGoldenReward': 'Golden Doner reward {value}',
   'milestoneTipChance': 'Tip chance {value}',
   'milestoneTipValue': 'Tip value {value}',
   'milestoneSpecialOrder': 'Special order chance {value}',
@@ -494,12 +588,11 @@ const Map<String, String> _en = {
   'milestoneFeatureGeneric': 'New feature',
   'milestone.rustyKnife5': 'Getting the feel: tap income +5%',
   'milestone.rustyKnife10': 'Critical Cut unlocked: +1% critical chance',
-  'milestone.rustyKnife15': 'Combo system unlocked: +0.25s combo duration',
-  'milestone.rustyKnife20': 'Golden Doner can appear: +0.25% chance',
+  'milestone.rustyKnife15': 'Combo system unlocked: +0.25 sn combo duration',
+  'milestone.rustyKnife20': 'Skilled cuts: tap income +5%',
   'milestone.rustyKnife25': 'Sharp Knife ready: chest x1',
   'milestone.feature.critical_cut': 'Critical Cut',
   'milestone.feature.combo': 'Combo',
-  'milestone.feature.golden_doner': 'Golden Doner',
   'milestone.feature.unlock_sharp_knife': 'Sharp Knife',
   'milestone.feature.tips': 'Tips',
   'milestone.feature.auto_collect_bonus': 'Auto collect',
@@ -515,8 +608,8 @@ const Map<String, String> _en = {
   'lockedLabel': 'Locked',
   'unlockedLabel': 'Unlocked',
   'lockedUntil': 'Unlocks at {amount} lifetime cash',
-  'soundSoonLabel': 'Sound settings later',
-  'hapticsSoonLabel': 'Haptics settings later',
+  'soundSoonLabel': 'Audio controls are being prepared',
+  'hapticsSoonLabel': 'Vibration controls are being prepared',
   'upgrade.knife.name': 'Knife',
   'upgrade.knife.description': 'Multiplies every tap.',
   'upgrade.knife.effectName': 'Click Power',
@@ -583,27 +676,10 @@ const Map<String, String> _en = {
   'upgrade.menu.item.hatay_style': 'Hatay Style',
   'upgrade.menu.item.sauced_doner': 'Sauced Doner',
   'upgrade.menu.item.gourmet_doner': 'Gourmet Doner',
-  'upgrade.menu.item.golden_doner': 'Golden Doner',
   'upgrade.menu.item.legendary_sauce_doner': 'Legendary Sauce Doner',
   'upgrade.menu.item.king_wrap': 'King Wrap',
   'upgrade.menu.item.cosmic_doner': 'Cosmic Doner',
   'upgrade.menu.item.universe_doner': "Universe's Doner",
-  'upgrade.turbo.name': 'Turbo',
-  'upgrade.turbo.description': 'Raises the active turbo tap multiplier.',
-  'upgrade.turbo.effectName': 'Turbo Power',
-  'upgrade.turbo.item.spicySauce': 'Spicy Sauce',
-  'upgrade.turbo.item.kitchenRush': 'Kitchen Rush',
-  'upgrade.turbo.item.streetRush': 'Street Rush',
-  'upgrade.turbo.item.goldenRush': 'Golden Rush',
-  'upgrade.turbo.item.turbo_cut': 'Turbo Cut',
-  'upgrade.turbo.item.fast_cut': 'Fast Cut',
-  'upgrade.turbo.item.flaming_turbo': 'Flaming Turbo',
-  'upgrade.turbo.item.master_mode': 'Master Mode',
-  'upgrade.turbo.item.doner_storm': 'Doner Storm',
-  'upgrade.turbo.item.apocalypse_cut': 'Apocalypse Cut',
-  'upgrade.turbo.item.light_speed_cut': 'Light Speed Cut',
-  'upgrade.turbo.item.cosmic_turbo': 'Cosmic Turbo',
-  'upgrade.turbo.item.infinite_turbo': 'Infinite Turbo',
   'upgrade.offline.name': 'Offline',
   'upgrade.offline.description': 'Keeps more idle income while away.',
   'upgrade.offline.effectName': 'Offline Efficiency',
@@ -623,78 +699,137 @@ const Map<String, String> _en = {
 };
 
 const Map<String, String> _tr = {
-  'appTitle': 'TapTap Doner',
-  'tapPrompt': 'Kizartmak icin dokun',
+  'appTitle': 'TapTap Döner',
+  'tapPrompt': 'Kızartmak için dokun',
   'cashLabel': 'Nakit',
   'idleIncomeLabel': 'Pasif / sn',
-  'reputationLabel': 'Itibar',
+  'reputationLabel': 'İtibar',
+  'customerQueueTitle': 'Sıradaki müşteri',
+  'customerQueueHint': 'Yeni siparişler burada görünür.',
+  'customerArrivalIn': '{time} sonra',
+  'customerReputationLevel': 'Müşteri seviyesi {level}',
+  'customerTypesUnlocked': 'Gelebilen tip: {count}',
   'shopTitle': 'Mutfak Marketi',
-  'upgradesTitle': 'Gelismeler',
+  'shopLevelLabel': 'Dükkân Seviyesi',
+  'shopLevelUpTitle': 'Dükkân Seviye Atladı',
+  'shopUnlockedLabel': 'Açılan',
+  'shopIncomeLabel': 'Gelir',
+  'shopNextLabel': 'Sonraki',
+  'shopMaxLevelLabel': 'Maksimum dükkân seviyesine ulaşıldı',
+  'upgradesTitle': 'Geliştirmeler',
   'buyLabel': 'Al',
-  'boughtLabel': 'Alindi',
+  'boughtLabel': 'Alındı',
   'levelLabel': 'Sv',
   'currentEffectLabel': 'Mevcut',
   'nextEffectLabel': 'Sonraki',
-  'nextItemLabel': 'Siradaki',
+  'nextItemLabel': 'Sıradaki',
   'maxedLabel': 'Maks',
   'upgradeTierLabel': 'Kademe',
-  'upgradeNextLevelLabel': 'Sonraki Level',
+  'upgradeNextLevelLabel': 'Sonraki Seviye',
   'upgradeNextTierLabel': 'Sonraki Kademe',
-  'upgradeNextMilestoneLabel': 'Siradaki Milestone',
-  'upgradeNextItemPreviewLabel': 'Siradaki Item',
+  'upgradeNextMilestoneLabel': 'Sıradaki Dönüm Noktası',
+  'upgradeNextItemPreviewLabel': 'Sıradaki Ekipman',
   'upgradeCostLabel': 'Maliyet',
-  'upgradeLevelUpAction': 'Level Atlat',
-  'upgradeTierUpAction': 'Kademeyi Yukselt',
+  'upgradeLevelUpAction': 'Seviye Atlat',
+  'upgradeTierUpAction': 'Kademeyi Yükselt',
+  'upgradeBuyTenAction': '10x',
+  'upgradeBuyMaxAction': 'Maks.',
   'insufficientFundsLabel': 'Yetersiz Para',
   'upgradeMaxLevelLabel': 'Maksimum seviye',
-  'upgradeUnlockTitle': 'Yeni Ekipman Acildi!',
-  'milestoneUnlockTitle': 'Milestone Acildi!',
+  'upgradeUnlockTitle': 'Yeni Ekipman Açıldı!',
+  'milestoneUnlockTitle': 'Dönüm Noktası Açıldı!',
   'upgradeNewEffectLabel': 'Yeni etki:',
   'closeLabel': 'Kapat',
-  'rushLabel': 'Turbo',
-  'rushReady': 'Turbo hazir',
-  'rushActive': 'Turbo aktif: {time}',
-  'rushCooling': 'Bekleme: {time}',
   'prestigeTitle': 'Prestij',
-  'prestigeConfirm': 'Bu kosuyu sifirla ve itibar topla',
-  'prestigeAvailable': '{points} itibar hazir',
+  'prestigeConfirm': 'Bu koşuyu sıfırla ve itibar topla',
+  'prestigeAvailable': '{points} itibar hazır',
   'prestigeHint':
-      'Prestij itibarini korur; nakit, gelismeler ve gecici gucler sifirlanir.',
-  'questLabel': 'Gorev',
-  'questProgressLabel': 'Ilerleme',
-  'questRewardLabel': 'Odul',
-  'questClaimLabel': 'Odulu Al',
-  'questCompletedLabel': 'Hazir',
-  'quest.starter_tap_10.title': '10 Doner Kes',
+      'Prestij itibarını korur; nakit, geliştirmeler ve geçici güçler sıfırlanır.',
+  'questLabel': 'Görev',
+  'questProgressLabel': 'İlerleme',
+  'questRewardLabel': 'Ödül',
+  'questClaimLabel': 'Ödülü Al',
+  'questCompletedLabel': 'Hazır',
+  'quest.starter_tap_10.title': '10 Döner Kes',
   'quest.starter_tap_10.reward': '+50 para',
-  'quest.starter_first_upgrade.title': "Ilk Upgrade'i Satin Al",
+  'quest.starter_first_upgrade.title': 'İlk Geliştirmeyi Satın Al',
   'quest.starter_first_upgrade.reward': '+25 para',
-  'quest.starter_rusty_knife_5.title': 'Pasli Bicak Lv. 5 yap',
+  'quest.starter_tap_50.title': '50 Döner Kes',
+  'quest.starter_tap_50.reward': '+75 para',
+  'quest.starter_rusty_knife_5.title': 'Paslı Bıçağı Sv. 5 yap',
   'quest.starter_rusty_knife_5.reward': '+100 para',
+  'quest.starter_upgrades_10.title': '10 Geliştirme Satın Al',
+  'quest.starter_upgrades_10.reward': '+125 para',
+  'quest.starter_tap_150.title': '150 Döner Kes',
+  'quest.starter_tap_150.reward': '+150 para',
   'quest.starter_lifetime_500.title': '500 para Topla',
-  'quest.starter_lifetime_500.reward': 'Kucuk Sandik',
-  'quest.starter_rusty_knife_10.title': 'Pasli Bicak Lv. 10 yap',
-  'quest.starter_rusty_knife_10.reward': 'Kritik Kesim acilir',
+  'quest.starter_lifetime_500.reward': 'Küçük Sandık',
+  'quest.starter_upgrades_25.title': '25 Geliştirme Satın Al',
+  'quest.starter_upgrades_25.reward': '+200 para',
+  'quest.starter_rusty_knife_10.title': 'Paslı Bıçağı Sv. 10 yap',
+  'quest.starter_rusty_knife_10.reward': 'Kritik Kesim açılır',
   'quest.starter_critical_3.title': '3 Kritik Kesim Yap',
   'quest.starter_critical_3.reward': '+150 para',
-  'quest.starter_first_staff.title': 'Ilk Personeli Al',
-  'quest.starter_first_staff.reward': 'Kucuk Sandik + 60 sn pasif x2',
+  'quest.starter_lifetime_2500.title': '2.500 para Topla',
+  'quest.starter_lifetime_2500.reward': '+200 para',
+  'quest.starter_first_staff.title': 'İlk Personeli Al',
+  'quest.starter_first_staff.reward': 'Küçük Sandık + 60 sn pasif x2',
   'quest.starter_passive_60.title': '1 dakika pasif gelir kazan',
   'quest.starter_passive_60.reward': '+250 para',
-  'quest.starter_combo_15.title': "15 Combo'ya ulas",
-  'questComboUnlockInfo': "Combo ozelligi Pasli Bicak Lv. 15'te acilir.",
-  'quest.starter_combo_15.reward': 'Combo bonus +%5',
-  'quest.starter_turbo_use.title': 'Turbo Kullan',
-  'quest.starter_turbo_use.reward': 'Turbo dolum +%100',
-  'quest.starter_golden_1.title': '1 Altin Doner Yakala',
-  'quest.starter_golden_1.reward': 'Kucuk Sandik',
-  'quest.starter_knife_item_1.title': 'Ilk Bicagi Tamamla',
-  'quest.starter_knife_item_1.reward': 'Usta Sandigi',
-  'quest.starter_shop_prepare.title': "Kucuk Bufe'ye Hazirlan",
-  'quest.starter_shop_prepare.reward': 'Dukkan progression acilir',
-  'quest.starter_shop_level_2.title': "Kucuk Bufe'yi Ac",
-  'quest.starter_shop_level_2.reward': 'Global gelir +%5',
-  'quest.starter_open_prestige.title': 'Prestij hedefini gor',
+  'quest.starter_passive_180.title': '3 dakika pasif gelir kazan',
+  'quest.starter_passive_180.reward': '+300 para',
+  'quest.starter_staff_5.title': '5 Personel Al',
+  'quest.starter_staff_5.reward': 'Küçük Sandık',
+  'quest.starter_staff_10.title': '10 Personel Al',
+  'quest.starter_staff_10.reward': '+350 para',
+  'quest.starter_staff_25.title': '25 Personel Al',
+  'quest.starter_staff_25.reward': 'Küçük Sandık',
+  'quest.starter_combo_15.title': "15 Kombo'ya ulaş",
+  'questComboUnlockInfo': "Kombo özelliği Paslı Bıçak Lv. 15'te acilir.",
+  'quest.starter_combo_15.reward': 'Kombo bonus +%5',
+  'quest.starter_lifetime_5000.title': '5.000 para Topla',
+  'quest.starter_lifetime_5000.reward': '+300 para',
+  'quest.starter_passive_300.title': '5 dakika pasif gelir kazan',
+  'quest.starter_passive_300.reward': '+350 para',
+  'quest.starter_passive_600.title': '10 dakika pasif gelir kazan',
+  'quest.starter_passive_600.reward': '+450 para',
+  'quest.starter_critical_10.title': '10 Kritik Kesim Yap',
+  'quest.starter_critical_10.reward': '+350 para',
+  'quest.starter_combo_30.title': "30 Kombo'ya ulaş",
+  'quest.starter_combo_30.reward': 'Kombo bonus +%5',
+  'quest.starter_critical_25.title': '25 Kritik Kesim Yap',
+  'quest.starter_critical_25.reward': '+500 para',
+  'quest.starter_critical_50.title': '50 Kritik Kesim Yap',
+  'quest.starter_critical_50.reward': '+650 para',
+  'quest.starter_combo_50.title': "50 Kombo'ya ulaş",
+  'quest.starter_combo_50.reward': 'Kombo bonus +%5',
+  'quest.starter_combo_75.title': "75 Kombo'ya ulaş",
+  'quest.starter_combo_75.reward': 'Kombo bonus +%5',
+  'quest.starter_tap_500.title': '500 Döner Kes',
+  'quest.starter_tap_500.reward': '+500 para',
+  'quest.starter_tap_1000.title': '1.000 Döner Kes',
+  'quest.starter_tap_1000.reward': '+600 para',
+  'quest.starter_knife_item_1.title': 'İlk Bıçağı Tamamla',
+  'quest.starter_knife_item_1.reward': 'Usta Sandığı',
+  'quest.starter_tap_2500.title': '2.500 Döner Kes',
+  'quest.starter_tap_2500.reward': '+750 para',
+  'quest.starter_upgrades_50.title': '50 Geliştirme Satın Al',
+  'quest.starter_upgrades_50.reward': 'Küçük Sandık',
+  'quest.starter_upgrades_75.title': '75 Geliştirme Satın Al',
+  'quest.starter_upgrades_75.reward': '+700 para',
+  'quest.starter_upgrades_100.title': '100 Geliştirme Satın Al',
+  'quest.starter_upgrades_100.reward': 'Usta Sandığı',
+  'quest.starter_shop_prepare.title': "Küçük Büfe'ye Hazırlan",
+  'quest.starter_shop_prepare.reward': 'Dükkân ilerlemesi açılır',
+  'quest.starter_shop_level_2.title': "Küçük Büfe'yi Aç",
+  'quest.starter_shop_level_2.reward': 'Genel gelir +%5',
+  'quest.starter_lifetime_25000.title': '25.000 para Topla',
+  'quest.starter_lifetime_25000.reward': '+750 para',
+  'quest.starter_lifetime_50000.title': '50.000 para Topla',
+  'quest.starter_lifetime_50000.reward': '+900 para',
+  'quest.starter_lifetime_100000.title': '100.000 para Topla',
+  'quest.starter_lifetime_100000.reward': 'Usta Sandığı',
+  'quest.starter_open_prestige.title': 'Prestij hedefini gör',
   'quest.starter_open_prestige.reward': '+500 para',
   'comboLabel': 'Kombo',
   'comboTierSimple': 'Basit Kombo',
@@ -704,179 +839,185 @@ const Map<String, String> _tr = {
   'comboTierLegendary': 'Efsane Kombo',
   'comboTierCosmic': 'Kozmik Kombo',
   'criticalCutLabel': 'Kritik!',
-  'goldenDonerLabel': 'Altin Doner',
-  'goldenDonerRewardLabel': 'Odul',
-  'goldenDonerProgress': '{hits}/{required} kesim',
   'settingsTitle': 'Ayarlar',
+  'settingsSubtitle': 'Oyun tercihleri',
   'languageTitle': 'Dil',
-  'englishLabel': 'Ingilizce',
-  'turkishLabel': 'Turkce',
+  'preferencesTitle': 'Tercihler',
+  'soundTitle': 'Ses',
+  'hapticsTitle': 'Titreşim',
+  'comingSoonLabel': 'Yakında',
+  'englishLabel': 'İngilizce',
+  'turkishLabel': 'Türkçe',
   'offlineTitle': 'Sen yokken',
-  'offlineSummaryTitle': 'Kazanc Ozeti',
-  'offlineBaseRewardLabel': 'Temel Kazanc',
+  'offlineSummaryTitle': 'Kazanç Özeti',
+  'offlineBaseRewardLabel': 'Temel Kazanç',
   'offlineDoubleRewardLabel': 'Reklam 2x',
   'offlineDoubleOfferTitle': 'Reklamla ikiye katla',
   'offlineDoubleOfferBody':
-      'Odullu reklam izleyerek {amount} al. Simdilik sadece gostermelik.',
+      'Ödüllü reklam izleyerek {amount} al. Şimdilik sadece göstermelik.',
   'offlineAdPreviewLabel': 'Reklam entegrasyonu sonra',
-  'watchAdDoubleLabel': 'Reklam Izle x2',
-  'offlineSummary': 'Uretim en fazla {hours} saat boyunca devam etti.',
-  'offlineAmount': 'Offline kazanc: {amount}',
-  'upgradeItemUnlocked': '{item} acildi',
+  'watchAdDoubleLabel': 'Reklam İzle x2',
+  'offlineSummary': 'Üretim en fazla {hours} saat boyunca devam etti.',
+  'offlineAmount': 'Uzakta kazanç: {amount}',
+  'upgradeItemUnlocked': '{item} açıldı',
+  'shopRunCashRequirement': 'Bu turda {amount} kazan',
+  'shopUpgradeCountRequirement': '{upgrade} ekipmanını {count} kez geliştir',
+  'shopUpgradeItemRequirement': '{upgrade}: {item} kilidini aç',
+  'shopPrestigeRequirement': '{count} kez prestij yap',
+  'shop.street_stand.name': 'Sokak Tezgâhı',
+  'shop.street_stand.unlock': 'Dokunuş + Bıçak',
+  'shop.small_buffet.name': 'Küçük Büfe',
+  'shop.small_buffet.unlock': 'Personel',
+  'shop.neighborhood_doner.name': 'Mahalle Dönercisi',
+  'shop.neighborhood_doner.unlock': 'Fırın',
+  'shop.busy_street_doner.name': 'İşlek Cadde Dönercisi',
+  'shop.busy_street_doner.unlock': 'Menü',
+  'shop.mall_doner.name': 'AVM Dönercisi',
+  'shop.mall_doner.unlock': 'Çevrimdışı kazanç',
+  'shop.luxury_restaurant.name': 'Lüks Restoran',
+  'shop.luxury_restaurant.unlock': 'Uzakta kazanç',
+  'shop.doner_chain.name': 'Döner Zinciri',
+  'shop.doner_chain.unlock': 'Şubeler',
+  'shop.city_brand.name': 'Şehir Markası',
+  'shop.city_brand.unlock': 'Koleksiyonlar',
+  'shop.national_chain.name': 'Ulusal Zincir',
+  'shop.national_chain.unlock': 'Gelişmiş hedefler',
+  'shop.global_doner_empire.name': 'Küresel Döner İmparatorluğu',
+  'shop.global_doner_empire.unlock': 'Küresel genişleme',
+  'shop.galactic_doner_center.name': 'Galaktik Döner Merkezi',
+  'shop.galactic_doner_center.unlock': 'Galaktik geliştirmeler',
+  'shop.infinite_doner_universe.name': 'Sonsuz Döner Evreni',
+  'shop.infinite_doner_universe.unlock': 'Sonsuz ilerleme',
   'upgradeItemTransition': '{previous} -> {next}',
-  'upgradeMilestonePreview': '{item} Lv. {level}',
-  'milestoneTapBonus': 'Tap geliri {value}',
+  'upgradeMilestonePreview': '{item} Sv. {level}',
+  'milestoneTapBonus': 'Dokunuş geliri {value}',
   'milestonePassiveBonus': 'Pasif gelir {value}',
-  'milestoneGlobalBonus': 'Global gelir {value}',
-  'milestoneMenuBonus': 'Menu carpani {value}',
-  'milestoneCriticalChance': 'Kritik sans {value}',
-  'milestoneCriticalMultiplier': 'Kritik carpan {value}',
-  'milestoneComboDuration': 'Combo suresi {value}',
-  'milestoneComboMultiplier': 'Combo carpani {value}',
-  'milestoneTurboBonus': 'Turbo gucu {value}',
-  'milestoneTurboCharge': 'Turbo dolum hizi {value}',
-  'milestoneTurboDuration': 'Turbo suresi {value}',
-  'milestoneTurboCooldown': 'Turbo bekleme {value}',
-  'milestoneOfflineEfficiency': 'Offline verim {value}',
-  'milestoneOfflineMaxDuration': 'Offline limit {value}',
-  'milestoneOfflineAdReward': 'Offline reklam odulu {value}',
-  'milestoneGoldenChance': 'Altin Doner sansi {value}',
-  'milestoneGoldenReward': 'Altin Doner odulu {value}',
-  'milestoneTipChance': 'Bahsis sansi {value}',
-  'milestoneTipValue': 'Bahsis degeri {value}',
-  'milestoneSpecialOrder': 'Ozel siparis sansi {value}',
+  'milestoneGlobalBonus': 'Genel gelir {value}',
+  'milestoneMenuBonus': 'Menü çarpanı {value}',
+  'milestoneCriticalChance': 'Kritik şans {value}',
+  'milestoneCriticalMultiplier': 'Kritik çarpan {value}',
+  'milestoneComboDuration': 'Kombo süresi {value}',
+  'milestoneComboMultiplier': 'Kombo çarpanı {value}',
+  'milestoneOfflineEfficiency': 'Uzakta verim {value}',
+  'milestoneOfflineMaxDuration': 'Uzakta limit {value}',
+  'milestoneOfflineAdReward': 'Uzakta reklam ödülü {value}',
+  'milestoneTipChance': 'Bahşiş şansı {value}',
+  'milestoneTipValue': 'Bahşiş değeri {value}',
+  'milestoneSpecialOrder': 'Özel sipariş şansı {value}',
   'milestoneInstantMoney': '+{value} para',
-  'milestoneChest': 'Sandik x{count}',
+  'milestoneChest': 'Sandık x{count}',
   'milestoneCosmeticToken': 'Kozmetik jeton x{count}',
   'milestoneCollectionUnlock': '{collection} koleksiyonu',
-  'milestoneFeatureUnlock': '{feature} acildi',
-  'milestoneFeatureGeneric': 'Yeni ozellik',
-  'milestone.rustyKnife5': 'Elin alisiyor: tap geliri +%5',
-  'milestone.rustyKnife10': 'Kritik Kesim acildi: kritik sans +%1',
-  'milestone.rustyKnife15': 'Combo sistemi acildi: combo suresi +0.25s',
-  'milestone.rustyKnife20': 'Altin Doner gorunebilir: sans +%0.25',
-  'milestone.rustyKnife25': 'Keskin Bicak hazir: sandik x1',
+  'milestoneFeatureUnlock': '{feature} açıldı',
+  'milestoneFeatureGeneric': 'Yeni özellik',
+  'milestone.rustyKnife5': 'Elin alışıyor: dokunuş geliri +%5',
+  'milestone.rustyKnife10': 'Kritik Kesim açıldı: kritik şans +%1',
+  'milestone.rustyKnife15': 'Kombo sistemi açıldı: kombo süresi +0.25 sn',
+  'milestone.rustyKnife20': 'Usta kesimler: dokunuş geliri +%5',
+  'milestone.rustyKnife25': 'Keskin Bıçak hazır: sandık x1',
   'milestone.feature.critical_cut': 'Kritik Kesim',
-  'milestone.feature.combo': 'Combo',
-  'milestone.feature.golden_doner': 'Altin Doner',
-  'milestone.feature.unlock_sharp_knife': 'Keskin Bicak',
-  'milestone.feature.tips': 'Bahsis',
+  'milestone.feature.combo': 'Kombo',
+  'milestone.feature.unlock_sharp_knife': 'Keskin Bıçak',
+  'milestone.feature.tips': 'Bahşiş',
   'milestone.feature.auto_collect_bonus': 'Otomatik toplama',
-  'milestone.feature.special_orders': 'Ozel siparisler',
-  'milestone.feature.offline_minimum_claim': 'Minimum offline claim',
+  'milestone.feature.special_orders': 'Özel siparişler',
+  'milestone.feature.offline_minimum_claim': 'Asgari uzakta kazanç',
   'claimLabel': 'Al',
   'claimDoubleLabel': '2x Al',
-  'dismissLabel': 'Gec',
-  'adUnavailable': 'Odullu reklam henuz hazir degil.',
+  'dismissLabel': 'Geç',
+  'adUnavailable': 'Ödüllü reklam henüz hazır değil.',
   'shopNavLabel': 'Market',
   'prestigeNavLabel': 'Prestij',
   'settingsNavLabel': 'Ayar',
   'lockedLabel': 'Kilitli',
-  'unlockedLabel': 'Acik',
-  'lockedUntil': 'Toplam {amount} nakitte acilir',
-  'soundSoonLabel': 'Ses ayarlari sonra eklenecek',
-  'hapticsSoonLabel': 'Titrisim ayarlari sonra eklenecek',
-  'upgrade.knife.name': 'Bicak',
-  'upgrade.knife.description': 'Her dokunusun gelirini carpar.',
-  'upgrade.knife.effectName': 'Click Gucu',
-  'upgrade.knife.item.rustyKnife': 'Pasli Bicak',
-  'upgrade.knife.item.sharpKnife': 'Keskin Bicak',
-  'upgrade.knife.item.doubleKnife': 'Cift Bicak',
-  'upgrade.knife.item.electricKnife': 'Elektrikli Bicak',
-  'upgrade.knife.item.rusty_knife': 'Pasli Bicak',
-  'upgrade.knife.item.sharp_knife': 'Keskin Bicak',
-  'upgrade.knife.item.double_knife': 'Cift Bicak',
-  'upgrade.knife.item.electric_knife': 'Elektrikli Bicak',
-  'upgrade.knife.item.golden_knife': 'Altin Bicak',
-  'upgrade.knife.item.flaming_knife': 'Alevli Bicak',
-  'upgrade.knife.item.laser_knife': 'Lazer Bicak',
-  'upgrade.knife.item.doner_excalibur': 'Doner Excalibur',
-  'upgrade.knife.item.master_sword': 'Ustanin Kilici',
-  'upgrade.knife.item.cosmic_doner_knife': 'Kozmik Doner Bicagi',
+  'unlockedLabel': 'Açık',
+  'lockedUntil': 'Toplam {amount} nakitte açılır',
+  'soundSoonLabel': 'Ses kontrolleri hazırlanıyor',
+  'hapticsSoonLabel': 'Titreşim kontrolleri hazırlanıyor',
+  'upgrade.knife.name': 'Bıçak',
+  'upgrade.knife.description': 'Her dokunuşun gelirini çarpar.',
+  'upgrade.knife.effectName': 'Dokunuş Gücü',
+  'upgrade.knife.item.rustyKnife': 'Paslı Bıçak',
+  'upgrade.knife.item.sharpKnife': 'Keskin Bıçak',
+  'upgrade.knife.item.doubleKnife': 'Çift Bıçak',
+  'upgrade.knife.item.electricKnife': 'Elektrikli Bıçak',
+  'upgrade.knife.item.rusty_knife': 'Paslı Bıçak',
+  'upgrade.knife.item.sharp_knife': 'Keskin Bıçak',
+  'upgrade.knife.item.double_knife': 'Çift Bıçak',
+  'upgrade.knife.item.electric_knife': 'Elektrikli Bıçak',
+  'upgrade.knife.item.golden_knife': 'Altın Bıçak',
+  'upgrade.knife.item.flaming_knife': 'Alevli Bıçak',
+  'upgrade.knife.item.laser_knife': 'Lazer Bıçak',
+  'upgrade.knife.item.doner_excalibur': 'Döner Excalibur',
+  'upgrade.knife.item.master_sword': 'Ustanın Kılıcı',
+  'upgrade.knife.item.cosmic_doner_knife': 'Kozmik Döner Bıçağı',
   'upgrade.knife.item.galactic_cutter': 'Galaktik Kesici',
-  'upgrade.knife.item.infinite_knife': 'Sonsuz Bicak',
-  'upgrade.oven.name': 'Firin',
-  'upgrade.oven.description': 'Dokunus ve pasif geliri carpar.',
-  'upgrade.oven.effectName': 'Tum Gelir',
-  'upgrade.oven.item.coalOven': 'Komur Firini',
-  'upgrade.oven.item.stoneOven': 'Tas Firin',
-  'upgrade.oven.item.gasOven': 'Gazli Firin',
-  'upgrade.oven.item.rotaryOven': 'Doner Firin',
-  'upgrade.oven.item.small_oven': 'Kucuk Firin',
-  'upgrade.oven.item.large_oven': 'Buyuk Firin',
-  'upgrade.oven.item.double_oven': 'Cift Firin',
-  'upgrade.oven.item.industrial_oven': 'Endustriyel Firin',
-  'upgrade.oven.item.robotic_oven': 'Robotik Firin',
-  'upgrade.oven.item.flame_reactor': 'Alev Reaktoru',
+  'upgrade.knife.item.infinite_knife': 'Sonsuz Bıçak',
+  'upgrade.oven.name': 'Fırın',
+  'upgrade.oven.description': 'Dokunuş ve pasif geliri çarpar.',
+  'upgrade.oven.effectName': 'Tüm Gelir',
+  'upgrade.oven.item.coalOven': 'Kömür Fırını',
+  'upgrade.oven.item.stoneOven': 'Taş Fırın',
+  'upgrade.oven.item.gasOven': 'Gazlı Fırın',
+  'upgrade.oven.item.rotaryOven': 'Döner Fırın',
+  'upgrade.oven.item.small_oven': 'Küçük Fırın',
+  'upgrade.oven.item.large_oven': 'Büyük Fırın',
+  'upgrade.oven.item.double_oven': 'Çift Fırın',
+  'upgrade.oven.item.industrial_oven': 'Endüstriyel Fırın',
+  'upgrade.oven.item.robotic_oven': 'Robotik Fırın',
+  'upgrade.oven.item.flame_reactor': 'Alev Reaktörü',
   'upgrade.oven.item.laser_grill': 'Lazer Izgara',
-  'upgrade.oven.item.space_oven_system': 'Uzay Firin Sistemi',
-  'upgrade.oven.item.galactic_oven': 'Galaktik Firin',
-  'upgrade.oven.item.infinite_heat_core': 'Sonsuz Isi Cekirdegi',
+  'upgrade.oven.item.space_oven_system': 'Uzay Fırın Sistemi',
+  'upgrade.oven.item.galactic_oven': 'Galaktik Fırın',
+  'upgrade.oven.item.infinite_heat_core': 'Sonsuz Isı Çekirdeği',
   'upgrade.staff.name': 'Personel',
   'upgrade.staff.description': 'Her saniye pasif gelir ekler.',
   'upgrade.staff.effectName': 'Pasif Gelir',
-  'upgrade.staff.item.helper': 'Yardimci',
-  'upgrade.staff.item.apprentice': 'Cirak',
-  'upgrade.staff.item.fast_apprentice': 'Hizli Cirak',
+  'upgrade.staff.item.helper': 'Yardımcı',
+  'upgrade.staff.item.apprentice': 'Çırak',
+  'upgrade.staff.item.fast_apprentice': 'Hızlı Çırak',
   'upgrade.staff.item.usta': 'Usta',
   'upgrade.staff.item.team': 'Mutfak Ekibi',
   'upgrade.staff.item.journeyman': 'Kalfa',
-  'upgrade.staff.item.assistant_master': 'Usta Yardimcisi',
-  'upgrade.staff.item.doner_master': 'Doner Ustasi',
-  'upgrade.staff.item.head_master': 'Bas Usta',
-  'upgrade.staff.item.chef': 'Sef',
+  'upgrade.staff.item.assistant_master': 'Usta Yardımcısı',
+  'upgrade.staff.item.doner_master': 'Döner Ustası',
+  'upgrade.staff.item.head_master': 'Baş Usta',
+  'upgrade.staff.item.chef': 'Şef',
   'upgrade.staff.item.robot_staff': 'Robot Personel',
-  'upgrade.staff.item.ai_master': 'Yapay Zeka Ustasi',
-  'upgrade.staff.item.doner_army': 'Doner Ordusu',
+  'upgrade.staff.item.ai_master': 'Yapay Zekâ Ustası',
+  'upgrade.staff.item.doner_army': 'Döner Ordusu',
   'upgrade.staff.item.franchise_team': 'Franchise Ekibi',
   'upgrade.staff.item.infinite_masters': 'Sonsuz Ustalar',
-  'upgrade.menu.name': 'Menu',
-  'upgrade.menu.description': 'Her siparisin degerini artirir.',
-  'upgrade.menu.effectName': 'Menu Bonusu',
-  'upgrade.menu.item.simpleWrap': 'Sade Durum',
-  'upgrade.menu.item.saucedMenu': 'Soslu Menu',
-  'upgrade.menu.item.comboMenu': 'Kombo Menu',
-  'upgrade.menu.item.signatureMenu': 'Imza Menu',
-  'upgrade.menu.item.chicken_doner': 'Tavuk Doner',
-  'upgrade.menu.item.beef_doner': 'Et Doner',
-  'upgrade.menu.item.hatay_style': 'Hatay Usulu',
-  'upgrade.menu.item.sauced_doner': 'Soslu Doner',
-  'upgrade.menu.item.gourmet_doner': 'Gurme Doner',
-  'upgrade.menu.item.golden_doner': 'Altin Doner',
-  'upgrade.menu.item.legendary_sauce_doner': 'Efsane Soslu Doner',
-  'upgrade.menu.item.king_wrap': 'Kral Durum',
-  'upgrade.menu.item.cosmic_doner': 'Kozmik Doner',
-  'upgrade.menu.item.universe_doner': 'Evrenin Doneri',
-  'upgrade.turbo.name': 'Turbo',
-  'upgrade.turbo.description': 'Aktif turbo dokunus carpanini yukseltir.',
-  'upgrade.turbo.effectName': 'Turbo Gucu',
-  'upgrade.turbo.item.spicySauce': 'Aci Sos',
-  'upgrade.turbo.item.kitchenRush': 'Mutfak Rush',
-  'upgrade.turbo.item.streetRush': 'Sokak Rush',
-  'upgrade.turbo.item.goldenRush': 'Altin Rush',
-  'upgrade.turbo.item.turbo_cut': 'Turbo Kesim',
-  'upgrade.turbo.item.fast_cut': 'Hizli Kesim',
-  'upgrade.turbo.item.flaming_turbo': 'Alevli Turbo',
-  'upgrade.turbo.item.master_mode': 'Usta Modu',
-  'upgrade.turbo.item.doner_storm': 'Doner Firtinasi',
-  'upgrade.turbo.item.apocalypse_cut': 'Kiyamet Kesimi',
-  'upgrade.turbo.item.light_speed_cut': 'Isik Hizi Kesim',
-  'upgrade.turbo.item.cosmic_turbo': 'Kozmik Turbo',
-  'upgrade.turbo.item.infinite_turbo': 'Sonsuz Turbo',
-  'upgrade.offline.name': 'Offline',
+  'upgrade.menu.name': 'Menü',
+  'upgrade.menu.description': 'Her siparişin değerini artırır.',
+  'upgrade.menu.effectName': 'Menü Bonusu',
+  'upgrade.menu.item.simpleWrap': 'Sade Dürüm',
+  'upgrade.menu.item.saucedMenu': 'Soslu Menü',
+  'upgrade.menu.item.comboMenu': 'Kombo Menü',
+  'upgrade.menu.item.signatureMenu': 'İmza Menü',
+  'upgrade.menu.item.chicken_doner': 'Tavuk Döner',
+  'upgrade.menu.item.beef_doner': 'Et Döner',
+  'upgrade.menu.item.hatay_style': 'Hatay Usulü',
+  'upgrade.menu.item.sauced_doner': 'Soslu Döner',
+  'upgrade.menu.item.gourmet_doner': 'Gurme Döner',
+  'upgrade.menu.item.legendary_sauce_doner': 'Efsane Soslu Döner',
+  'upgrade.menu.item.king_wrap': 'Kral Dürüm',
+  'upgrade.menu.item.cosmic_doner': 'Kozmik Döner',
+  'upgrade.menu.item.universe_doner': 'Evrenin Döneri',
+  'upgrade.offline.name': 'Uzakta',
   'upgrade.offline.description': 'Uzakta daha fazla pasif gelir korur.',
-  'upgrade.offline.effectName': 'Offline Verim',
-  'upgrade.offline.item.paperLedger': 'Kagit Defter',
-  'upgrade.offline.item.warmBox': 'Sicak Kutu',
-  'upgrade.offline.item.courierRoute': 'Kurye Rotasi',
-  'upgrade.offline.item.nightShift': 'Gece Vardiyasi',
-  'upgrade.offline.item.small_safe': 'Kucuk Kasa',
-  'upgrade.offline.item.secure_safe': 'Guvenli Kasa',
-  'upgrade.offline.item.smart_safe': 'Akilli Kasa',
-  'upgrade.offline.item.big_storage': 'Buyuk Depo',
-  'upgrade.offline.item.night_shift': 'Gece Vardiyasi',
+  'upgrade.offline.effectName': 'Uzakta Verim',
+  'upgrade.offline.item.paperLedger': 'Kâğıt Defter',
+  'upgrade.offline.item.warmBox': 'Sıcak Kutu',
+  'upgrade.offline.item.courierRoute': 'Kurye Rotası',
+  'upgrade.offline.item.nightShift': 'Gece Vardiyası',
+  'upgrade.offline.item.small_safe': 'Küçük Kasa',
+  'upgrade.offline.item.secure_safe': 'Güvenli Kasa',
+  'upgrade.offline.item.smart_safe': 'Akıllı Kasa',
+  'upgrade.offline.item.big_storage': 'Büyük Depo',
+  'upgrade.offline.item.night_shift': 'Gece Vardiyası',
   'upgrade.offline.item.franchise_system': 'Franchise Sistemi',
-  'upgrade.offline.item.auto_branch_network': 'Otomatik Sube Agi',
-  'upgrade.offline.item.global_doner_network': 'Global Doner Agi',
+  'upgrade.offline.item.auto_branch_network': 'Otomatik Şube Ağı',
+  'upgrade.offline.item.global_doner_network': 'Genel Döner Ağı',
   'upgrade.offline.item.infinite_safe_system': 'Sonsuz Kasa Sistemi',
 };

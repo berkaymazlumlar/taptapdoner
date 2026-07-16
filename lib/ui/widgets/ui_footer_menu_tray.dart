@@ -34,7 +34,9 @@ class UiFooterMenuTray extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(RoastedFooterTrayMetrics.radius);
+    final radius = BorderRadius.vertical(
+      top: Radius.circular(RoastedFooterTrayMetrics.radius),
+    );
     final hasItems = items.isNotEmpty;
 
     return Semantics(
@@ -48,9 +50,9 @@ class UiFooterMenuTray extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF61150E).withValues(alpha: 0.80),
-              const Color(0xFF4B0E0A).withValues(alpha: 0.74),
-              const Color(0xFF3A0B08).withValues(alpha: 0.68),
+              const Color(0xFF61150E),
+              const Color(0xFF4B0E0A),
+              const Color(0xFF3A0B08),
             ],
           ),
           border: Border.all(
@@ -158,18 +160,9 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
 
     final shellGradient = enabled
         ? selected
-              ? [
-                  const Color(0xFFB24F1B).withValues(alpha: 0.82),
-                  DonerColors.panelSecondary.withValues(alpha: 0.76),
-                ]
-              : [
-                  DonerColors.panelSecondary.withValues(alpha: 0.74),
-                  DonerColors.panelPrimary.withValues(alpha: 0.68),
-                ]
-        : [
-            DonerColors.panelDark.withValues(alpha: 0.52),
-            DonerColors.disabledBg.withValues(alpha: 0.46),
-          ];
+              ? [const Color(0xFFB24F1B), DonerColors.panelSecondary]
+              : [DonerColors.panelSecondary, DonerColors.panelPrimary]
+        : [DonerColors.panelDark, DonerColors.disabledBg];
 
     final shellShadow = [
       BoxShadow(
@@ -187,11 +180,11 @@ class _UiFooterMenuTraySegmentState extends State<_UiFooterMenuTraySegment> {
         ),
     ];
 
-    final itemRadius = BorderRadius.horizontal(
-      left: widget.index == 0
+    final itemRadius = BorderRadius.only(
+      topLeft: widget.index == 0
           ? const Radius.circular(RoastedFooterTrayMetrics.radius)
           : Radius.zero,
-      right: widget.isLast
+      topRight: widget.isLast
           ? const Radius.circular(RoastedFooterTrayMetrics.radius)
           : Radius.zero,
     );

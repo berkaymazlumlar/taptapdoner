@@ -127,14 +127,11 @@ class _UpgradeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
-    final state = controller.state.upgrade(upgrade.id);
-    final totalLevel = upgrade.totalLevelForPosition(
-      itemIndex: state.itemIndex,
-      itemLevel: state.level,
-    );
-    final maxed = upgrade.isMaxLevel(totalLevel);
-    final cost = upgrade.costForLevel(totalLevel);
-    final canAfford = !maxed && controller.state.cash >= cost;
+    final upgradeSnapshot =
+        controller.shopSnapshotListenable.value.upgrades[upgrade.id]!;
+    final maxed = upgradeSnapshot.maxed;
+    final cost = upgradeSnapshot.cost;
+    final canAfford = upgradeSnapshot.canAfford;
 
     return DecoratedBox(
       key: ValueKey('shop-upgrade-card-${upgrade.id.key}'),
@@ -162,7 +159,7 @@ class _UpgradeCard extends StatelessWidget {
             Text(
               strings.upgradeItemName(
                 upgrade.id,
-                upgrade.itemForLevel(totalLevel).key,
+                upgradeSnapshot.currentItemKey,
               ),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,

@@ -108,16 +108,6 @@ abstract final class Collection2Catalog {
       assetKey: 'placeholder_recipe_gourmet_doner',
     ),
     RecipeCollectible(
-      id: 'recipe_golden_doner',
-      name: 'Golden Doner Recipe',
-      rarity: Rarity.legendary,
-      requiredShards: 50,
-      maxLevel: 5,
-      bonusType: RecipeBonusType.goldenDonerReward,
-      bonusValuePerLevel: 0.03,
-      assetKey: 'placeholder_recipe_golden_doner',
-    ),
-    RecipeCollectible(
       id: 'recipe_cosmic_doner',
       name: 'Cosmic Doner Recipe',
       rarity: Rarity.mythic,
@@ -356,16 +346,6 @@ abstract final class Collection2Catalog {
       bonusType: CollectionSetBonusType.passiveIncome,
       bonusValue: 0.10,
     ),
-    CollectionSetBonus(
-      id: 'gold_set',
-      name: 'Gold Set',
-      recipeId: 'recipe_golden_doner',
-      staffCardId: 'staff_influencer_chef',
-      decorId: 'decor_gold_counter',
-      knifeSkinId: 'knife_skin_gold',
-      bonusType: CollectionSetBonusType.globalIncome,
-      bonusValue: 0.15,
-    ),
   ];
 
   static final recipeById = Map<String, RecipeCollectible>.unmodifiable({
@@ -593,7 +573,6 @@ abstract final class Collection2Catalog {
     var reputation = 0.0;
     var chestReward = 0.0;
     var shop = 0.0;
-    var golden = 0.0;
 
     for (final definition in recipes) {
       final level = state.recipeLevel(definition.id);
@@ -608,8 +587,6 @@ abstract final class Collection2Catalog {
           tipValue += amount;
         case RecipeBonusType.customerReward:
           customerReward += amount;
-        case RecipeBonusType.goldenDonerReward:
-          golden += amount;
         case RecipeBonusType.globalIncome:
           global += amount;
       }
@@ -702,7 +679,6 @@ abstract final class Collection2Catalog {
       reputationGainBonusPercent: reputation,
       chestRewardBonusPercent: chestReward,
       shopBonusPercent: shop,
-      goldenDonerRewardBonusPercent: golden,
     );
   }
 

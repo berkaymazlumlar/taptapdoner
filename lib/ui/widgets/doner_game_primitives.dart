@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 
@@ -158,7 +159,7 @@ class DonerStatCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    label.toUpperCase(),
+                    label.toLocaleUpperCase(context),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -217,7 +218,7 @@ class DonerSectionTitle extends StatelessWidget {
           ),
         ),
         Text(
-          label.toUpperCase(),
+          label.toLocaleUpperCase(context),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -358,7 +359,7 @@ class DonerGameButton extends StatelessWidget {
                   ],
                   Flexible(
                     child: Text(
-                      label.toUpperCase(),
+                      label.toLocaleUpperCase(context),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,

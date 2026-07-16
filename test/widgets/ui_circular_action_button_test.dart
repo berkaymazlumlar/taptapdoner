@@ -38,8 +38,8 @@ void main() {
                 ),
                 const SizedBox(width: 12),
                 UiCircularActionButton(
-                  icon: DonerIcons.rush,
-                  label: 'Rush',
+                  icon: DonerIcons.goals,
+                  label: 'Goals',
                   badge: '1',
                   selected: true,
                   onPressed: () {
@@ -123,8 +123,8 @@ void main() {
         home: Scaffold(
           body: Center(
             child: UiCircularActionButton(
-              icon: DonerIcons.rush,
-              label: 'Rush',
+              icon: DonerIcons.goals,
+              label: 'Goals',
               tone: UiCircularActionButtonTone.primary,
               onPressed: () {},
             ),

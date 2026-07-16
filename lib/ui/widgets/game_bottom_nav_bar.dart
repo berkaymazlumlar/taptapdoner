@@ -4,7 +4,15 @@ import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/ui_footer_menu_tray.dart';
 
-enum GameBottomNavTab { kitchen, shop, branches, goals, prestige }
+enum GameBottomNavTab {
+  kitchen,
+  shop,
+  branches,
+  collection,
+  prestige,
+  goals,
+  chests,
+}
 
 class GameBottomNavBar extends StatelessWidget {
   const GameBottomNavBar({
@@ -12,7 +20,7 @@ class GameBottomNavBar extends StatelessWidget {
     required this.onOpenKitchen,
     required this.onOpenShop,
     required this.onOpenBranches,
-    required this.onOpenGoals,
+    required this.onOpenCollection,
     required this.onOpenPrestige,
     super.key,
   });
@@ -21,7 +29,7 @@ class GameBottomNavBar extends StatelessWidget {
   final VoidCallback onOpenKitchen;
   final VoidCallback onOpenShop;
   final VoidCallback onOpenBranches;
-  final VoidCallback onOpenGoals;
+  final VoidCallback onOpenCollection;
   final VoidCallback onOpenPrestige;
 
   @override
@@ -38,23 +46,23 @@ class GameBottomNavBar extends StatelessWidget {
       UiFooterMenuTrayItem(
         key: const ValueKey('bottom-nav-shop-button'),
         icon: DonerIcons.shop,
-        label: strings.isTurkish ? 'DUKKAN' : strings.shopNavLabel,
+        label: strings.isTurkish ? 'DÜKKÂN' : strings.shopNavLabel,
         selected: activeTab == GameBottomNavTab.shop,
         onPressed: onOpenShop,
       ),
       UiFooterMenuTrayItem(
         key: const ValueKey('bottom-nav-branches-button'),
         icon: DonerIcons.branch,
-        label: strings.isTurkish ? 'SUBE' : 'Branches',
+        label: strings.isTurkish ? 'ŞUBE' : 'Branches',
         selected: activeTab == GameBottomNavTab.branches,
         onPressed: onOpenBranches,
       ),
       UiFooterMenuTrayItem(
-        key: const ValueKey('bottom-nav-goals-button'),
-        icon: DonerIcons.goals,
-        label: strings.isTurkish ? 'HEDEF' : 'Goals',
-        selected: activeTab == GameBottomNavTab.goals,
-        onPressed: onOpenGoals,
+        key: const ValueKey('bottom-nav-collection-button'),
+        icon: DonerIcons.collection,
+        label: strings.isTurkish ? 'KOLEKSİYON' : 'Collection',
+        selected: activeTab == GameBottomNavTab.collection,
+        onPressed: onOpenCollection,
       ),
       UiFooterMenuTrayItem(
         key: const ValueKey('bottom-nav-prestige-button'),
@@ -65,16 +73,15 @@ class GameBottomNavBar extends StatelessWidget {
       ),
     ];
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 8),
-      child: Container(
-        key: const ValueKey('bottom-nav-shell'),
-        decoration: BoxDecoration(
-          boxShadow: RoastedShadows.surface,
-          borderRadius: BorderRadius.circular(RoastedFooterTrayMetrics.radius),
+    return Container(
+      key: const ValueKey('bottom-nav-shell'),
+      decoration: BoxDecoration(
+        boxShadow: RoastedShadows.surface,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(RoastedFooterTrayMetrics.radius),
         ),
-        child: UiFooterMenuTray(items: items),
       ),
+      child: UiFooterMenuTray(items: items),
     );
   }
 }

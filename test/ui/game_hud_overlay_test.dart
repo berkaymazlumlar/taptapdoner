@@ -29,7 +29,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        locale: const Locale('en'),
+        locale: const Locale('tr'),
         supportedLocales: AppStrings.supportedLocales,
         localizationsDelegates: AppStrings.localizationsDelegates,
         home: MediaQuery(
@@ -39,6 +39,7 @@ void main() {
               alignment: Alignment.topCenter,
               child: GameHudOverlay(
                 controller: controller,
+                onOpenGoals: () {},
                 onOpenSettings: () {},
               ),
             ),
@@ -48,6 +49,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('NAKİT'), findsOneWidget);
+
     final shellFinder = find.byKey(const ValueKey('game-hud-shell-decoration'));
     final shell = tester.widget<DecoratedBox>(shellFinder);
     final shellRect = tester.getRect(shellFinder);
@@ -56,7 +59,7 @@ void main() {
 
     expect(shellRect.left, closeTo(0, 0.5));
     expect(shellRect.right, closeTo(390, 0.5));
-    expect(gradient.colors.every((color) => color.alpha < 255), isTrue);
+    expect(gradient.colors.every((color) => color.a < 1), isTrue);
   });
 }
 

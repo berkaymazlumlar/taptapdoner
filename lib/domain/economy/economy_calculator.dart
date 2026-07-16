@@ -1,6 +1,7 @@
 import 'package:taptapdoner/domain/upgrades/upgrade_logic.dart'
     as upgrade_logic;
 import 'package:taptapdoner/domain/upgrades/upgrade_models.dart';
+import 'package:taptapdoner/domain/economy/currency_math.dart';
 
 double getTrackEffectById(List<UpgradeTrack> tracks, String id) {
   final track = tracks.firstWhere((track) => track.id == id);
@@ -14,25 +15,25 @@ double calculateTapIncome({
   required double menuEffect,
   required double shopMultiplier,
   required double prestigeMultiplier,
-  required double turboMultiplier,
   double collectionTapMultiplier = 1,
   double collectionGlobalMultiplier = 1,
   double temporaryBoostMultiplier = 1,
   double comboMultiplier = 1,
   double criticalMultiplier = 1,
 }) {
-  return baseTap *
-      knifeEffect *
-      ovenEffect *
-      menuEffect *
-      shopMultiplier *
-      prestigeMultiplier *
-      collectionTapMultiplier *
-      collectionGlobalMultiplier *
-      temporaryBoostMultiplier *
-      turboMultiplier *
-      comboMultiplier *
-      criticalMultiplier;
+  return CurrencyMath.clampDouble(
+    baseTap *
+        knifeEffect *
+        ovenEffect *
+        menuEffect *
+        shopMultiplier *
+        prestigeMultiplier *
+        collectionTapMultiplier *
+        collectionGlobalMultiplier *
+        temporaryBoostMultiplier *
+        comboMultiplier *
+        criticalMultiplier,
+  );
 }
 
 double calculatePassiveIncomePerSecond({
@@ -45,14 +46,16 @@ double calculatePassiveIncomePerSecond({
   double collectionGlobalMultiplier = 1,
   double temporaryBoostMultiplier = 1,
 }) {
-  return staffEffect *
-      ovenEffect *
-      menuEffect *
-      shopMultiplier *
-      prestigeMultiplier *
-      collectionPassiveMultiplier *
-      collectionGlobalMultiplier *
-      temporaryBoostMultiplier;
+  return CurrencyMath.clampDouble(
+    staffEffect *
+        ovenEffect *
+        menuEffect *
+        shopMultiplier *
+        prestigeMultiplier *
+        collectionPassiveMultiplier *
+        collectionGlobalMultiplier *
+        temporaryBoostMultiplier,
+  );
 }
 
 double calculateOfflineIncome({
@@ -60,5 +63,7 @@ double calculateOfflineIncome({
   required double offlineSeconds,
   required double offlineEfficiency,
 }) {
-  return passiveIncomePerSecond * offlineSeconds * offlineEfficiency;
+  return CurrencyMath.clampDouble(
+    passiveIncomePerSecond * offlineSeconds * offlineEfficiency,
+  );
 }

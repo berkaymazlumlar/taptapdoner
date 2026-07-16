@@ -4,6 +4,7 @@ import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
+import 'package:taptapdoner/domain/random_events/random_event_models.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
 @immutable
@@ -15,10 +16,10 @@ class GameHudSnapshot {
     required this.tapValue,
   });
 
-  final int cash;
+  final dynamic cash;
   final double passiveIncomePerSecond;
   final int reputation;
-  final int tapValue;
+  final dynamic tapValue;
 
   @override
   bool operator ==(Object other) {
@@ -35,31 +36,41 @@ class GameHudSnapshot {
 }
 
 @immutable
-class RushSnapshot {
-  const RushSnapshot({
-    required this.isActive,
-    required this.canStart,
-    required this.remaining,
-    required this.cooldownRemaining,
+class RandomEventSnapshot {
+  const RandomEventSnapshot({
+    required this.event,
+    required this.remainingModifierCount,
   });
 
-  final bool isActive;
-  final bool canStart;
-  final Duration remaining;
-  final Duration cooldownRemaining;
+  final RandomEventDefinition event;
+  final int remainingModifierCount;
 
   @override
   bool operator ==(Object other) {
-    return other is RushSnapshot &&
-        isActive == other.isActive &&
-        canStart == other.canStart &&
-        remaining == other.remaining &&
-        cooldownRemaining == other.cooldownRemaining;
+    return other is RandomEventSnapshot &&
+        event.id == other.event.id &&
+        remainingModifierCount == other.remainingModifierCount;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(isActive, canStart, remaining, cooldownRemaining);
+  int get hashCode => Object.hash(event.id, remainingModifierCount);
+}
+
+@immutable
+class RandomEventResolutionSnapshot {
+  const RandomEventResolutionSnapshot({
+    required this.eventTitle,
+    required this.choiceLabel,
+    required this.outcomeKey,
+    required this.resultText,
+    required this.effectLabel,
+  });
+
+  final String eventTitle;
+  final String choiceLabel;
+  final String outcomeKey;
+  final String resultText;
+  final String effectLabel;
 }
 
 @immutable
@@ -73,12 +84,9 @@ class ActivePlaySnapshot {
     required this.criticalUnlocked,
     required this.criticalChance,
     required this.criticalMultiplier,
-    required this.goldenDonerUnlocked,
-    required this.goldenDonerActive,
-    required this.goldenDonerRemaining,
-    required this.goldenDonerHits,
-    required this.goldenDonerRequiredHits,
-    required this.goldenDonerRewardPreview,
+    required this.temporaryIncomeBoostActive,
+    required this.temporaryIncomeBoostRemaining,
+    required this.activeEffects,
   });
 
   final bool comboUnlocked;
@@ -89,21 +97,11 @@ class ActivePlaySnapshot {
   final bool criticalUnlocked;
   final double criticalChance;
   final double criticalMultiplier;
-  final bool goldenDonerUnlocked;
-  final bool goldenDonerActive;
-  final Duration goldenDonerRemaining;
-  final int goldenDonerHits;
-  final int goldenDonerRequiredHits;
-  final int goldenDonerRewardPreview;
+  final bool temporaryIncomeBoostActive;
+  final Duration temporaryIncomeBoostRemaining;
+  final List<ActiveEffectSnapshot> activeEffects;
 
   bool get hasCombo => comboUnlocked && currentCombo > 0;
-
-  double get goldenDonerProgress {
-    if (goldenDonerRequiredHits <= 0) {
-      return 0;
-    }
-    return (goldenDonerHits / goldenDonerRequiredHits).clamp(0, 1).toDouble();
-  }
 
   @override
   bool operator ==(Object other) {
@@ -116,31 +114,54 @@ class ActivePlaySnapshot {
         criticalUnlocked == other.criticalUnlocked &&
         criticalChance == other.criticalChance &&
         criticalMultiplier == other.criticalMultiplier &&
-        goldenDonerUnlocked == other.goldenDonerUnlocked &&
-        goldenDonerActive == other.goldenDonerActive &&
-        goldenDonerRemaining == other.goldenDonerRemaining &&
-        goldenDonerHits == other.goldenDonerHits &&
-        goldenDonerRequiredHits == other.goldenDonerRequiredHits &&
-        goldenDonerRewardPreview == other.goldenDonerRewardPreview;
+        temporaryIncomeBoostActive == other.temporaryIncomeBoostActive &&
+        temporaryIncomeBoostRemaining == other.temporaryIncomeBoostRemaining &&
+        listEquals(activeEffects, other.activeEffects);
   }
 
   @override
   int get hashCode => Object.hash(
-    comboUnlocked,
-    currentCombo,
-    maxCombo,
-    comboMultiplier,
-    comboRemaining,
-    criticalUnlocked,
-    criticalChance,
-    criticalMultiplier,
-    goldenDonerUnlocked,
-    goldenDonerActive,
-    goldenDonerRemaining,
-    goldenDonerHits,
-    goldenDonerRequiredHits,
-    goldenDonerRewardPreview,
+    Object.hash(
+      comboUnlocked,
+      currentCombo,
+      maxCombo,
+      comboMultiplier,
+      comboRemaining,
+      criticalUnlocked,
+      criticalChance,
+      criticalMultiplier,
+      temporaryIncomeBoostActive,
+      temporaryIncomeBoostRemaining,
+    ),
+    Object.hashAll(activeEffects),
   );
+}
+
+@immutable
+class ActiveEffectSnapshot {
+  const ActiveEffectSnapshot({
+    required this.id,
+    required this.label,
+    required this.remaining,
+    required this.isPositive,
+  });
+
+  final String id;
+  final String label;
+  final Duration remaining;
+  final bool isPositive;
+
+  @override
+  bool operator ==(Object other) {
+    return other is ActiveEffectSnapshot &&
+        id == other.id &&
+        label == other.label &&
+        remaining == other.remaining &&
+        isPositive == other.isPositive;
+  }
+
+  @override
+  int get hashCode => Object.hash(id, label, remaining, isPositive);
 }
 
 @immutable
@@ -438,6 +459,10 @@ class ShopUpgradeSnapshot {
     required this.unlocksNextItem,
     required this.cost,
     required this.canAfford,
+    required this.buyTenCost,
+    required this.canAffordTen,
+    required this.maxAffordableQuantity,
+    required this.maxAffordableCost,
     this.nextItemKey,
     this.nextItemEffect,
     this.nextMilestoneItemKey,
@@ -460,8 +485,12 @@ class ShopUpgradeSnapshot {
   final double nextEffect;
   final bool maxed;
   final bool unlocksNextItem;
-  final int cost;
+  final dynamic cost;
   final bool canAfford;
+  final dynamic buyTenCost;
+  final bool canAffordTen;
+  final int maxAffordableQuantity;
+  final dynamic maxAffordableCost;
 
   bool get purchased => totalLevel > 0;
 
@@ -484,28 +513,38 @@ class ShopUpgradeSnapshot {
         maxed == other.maxed &&
         unlocksNextItem == other.unlocksNextItem &&
         cost == other.cost &&
-        canAfford == other.canAfford;
+        canAfford == other.canAfford &&
+        buyTenCost == other.buyTenCost &&
+        canAffordTen == other.canAffordTen &&
+        maxAffordableQuantity == other.maxAffordableQuantity &&
+        maxAffordableCost == other.maxAffordableCost;
   }
 
   @override
   int get hashCode => Object.hash(
-    totalLevel,
-    itemLevel,
-    maxItemLevel,
-    maxLevel,
-    currentItemTier,
-    currentItemKey,
-    nextItemKey,
-    nextItemEffect,
-    nextMilestoneItemKey,
-    nextMilestoneLevel,
-    nextMilestoneReward,
-    currentEffect,
-    nextEffect,
-    maxed,
-    unlocksNextItem,
-    cost,
-    canAfford,
+    Object.hash(
+      totalLevel,
+      itemLevel,
+      maxItemLevel,
+      maxLevel,
+      currentItemTier,
+      currentItemKey,
+      nextItemKey,
+      nextItemEffect,
+      nextMilestoneItemKey,
+      nextMilestoneLevel,
+      nextMilestoneReward,
+      currentEffect,
+      nextEffect,
+      maxed,
+      unlocksNextItem,
+      cost,
+      canAfford,
+    ),
+    buyTenCost,
+    canAffordTen,
+    maxAffordableQuantity,
+    maxAffordableCost,
   );
 }
 
@@ -760,8 +799,8 @@ class BranchProgressSnapshot {
   final bool unlocked;
   final int level;
   final int maxLevel;
-  final int unlockCost;
-  final int levelUpCost;
+  final dynamic unlockCost;
+  final dynamic levelUpCost;
   final bool canUnlock;
   final bool canLevelUp;
   final double incomePerSecond;
@@ -886,7 +925,7 @@ class PrestigeSnapshot {
   final int reputation;
   final int unspentPoints;
   final int prestigeCount;
-  final int runCashEarned;
+  final dynamic runCashEarned;
   final int threshold;
   final double currentMultiplier;
   final double newMultiplier;
@@ -894,7 +933,7 @@ class PrestigeSnapshot {
   final List<String> resetItems;
   final List<String> keptItems;
 
-  int get currentTotalEarned => runCashEarned;
+  dynamic get currentTotalEarned => runCashEarned;
   int get pointsToGain => availablePoints;
 
   @override

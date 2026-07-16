@@ -61,19 +61,6 @@ abstract final class GoalCatalog {
       ],
     ),
     GoalDefinition(
-      id: 'daily_use_turbo_2',
-      title: 'Use Turbo Twice',
-      description: 'Use turbo 2 times today.',
-      category: GoalCategory.daily,
-      objectiveType: GoalObjectiveType.useTurbo,
-      targetValue: 2,
-      weight: 6,
-      rewards: [
-        GoalReward(type: GoalRewardType.money, amount: 400),
-        GoalReward(type: GoalRewardType.turboCharge, amount: 1),
-      ],
-    ),
-    GoalDefinition(
       id: 'daily_critical_10',
       title: 'Land 10 Critical Cuts',
       description: 'Trigger 10 critical cuts today.',
@@ -99,24 +86,6 @@ abstract final class GoalCatalog {
       rewards: [
         GoalReward(type: GoalRewardType.money, amount: 650),
         GoalReward(type: GoalRewardType.reputation, amount: 8),
-      ],
-    ),
-    GoalDefinition(
-      id: 'daily_golden_1',
-      title: 'Catch 1 Golden Doner',
-      description: 'Catch 1 Golden Doner today.',
-      category: GoalCategory.daily,
-      objectiveType: GoalObjectiveType.collectGoldenDoner,
-      targetValue: 1,
-      weight: 3,
-      requiredFeatureKeys: {'golden_doner'},
-      rewards: [
-        GoalReward(
-          type: GoalRewardType.chest,
-          amount: 1,
-          chestType: ChestType.recipe,
-        ),
-        GoalReward(type: GoalRewardType.reputation, amount: 12),
       ],
     ),
     GoalDefinition(
@@ -213,24 +182,6 @@ abstract final class GoalCatalog {
           amount: 1,
           chestType: ChestType.prestige,
         ),
-      ],
-    ),
-    GoalDefinition(
-      id: 'weekly_golden_10',
-      title: 'Catch 10 Golden Doners',
-      description: 'Catch 10 Golden Doners this week.',
-      category: GoalCategory.weekly,
-      objectiveType: GoalObjectiveType.collectGoldenDoner,
-      targetValue: 10,
-      weight: 3,
-      requiredFeatureKeys: {'golden_doner'},
-      rewards: [
-        GoalReward(
-          type: GoalRewardType.chest,
-          amount: 1,
-          chestType: ChestType.gold,
-        ),
-        GoalReward(type: GoalRewardType.reputation, amount: 60),
       ],
     ),
     GoalDefinition(
@@ -379,18 +330,6 @@ abstract final class GoalCatalog {
       ],
     ),
     GoalDefinition(
-      id: 'run_golden_3',
-      title: 'Catch 3 Golden Doners This Run',
-      description: 'Catch 3 Golden Doners before the next prestige.',
-      category: GoalCategory.prestigeRun,
-      objectiveType: GoalObjectiveType.collectGoldenDoner,
-      targetValue: 3,
-      minPrestigeCount: 1,
-      weight: 3,
-      requiredFeatureKeys: {'golden_doner'},
-      rewards: [GoalReward(type: GoalRewardType.prestigePoint, amount: 1)],
-    ),
-    GoalDefinition(
       id: 'run_combo_100',
       title: 'Reach 100 Combo This Run',
       description: 'Reach a 100 combo before the next prestige.',
@@ -462,7 +401,7 @@ abstract final class GoalCatalog {
   static const eventGoals = <GoalDefinition>[
     GoalDefinition(
       id: 'event_cut_100',
-      title: 'Event Rush Cuts',
+      title: 'Event Cuts',
       description: 'Cut 100 doners during an active event.',
       category: GoalCategory.event,
       objectiveType: GoalObjectiveType.tapCount,

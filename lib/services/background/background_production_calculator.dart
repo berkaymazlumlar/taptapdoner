@@ -23,7 +23,6 @@ class BackgroundProductionCalculator {
         coins: 0,
         rawElapsed: rawElapsed,
         effectiveElapsed: Duration.zero,
-        rushElapsed: Duration.zero,
       );
     }
 
@@ -31,7 +30,6 @@ class BackgroundProductionCalculator {
       coins: engine.offlineIncome(state, effectiveElapsed),
       rawElapsed: rawElapsed,
       effectiveElapsed: effectiveElapsed,
-      rushElapsed: Duration.zero,
     );
   }
 }

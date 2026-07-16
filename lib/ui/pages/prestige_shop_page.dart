@@ -9,6 +9,7 @@ import 'package:taptapdoner/services/audio/purchase_sfx_player.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/doner_game_primitives.dart';
+import 'package:taptapdoner/ui/widgets/value_formatters.dart';
 
 class PrestigeShopPage extends StatelessWidget {
   const PrestigeShopPage({required this.controller, super.key, this.onBack});
@@ -178,14 +179,14 @@ class _PrestigeShopSummaryCard extends StatelessWidget {
           Expanded(
             child: _PrestigeShopMetric(
               label: 'Unspent Points',
-              value: snapshot.unspentPoints.toString(),
+              value: formatCompactNumber(context, snapshot.unspentPoints),
             ),
           ),
           SizedBox(width: 8.w),
           Expanded(
             child: _PrestigeShopMetric(
               label: 'Total Points',
-              value: snapshot.reputation.toString(),
+              value: formatCompactNumber(context, snapshot.reputation),
             ),
           ),
           SizedBox(width: 8.w),

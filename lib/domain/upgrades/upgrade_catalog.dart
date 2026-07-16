@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:taptapdoner/domain/economy/currency_math.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_definitions.dart'
     as upgrade_tracks;
 import 'package:taptapdoner/domain/upgrades/upgrade_logic.dart'
@@ -10,7 +11,7 @@ export 'package:taptapdoner/domain/upgrades/upgrade_definitions.dart';
 export 'package:taptapdoner/domain/upgrades/upgrade_logic.dart';
 export 'package:taptapdoner/domain/upgrades/upgrade_models.dart';
 
-enum UpgradeId { knife, oven, staff, menu, turbo, offline }
+enum UpgradeId { knife, oven, staff, menu, offline }
 
 extension UpgradeIdKey on UpgradeId {
   String get key => switch (this) {
@@ -18,7 +19,6 @@ extension UpgradeIdKey on UpgradeId {
     UpgradeId.oven => 'oven',
     UpgradeId.staff => 'staff',
     UpgradeId.menu => 'menu',
-    UpgradeId.turbo => 'turbo',
     UpgradeId.offline => 'offline',
   };
 }
@@ -36,7 +36,6 @@ UpgradeId? upgradeIdFromKey(String key) {
     'tapGloves' || 'sharpKnife' => UpgradeId.knife,
     'greaseMaintenance' => UpgradeId.oven,
     'brandBoard' => UpgradeId.menu,
-    'rushTraining' => UpgradeId.turbo,
     _ => null,
   };
 }
@@ -50,7 +49,6 @@ int legacyUpgradeLevelForKey(String key, {required bool purchased}) {
     'sharpKnife' => 10,
     'greaseMaintenance' => 4,
     'brandBoard' => 10,
-    'rushTraining' => 1,
     _ => 1,
   };
 }
@@ -103,7 +101,7 @@ class UpgradeItemDefinition {
   int costForItemLevel(int itemLevel) {
     final clampedLevel = math.min(math.max(itemLevel, 1), maxLevel);
     final value = baseCost * math.pow(costMultiplier, clampedLevel - 1);
-    return math.max(1, value.floor());
+    return math.max(1, CurrencyMath.floorInt(value));
   }
 
   UpgradeItemTier toTier() {
@@ -261,7 +259,7 @@ class UpgradeDefinition {
     if (position.itemLevel >= item.maxLevel) {
       final nextItem = nextItemForLevel(level);
       if (nextItem != null) {
-        return math.max(1, nextItem.baseCost.floor());
+        return math.max(1, CurrencyMath.floorInt(nextItem.baseCost));
       }
     }
     return item.costForItemLevel(position.itemLevel);
@@ -350,10 +348,9 @@ List<MilestoneReward> milestoneRewardsForUpgradeItem(
           ),
           const MilestoneReward(
             level: 20,
-            type: MilestoneRewardType.goldenDonerChance,
-            value: 0.0025,
+            type: MilestoneRewardType.tapBonusPercent,
+            value: 0.05,
             labelKey: 'rustyKnife20',
-            featureKey: 'golden_doner',
           ),
           MilestoneReward(
             level: 25,
@@ -385,9 +382,8 @@ List<MilestoneReward> milestoneRewardsForUpgradeItem(
         ),
         const MilestoneReward(
           level: 20,
-          type: MilestoneRewardType.goldenDonerChance,
-          value: 0.0025,
-          featureKey: 'golden_doner',
+          type: MilestoneRewardType.tapBonusPercent,
+          value: 0.05,
         ),
         MilestoneReward(
           level: 25,
@@ -435,7 +431,7 @@ List<MilestoneReward> milestoneRewardsForUpgradeItem(
         ),
         const MilestoneReward(
           level: 10,
-          type: MilestoneRewardType.turboChargeSpeed,
+          type: MilestoneRewardType.globalBonusPercent,
           value: 0.03,
         ),
         const MilestoneReward(
@@ -476,38 +472,8 @@ List<MilestoneReward> milestoneRewardsForUpgradeItem(
         ),
         const MilestoneReward(
           level: 20,
-          type: MilestoneRewardType.goldenDonerRewardPercent,
+          type: MilestoneRewardType.menuBonusPercent,
           value: 0.05,
-          featureKey: 'golden_doner',
-        ),
-        MilestoneReward(
-          level: 25,
-          type: MilestoneRewardType.chest,
-          quantity: 1,
-          collectionKey: completionCollectionKey,
-        ),
-      ];
-    case UpgradeId.turbo:
-      return [
-        const MilestoneReward(
-          level: 5,
-          type: MilestoneRewardType.turboBonusPercent,
-          value: 0.05,
-        ),
-        const MilestoneReward(
-          level: 10,
-          type: MilestoneRewardType.turboDuration,
-          value: 1,
-        ),
-        const MilestoneReward(
-          level: 15,
-          type: MilestoneRewardType.turboChargeSpeed,
-          value: 0.05,
-        ),
-        const MilestoneReward(
-          level: 20,
-          type: MilestoneRewardType.turboCooldownReduction,
-          value: 0.03,
         ),
         MilestoneReward(
           level: 25,
@@ -559,8 +525,7 @@ UpgradeEffectKind _effectKindFor(UpgradeEffectType effectType) {
   return switch (effectType) {
     UpgradeEffectType.tapMultiplier ||
     UpgradeEffectType.globalIncomeMultiplier ||
-    UpgradeEffectType.menuMultiplier ||
-    UpgradeEffectType.turboMultiplier => UpgradeEffectKind.multiplier,
+    UpgradeEffectType.menuMultiplier => UpgradeEffectKind.multiplier,
     UpgradeEffectType.passiveIncome => UpgradeEffectKind.passiveIncome,
     UpgradeEffectType.offlineEfficiency => UpgradeEffectKind.efficiency,
   };
@@ -572,7 +537,6 @@ UpgradeTrackType _trackTypeFor(UpgradeId id) {
     UpgradeId.oven => UpgradeTrackType.oven,
     UpgradeId.staff => UpgradeTrackType.staff,
     UpgradeId.menu => UpgradeTrackType.menu,
-    UpgradeId.turbo => UpgradeTrackType.turbo,
     UpgradeId.offline => UpgradeTrackType.offline,
   };
 }
@@ -583,7 +547,6 @@ UpgradeEffectType _effectTypeFor(UpgradeId id) {
     UpgradeId.oven => UpgradeEffectType.globalIncomeMultiplier,
     UpgradeId.menu => UpgradeEffectType.menuMultiplier,
     UpgradeId.staff => UpgradeEffectType.passiveIncome,
-    UpgradeId.turbo => UpgradeEffectType.turboMultiplier,
     UpgradeId.offline => UpgradeEffectType.offlineEfficiency,
   };
 }

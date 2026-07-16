@@ -56,7 +56,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('shop page renders all six upgrade track cards', (tester) async {
+  testWidgets('shop page renders all five upgrade track cards', (tester) async {
     final controller = _controller(config, nowUtc);
 
     await _pumpShopPage(
@@ -97,9 +97,58 @@ void main() {
     expect(controller.state.upgrade(UpgradeId.knife).level, 2);
   });
 
-  testWidgets('milestone purchase shows reward preview and popup', (
+  testWidgets('10x upgrade purchase buys ten levels from the shop card', (
     tester,
   ) async {
+    final controller = _controller(config, nowUtc);
+
+    await _pumpShopPage(
+      tester,
+      controller: controller,
+      size: const Size(390, 844),
+      onOpenKitchen: () {},
+      onOpenPrestige: () {},
+    );
+
+    final button = find.byKey(const ValueKey('shop-upgrade-button-10-knife'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(controller.state.upgrade(UpgradeId.knife).itemIndex, 0);
+    expect(controller.state.upgrade(UpgradeId.knife).level, 11);
+    expect(controller.lastPurchaseResult?.purchasedCount, 10);
+  });
+
+  testWidgets('max upgrade purchase buys all currently affordable levels', (
+    tester,
+  ) async {
+    final base = GameState.initial(config, nowUtc: nowUtc);
+    final controller = _controller(
+      config,
+      nowUtc,
+      state: base.copyWith(cash: 109, lifetimeCash: 109),
+    );
+
+    await _pumpShopPage(
+      tester,
+      controller: controller,
+      size: const Size(390, 844),
+      onOpenKitchen: () {},
+      onOpenPrestige: () {},
+    );
+
+    final button = find.byKey(const ValueKey('shop-upgrade-button-max-knife'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(controller.state.cash, 0);
+    expect(controller.state.upgrade(UpgradeId.knife).level, 5);
+    expect(controller.lastPurchaseResult?.purchasedCount, 4);
+  });
+
+  testWidgets('milestone purchase shows reward popup', (tester) async {
     final base = GameState.initial(config, nowUtc: nowUtc);
     final controller = _controller(
       config,
@@ -126,8 +175,14 @@ void main() {
       onOpenPrestige: () {},
     );
 
-    expect(find.textContaining('Rusty Knife Lv. 5'), findsWidgets);
-    expect(find.textContaining('Getting the feel'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('shop-upgrade-next-milestone-knife')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('shop-upgrade-next-preview-knife')),
+      findsNothing,
+    );
 
     final button = find.byKey(const ValueKey('shop-upgrade-button-knife'));
     await tester.ensureVisible(button);
@@ -225,7 +280,13 @@ void main() {
       find.byKey(const ValueKey('shop-upgrade-max-knife')),
       findsOneWidget,
     );
-    expect(find.text('MAX'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('shop-upgrade-button-knife')),
+        matching: find.text('MAX'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('upgrade button is inactive when cash is insufficient', (

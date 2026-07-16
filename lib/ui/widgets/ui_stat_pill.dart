@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
@@ -85,7 +86,7 @@ class UiStatPill extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          label.toUpperCase(),
+                          label.toLocaleUpperCase(context),
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(
                                 color: RoastedColors.onSurfaceVariant,

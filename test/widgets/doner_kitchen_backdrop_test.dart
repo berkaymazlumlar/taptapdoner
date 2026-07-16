@@ -104,9 +104,6 @@ EconomyConfig _zeroPassiveConfig() {
   final config = EconomyConfig.standard();
   return EconomyConfig(
     baseTapValue: config.baseTapValue,
-    rushIncomeMultiplier: config.rushIncomeMultiplier,
-    rushDuration: config.rushDuration,
-    rushCooldown: config.rushCooldown,
     offlineCap: config.offlineCap,
     prestigeThreshold: config.prestigeThreshold,
     prestigeBonusPerPoint: config.prestigeBonusPerPoint,

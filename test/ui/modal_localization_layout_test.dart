@@ -6,6 +6,7 @@ import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
 import 'package:taptapdoner/services/save/save_repository.dart';
 import 'package:taptapdoner/ui/overlays/offline_reward_overlay.dart';
@@ -95,7 +96,7 @@ void main() {
       await _expectPanelFits(tester, 'prestige-modal-panel', size);
     });
 
-    testWidgets('settings modal fits compact width in $localeCode', (
+    testWidgets('settings page fits compact width in $localeCode', (
       tester,
     ) async {
       await _pumpModal(
@@ -116,7 +117,7 @@ void main() {
       expect(find.text(strings.settingsTitle), findsWidgets);
       expect(find.text(strings.englishLabel), findsWidgets);
       expect(find.text(strings.turkishLabel), findsWidgets);
-      await _expectPanelFits(tester, 'settings-modal-panel', size);
+      await _expectPanelFits(tester, 'settings-page-root', size);
     });
 
     testWidgets('offline reward popup fits compact width in $localeCode', (
@@ -136,7 +137,10 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text(strings.offlineTitle.toUpperCase()), findsWidgets);
+      expect(
+        find.text(localeUpperCase(strings.offlineTitle, strings.locale)),
+        findsWidgets,
+      );
       expect(
         find.byKey(const ValueKey('offline-reward-stat-row')),
         findsNothing,
@@ -165,9 +169,14 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text(strings.offlineTitle.toUpperCase()), findsWidgets);
       expect(
-        find.text(strings.offlineAdPreviewLabel.toUpperCase()),
+        find.text(localeUpperCase(strings.offlineTitle, strings.locale)),
+        findsWidgets,
+      );
+      expect(
+        find.text(
+          localeUpperCase(strings.offlineAdPreviewLabel, strings.locale),
+        ),
         findsWidgets,
       );
       await _expectPanelFits(tester, 'offline-reward-popup-panel', size);

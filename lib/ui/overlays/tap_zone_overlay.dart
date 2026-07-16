@@ -3,9 +3,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:taptapdoner/app/game_controller.dart';
-import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/services/audio/basic_hit_sfx_player.dart';
 import 'package:taptapdoner/services/audio/critical_hit_sfx_player.dart';
 import 'package:taptapdoner/ui/layout/responsive_layout_spec.dart';
@@ -30,52 +30,52 @@ class TapZoneOverlay extends StatefulWidget {
 }
 
 class _TapZoneOverlayState extends State<TapZoneOverlay>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const _tapVisualScale = 1.30;
   static const _tapBurstLifetime = Duration(milliseconds: 280);
   static const _tapBurstFadeDuration = Duration(milliseconds: 90);
   static const _tapScaleResetDuration = Duration(milliseconds: 110);
-  static const _rushAuraDuration = Duration(milliseconds: 900);
-  static const _fallingSliceTravelDuration = Duration(milliseconds: 760);
+  static const _maxComboAuraDuration = Duration(milliseconds: 780);
+  static const _fallingSliceTravelDuration = Duration(milliseconds: 820);
   static const _fallingSliceFadeDuration = Duration(milliseconds: 220);
   static const _maxActiveTapBursts = 12;
   static const _maxActiveFallingSlices = 14;
-  static const _tapBurstSpawnRightFactor = 0.16;
+  static const _tapBurstSpawnRightFactor = 0.23;
   static const _tapBurstSpawnDownFactor = 0.04;
-  static const _sliceMinHorizontalSpawnFactor = 0.03;
-  static const _sliceMaxHorizontalSpawnFactor = 0.10;
-  static const _sliceMinDropFactor = 0.10;
-  static const _sliceMaxDropFactor = 0.20;
+  static const _tapBurstMinLeftPaddingFactor = 0.28;
+  static const _sliceSpawnDownFactor = 0.18;
   static const _sliceMaxTravelAngleTangent = 0.5773502692; // tan(30deg)
-  static const _sliceMovementCurves = <Curve>[
-    Curves.easeInOutSine,
-    Curves.easeOutQuad,
-    Curves.easeInOutCubic,
-    Curves.easeOutQuad,
-  ];
+  static const _sliceMovementCurve = Curves.easeInQuad;
 
   final _random = math.Random();
   double _scale = 1;
   int _nextTapBurstId = 0;
   final List<_TapBurstEntry> _tapBursts = [];
+  final Set<int> _pendingRisingTapBurstIds = <int>{};
   int _nextFallingSliceId = 0;
   final List<_FallingSliceEntry> _fallingSlices = [];
-  late final AnimationController _rushAuraController;
+  final Set<int> _pendingFallingSliceIds = <int>{};
+  int? _activeTapPointerId;
+  late final AnimationController _maxComboAuraController;
   late final CriticalHitSfxPlayer _criticalHitSfxPlayer;
   Timer? _scaleResetTimer;
-  bool _isRushAuraActive = false;
+  bool _hasScheduledTapBurstRise = false;
+  bool _hasScheduledFallingSliceFall = false;
+  bool _isMaxComboActive = false;
   bool _didPrecacheFallingSlices = false;
 
   @override
   void initState() {
     super.initState();
-    _rushAuraController = AnimationController(
+    _maxComboAuraController = AnimationController(
       vsync: this,
-      duration: _rushAuraDuration,
+      duration: _maxComboAuraDuration,
     );
     _criticalHitSfxPlayer = CriticalHitSfxPlayer();
-    widget.controller.rushSnapshotListenable.addListener(_handleRushUpdate);
-    _syncRushAura(force: true);
+    widget.controller.activePlaySnapshotListenable.addListener(
+      _handleActivePlayUpdate,
+    );
+    _syncMaxComboAura(force: true);
   }
 
   @override
@@ -84,11 +84,13 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
     if (oldWidget.controller == widget.controller) {
       return;
     }
-    oldWidget.controller.rushSnapshotListenable.removeListener(
-      _handleRushUpdate,
+    oldWidget.controller.activePlaySnapshotListenable.removeListener(
+      _handleActivePlayUpdate,
     );
-    widget.controller.rushSnapshotListenable.addListener(_handleRushUpdate);
-    _syncRushAura(force: true);
+    widget.controller.activePlaySnapshotListenable.addListener(
+      _handleActivePlayUpdate,
+    );
+    _syncMaxComboAura(force: true);
   }
 
   @override
@@ -107,29 +109,33 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
 
   @override
   void dispose() {
-    widget.controller.rushSnapshotListenable.removeListener(_handleRushUpdate);
+    widget.controller.activePlaySnapshotListenable.removeListener(
+      _handleActivePlayUpdate,
+    );
     _scaleResetTimer?.cancel();
-    _rushAuraController.dispose();
+    _maxComboAuraController.dispose();
     unawaited(_criticalHitSfxPlayer.dispose());
     super.dispose();
   }
 
-  void _handleRushUpdate() {
-    _syncRushAura();
+  void _handleActivePlayUpdate() {
+    _syncMaxComboAura();
   }
 
-  void _syncRushAura({bool force = false}) {
+  void _syncMaxComboAura({bool force = false}) {
+    final snapshot = widget.controller.activePlaySnapshotListenable.value;
     final shouldAnimate =
-        widget.controller.rushSnapshotListenable.value.isActive;
-    if (!force && shouldAnimate == _isRushAuraActive) {
+        snapshot.hasCombo &&
+        snapshot.comboMultiplier >= widget.controller.config.comboMaxMultiplier;
+    if (!force && shouldAnimate == _isMaxComboActive) {
       return;
     }
 
-    _isRushAuraActive = shouldAnimate;
+    _isMaxComboActive = shouldAnimate;
     if (shouldAnimate) {
-      _rushAuraController.repeat(reverse: true);
+      _maxComboAuraController.repeat();
     } else {
-      _rushAuraController
+      _maxComboAuraController
         ..stop()
         ..value = 0;
     }
@@ -144,6 +150,10 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
     double squareSize,
     double tapTargetSize,
   ) {
+    if (_activeTapPointerId != null) {
+      return;
+    }
+    _activeTapPointerId = event.pointer;
     unawaited(
       _handleTap(
         tapPosition: event.localPosition,
@@ -151,6 +161,13 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
         tapTargetSize: tapTargetSize,
       ),
     );
+  }
+
+  void _handleTapTargetPointerEnd(PointerEvent event) {
+    if (_activeTapPointerId != event.pointer) {
+      return;
+    }
+    _activeTapPointerId = null;
   }
 
   Future<void> _handleTap({
@@ -181,15 +198,6 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
       tapTargetSize,
       type: outcome.isCritical ? _TapBurstType.critical : _TapBurstType.normal,
     );
-    if (outcome.goldenDonerCompleted && outcome.goldenDonerReward > 0) {
-      _enqueueTapBurst(
-        outcome,
-        tapPosition,
-        squareSize,
-        tapTargetSize,
-        type: _TapBurstType.goldenDoner,
-      );
-    }
   }
 
   void _pulseTapTarget() {
@@ -221,12 +229,11 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
         squareSize * _tapBurstSpawnRightFactor,
         squareSize * _tapBurstSpawnDownFactor,
       ),
+      minX: squareSize * _tapBurstMinLeftPaddingFactor,
     );
     final entry = _TapBurstEntry(
       id: id,
-      value: type == _TapBurstType.goldenDoner
-          ? outcome.goldenDonerReward
-          : outcome.coins,
+      value: outcome.coins,
       type: type,
       origin: effectOrigin,
       riseDistance: squareSize * (0.08 + (_random.nextDouble() * 0.03)),
@@ -239,26 +246,47 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
       }
     });
 
+    _pendingRisingTapBurstIds.add(id);
+    _scheduleTapBurstRise();
+    unawaited(_expireTapBurst(id));
+  }
+
+  void _scheduleTapBurstRise() {
+    if (_hasScheduledTapBurstRise) {
+      return;
+    }
+
+    _hasScheduledTapBurstRise = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _hasScheduledTapBurstRise = false;
       if (!mounted) {
+        _pendingRisingTapBurstIds.clear();
+        return;
+      }
+      if (_pendingRisingTapBurstIds.isEmpty) {
         return;
       }
 
-      final entryIndex = _tapBursts.indexWhere(
-        (candidate) => candidate.id == id,
+      final pendingIds = Set<int>.of(_pendingRisingTapBurstIds);
+      _pendingRisingTapBurstIds.clear();
+      final hasPendingEntries = _tapBursts.any(
+        (entry) => pendingIds.contains(entry.id) && !entry.isRising,
       );
-      if (entryIndex == -1) {
+      if (!hasPendingEntries) {
         return;
       }
 
       setState(() {
-        _tapBursts[entryIndex] = _tapBursts[entryIndex].copyWith(
-          isRising: true,
-        );
+        for (var index = 0; index < _tapBursts.length; index += 1) {
+          final entry = _tapBursts[index];
+          if (!pendingIds.contains(entry.id) || entry.isRising) {
+            continue;
+          }
+
+          _tapBursts[index] = entry.copyWith(isRising: true);
+        }
       });
     });
-
-    unawaited(_expireTapBurst(id));
   }
 
   Future<void> _expireTapBurst(int id) async {
@@ -294,30 +322,17 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
     double tapTargetSize,
   ) {
     final id = _nextFallingSliceId++;
-    final spawnDirection = _random.nextBool() ? 1.0 : -1.0;
-    final spawnHorizontalFactor =
-        _sliceMinHorizontalSpawnFactor +
-        (_random.nextDouble() *
-            (_sliceMaxHorizontalSpawnFactor - _sliceMinHorizontalSpawnFactor));
-    final spawnDropFactor =
-        _sliceMinDropFactor +
-        (_random.nextDouble() * (_sliceMaxDropFactor - _sliceMinDropFactor));
     final initialRotationTurns = (_random.nextDouble() - 0.5) * 0.22;
     final rotationDirection = _random.nextBool() ? 1.0 : -1.0;
-    final driftDirection = _random.nextBool() ? 1.0 : -1.0;
-    final verticalTravel = squareSize * (0.30 + (_random.nextDouble() * 0.24));
+    final verticalTravel = squareSize * (0.32 + (_random.nextDouble() * 0.18));
     final horizontalDrift =
-        driftDirection *
         verticalTravel *
-        _sliceMaxTravelAngleTangent *
-        (0.18 + (_random.nextDouble() * 0.82));
+        ((_random.nextDouble() * 2) - 1) *
+        _sliceMaxTravelAngleTangent;
     final effectOrigin = _offsetEffectOrigin(
       tapPosition,
       tapTargetSize,
-      Offset(
-        squareSize * spawnDirection * spawnHorizontalFactor,
-        squareSize * spawnDropFactor,
-      ),
+      Offset(0, squareSize * _sliceSpawnDownFactor),
     );
     final entry = _FallingSliceEntry(
       id: id,
@@ -333,8 +348,7 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
           (rotationDirection * (0.22 + (_random.nextDouble() * 0.62))),
       startScale: 0.90 + (_random.nextDouble() * 0.24),
       endScale: 0.58 + (_random.nextDouble() * 0.42),
-      movementCurve:
-          _sliceMovementCurves[_random.nextInt(_sliceMovementCurves.length)],
+      movementCurve: _sliceMovementCurve,
     );
 
     setState(() {
@@ -347,26 +361,47 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
       }
     });
 
+    _pendingFallingSliceIds.add(id);
+    _scheduleFallingSlices();
+    unawaited(_expireFallingSlice(id));
+  }
+
+  void _scheduleFallingSlices() {
+    if (_hasScheduledFallingSliceFall) {
+      return;
+    }
+
+    _hasScheduledFallingSliceFall = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _hasScheduledFallingSliceFall = false;
       if (!mounted) {
+        _pendingFallingSliceIds.clear();
+        return;
+      }
+      if (_pendingFallingSliceIds.isEmpty) {
         return;
       }
 
-      final entryIndex = _fallingSlices.indexWhere(
-        (candidate) => candidate.id == id,
+      final pendingIds = Set<int>.of(_pendingFallingSliceIds);
+      _pendingFallingSliceIds.clear();
+      final hasPendingEntries = _fallingSlices.any(
+        (entry) => pendingIds.contains(entry.id) && !entry.isFalling,
       );
-      if (entryIndex == -1) {
+      if (!hasPendingEntries) {
         return;
       }
 
       setState(() {
-        _fallingSlices[entryIndex] = _fallingSlices[entryIndex].copyWith(
-          isFalling: true,
-        );
+        for (var index = 0; index < _fallingSlices.length; index += 1) {
+          final entry = _fallingSlices[index];
+          if (!pendingIds.contains(entry.id) || entry.isFalling) {
+            continue;
+          }
+
+          _fallingSlices[index] = entry.copyWith(isFalling: true);
+        }
       });
     });
-
-    unawaited(_expireFallingSlice(id));
   }
 
   Future<void> _expireFallingSlice(int id) async {
@@ -474,11 +509,6 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
             ),
           ],
         );
-        final goldenTapBurstFillStyle = tapBurstFillStyle.copyWith(
-          color: const Color(0xFFFFF0A8),
-          fontSize: tapBurstFontSize * 1.12,
-        );
-
         return Padding(
           padding: EdgeInsets.fromLTRB(
             spec.pagePadding,
@@ -489,57 +519,28 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
           child: Stack(
             alignment: Alignment.center,
             children: [
-              AnimatedBuilder(
-                animation: _rushAuraController,
-                builder: (context, child) {
-                  final pulse = Curves.easeInOut.transform(
-                    _rushAuraController.value,
-                  );
-                  final scale = _isRushAuraActive ? 1.06 + (pulse * 0.16) : 1.0;
-                  final coreAlpha = _isRushAuraActive
-                      ? 0.30 + (pulse * 0.16)
-                      : 0.30;
-                  final outerAlpha = _isRushAuraActive
-                      ? 0.10 + (pulse * 0.12)
-                      : 0.10;
-
-                  return Transform.scale(
-                    key: const ValueKey('tap-zone-flame-aura'),
-                    scale: scale,
-                    child: Container(
-                      width: size.width,
-                      height: size.height,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            const Color(
-                              0xFFE8B35A,
-                            ).withValues(alpha: coreAlpha),
-                            const Color(
-                              0xFFD97A24,
-                            ).withValues(alpha: outerAlpha),
-                            const Color(0x00160605),
-                          ],
-                          stops: const [0.0, 0.58, 1.0],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: DonerColors.goldPrimary.withValues(
-                              alpha: _isRushAuraActive
-                                  ? 0.10 + (pulse * 0.12)
-                                  : 0.10,
-                            ),
-                            blurRadius: _isRushAuraActive
-                                ? 40 + (pulse * 16)
-                                : 40,
-                            offset: const Offset(0, 14),
-                          ),
-                        ],
-                      ),
+              Container(
+                key: const ValueKey('tap-zone-flame-aura'),
+                width: size.width,
+                height: size.height,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFFE8B35A).withValues(alpha: 0.30),
+                      const Color(0xFFD97A24).withValues(alpha: 0.10),
+                      const Color(0x00160605),
+                    ],
+                    stops: const [0.0, 0.58, 1.0],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: DonerColors.goldPrimary.withValues(alpha: 0.10),
+                      blurRadius: 40,
+                      offset: const Offset(0, 14),
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
               Align(
                 alignment: Alignment.center,
@@ -558,25 +559,51 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
                           ),
                         ),
                         Positioned.fill(
-                          child: AnimatedScale(
-                            scale: _scale,
-                            duration: const Duration(milliseconds: 120),
-                            curve: Curves.easeOutBack,
-                            child: Listener(
-                              behavior: HitTestBehavior.opaque,
-                              onPointerDown: (event) =>
-                                  _handleTapTargetPointerDown(
-                                    event,
-                                    squareSize,
-                                    tapTargetSize,
-                                  ),
-                              child: IgnorePointer(
-                                child: Center(
-                                  child: Image.asset(
-                                    key: const ValueKey('tap-zone-callout'),
-                                    UiAssetPaths.tapDoner,
-                                    fit: BoxFit.contain,
-                                    cacheWidth: tapImageCacheWidth,
+                          child: AnimatedBuilder(
+                            animation: _maxComboAuraController,
+                            builder: (context, child) {
+                              final angle =
+                                  _maxComboAuraController.value * math.pi * 2;
+                              final shakeX = _isMaxComboActive
+                                  ? math.sin(angle * 3.1) * 3.2
+                                  : 0.0;
+                              final shakeY = _isMaxComboActive
+                                  ? math.cos(angle * 4.3) * 2.1
+                                  : 0.0;
+                              final shakeRotation = _isMaxComboActive
+                                  ? math.sin(angle * 2.7) * 0.018
+                                  : 0.0;
+                              return Transform.translate(
+                                key: const ValueKey('tap-zone-max-combo-shake'),
+                                offset: Offset(shakeX, shakeY),
+                                child: Transform.rotate(
+                                  angle: shakeRotation,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: AnimatedScale(
+                              scale: _scale,
+                              duration: const Duration(milliseconds: 120),
+                              curve: Curves.easeOutBack,
+                              child: Listener(
+                                behavior: HitTestBehavior.opaque,
+                                onPointerDown: (event) =>
+                                    _handleTapTargetPointerDown(
+                                      event,
+                                      squareSize,
+                                      tapTargetSize,
+                                    ),
+                                onPointerUp: _handleTapTargetPointerEnd,
+                                onPointerCancel: _handleTapTargetPointerEnd,
+                                child: IgnorePointer(
+                                  child: Center(
+                                    child: Image.asset(
+                                      key: const ValueKey('tap-zone-callout'),
+                                      UiAssetPaths.tapDoner,
+                                      fit: BoxFit.contain,
+                                      cacheWidth: tapImageCacheWidth,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -590,9 +617,15 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
                               children: [
                                 for (final slice in _fallingSlices)
                                   Positioned(
+                                    key: ValueKey(
+                                      'tap-zone-falling-slice-position-${slice.id}',
+                                    ),
                                     left: slice.origin.dx - (slice.size / 2),
                                     top: slice.origin.dy - (slice.size / 2),
                                     child: TweenAnimationBuilder<Offset>(
+                                      key: ValueKey(
+                                        'tap-zone-falling-slice-travel-${slice.id}',
+                                      ),
                                       tween: Tween<Offset>(
                                         begin: Offset.zero,
                                         end: slice.isFalling
@@ -660,9 +693,15 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
                                         : 'tap-zone-cash-splash-${burst.id}';
 
                                     return Positioned(
+                                      key: ValueKey(
+                                        'tap-zone-cash-splash-position-${burst.id}',
+                                      ),
                                       left: burst.origin.dx,
                                       top: burst.origin.dy,
                                       child: TweenAnimationBuilder<Offset>(
+                                        key: ValueKey(
+                                          'tap-zone-cash-splash-rise-${burst.id}',
+                                        ),
                                         tween: Tween<Offset>(
                                           begin: Offset.zero,
                                           end: burst.isRising
@@ -707,8 +746,6 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
                                                   normal: tapBurstFillStyle,
                                                   critical:
                                                       criticalTapBurstFillStyle,
-                                                  golden:
-                                                      goldenTapBurstFillStyle,
                                                 ),
                                                 strokeStyle:
                                                     tapBurstStrokeStyle,
@@ -721,21 +758,6 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
                                     );
                                   }(),
                               ],
-                            ),
-                          ),
-                        ),
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: ValueListenableBuilder<ActivePlaySnapshot>(
-                              valueListenable: widget
-                                  .controller
-                                  .activePlaySnapshotListenable,
-                              builder: (context, snapshot, _) {
-                                return _ActivePlayBadges(
-                                  snapshot: snapshot,
-                                  squareSize: squareSize,
-                                );
-                              },
                             ),
                           ),
                         ),
@@ -766,146 +788,99 @@ class _TapZoneOverlayState extends State<TapZoneOverlay>
   Offset _offsetEffectOrigin(
     Offset tapPosition,
     double tapCanvasSize,
-    Offset offset,
-  ) {
+    Offset offset, {
+    double minX = 0,
+  }) {
     final shiftedPosition = tapPosition + offset;
     return Offset(
-      math.max(0.0, math.min(tapCanvasSize, shiftedPosition.dx)),
+      math.max(minX, math.min(tapCanvasSize, shiftedPosition.dx)),
       math.max(0.0, math.min(tapCanvasSize, shiftedPosition.dy)),
     );
   }
 }
 
-class _ActivePlayBadges extends StatelessWidget {
-  const _ActivePlayBadges({required this.snapshot, required this.squareSize});
+// ignore: unused_element
+class _MaxComboBacklight extends StatelessWidget {
+  const _MaxComboBacklight({required this.phase, required this.diameter});
 
-  final ActivePlaySnapshot snapshot;
-  final double squareSize;
+  final double phase;
+  final double diameter;
 
   @override
   Widget build(BuildContext context) {
-    final scale = (squareSize / 256).clamp(0.78, 1.1).toDouble();
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        if (snapshot.goldenDonerActive)
-          Positioned(
-            bottom: squareSize * 0.04,
-            child: _GoldenDonerBadge(snapshot: snapshot, scale: scale),
+    final angle = phase * math.pi * 2;
+    final pulse = (math.sin(angle * 2) + 1) / 2;
+    final colorPhase = (math.sin(angle) + 1) / 2;
+    final coreColor = Color.lerp(
+      const Color(0xFFFFFFFF),
+      const Color(0xFF9AD8FF),
+      colorPhase,
+    )!;
+    final edgeColor = Color.lerp(
+      const Color(0xFF2C8CFF),
+      const Color(0xFFC13CFF),
+      1 - colorPhase,
+    )!;
+
+    return Transform.rotate(
+      angle: angle * 0.28,
+      child: Transform.scale(
+        scale: 0.96 + (pulse * 0.12),
+        child: SizedBox.square(
+          dimension: diameter,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: SweepGradient(
+                transform: GradientRotation(angle),
+                colors: [
+                  const Color(0xFF147DFF).withValues(alpha: 0.10),
+                  const Color(0xFFFFFFFF).withValues(alpha: 0.92),
+                  const Color(0xFFC027FF).withValues(alpha: 0.48),
+                  const Color(0xFF147DFF).withValues(alpha: 0.10),
+                ],
+                stops: const [0, 0.24, 0.58, 1],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: edgeColor.withValues(alpha: 0.72),
+                  blurRadius: 54 + (pulse * 36),
+                  spreadRadius: 14 + (pulse * 12),
+                ),
+                BoxShadow(
+                  color: coreColor.withValues(alpha: 0.92),
+                  blurRadius: 28 + (pulse * 22),
+                  spreadRadius: 2 + (pulse * 8),
+                ),
+              ],
+            ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    coreColor.withValues(alpha: 0.98),
+                    const Color(0xFF79C7FF).withValues(alpha: 0.72),
+                    const Color(0xFF873BFF).withValues(alpha: 0.40),
+                    const Color(0x003B20A5),
+                  ],
+                  stops: const [0, 0.18, 0.52, 1],
+                ),
+              ),
+            ),
           ),
-      ],
-    );
-  }
-}
-
-class _GoldenDonerBadge extends StatelessWidget {
-  const _GoldenDonerBadge({required this.snapshot, required this.scale});
-
-  final ActivePlaySnapshot snapshot;
-  final double scale;
-
-  @override
-  Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
-    return Container(
-      key: const ValueKey('tap-zone-golden-doner-badge'),
-      width: 176 * scale,
-      padding: EdgeInsets.symmetric(
-        horizontal: 12 * scale,
-        vertical: 9 * scale,
-      ),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFD875), Color(0xFFD97A24)],
         ),
-        borderRadius: BorderRadius.circular(18 * scale),
-        border: Border.all(color: const Color(0xFFFFF0A8), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: DonerColors.goldPrimary.withValues(alpha: 0.38),
-            blurRadius: 20 * scale,
-            offset: Offset(0, 8 * scale),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  strings.goldenDonerLabel.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DonerTypography.body(
-                    Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: DonerColors.panelDark,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 10.5 * scale,
-                      letterSpacing: 0.8,
-                      height: 1,
-                    ),
-                  ),
-                ),
-              ),
-              Text(
-                '${snapshot.goldenDonerRemaining.inSeconds}s',
-                style: DonerTypography.body(
-                  Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: DonerColors.panelDark,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 10 * scale,
-                    height: 1,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 6 * scale),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              key: const ValueKey('tap-zone-golden-doner-progress'),
-              value: snapshot.goldenDonerProgress,
-              minHeight: 5 * scale,
-              backgroundColor: DonerColors.panelDark.withValues(alpha: 0.30),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                DonerColors.creamText,
-              ),
-            ),
-          ),
-          SizedBox(height: 5 * scale),
-          Text(
-            '${strings.goldenDonerProgress(snapshot.goldenDonerHits, snapshot.goldenDonerRequiredHits)}  ${formatCompactCurrency(context, snapshot.goldenDonerRewardPreview)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: DonerTypography.body(
-              Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: DonerColors.panelDark,
-                fontWeight: FontWeight.w900,
-                fontSize: 9.5 * scale,
-                height: 1,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
 String _tapBurstText(BuildContext context, _TapBurstEntry entry) {
-  final amount = '+${formatCompactCurrency(context, entry.value)}';
+  final amount = '+${formatClickCurrency(context, entry.value)}';
   return switch (entry.type) {
     _TapBurstType.normal => amount,
     _TapBurstType.critical =>
-      '${AppStrings.of(context).criticalCutLabel.toUpperCase()} $amount',
-    _TapBurstType.goldenDoner =>
-      '${AppStrings.of(context).goldenDonerLabel.toUpperCase()} $amount',
+      '${AppStrings.of(context).criticalCutLabel.toLocaleUpperCase(context)} $amount',
   };
 }
 
@@ -913,12 +888,10 @@ TextStyle? _tapBurstFillStyle(
   _TapBurstType type, {
   required TextStyle? normal,
   required TextStyle? critical,
-  required TextStyle? golden,
 }) {
   return switch (type) {
     _TapBurstType.normal => normal,
     _TapBurstType.critical => critical,
-    _TapBurstType.goldenDoner => golden,
   };
 }
 
@@ -934,7 +907,7 @@ class _TapBurstEntry {
   });
 
   final int id;
-  final int value;
+  final dynamic value;
   final _TapBurstType type;
   final Offset origin;
   final double riseDistance;
@@ -954,7 +927,7 @@ class _TapBurstEntry {
   }
 }
 
-enum _TapBurstType { normal, critical, goldenDoner }
+enum _TapBurstType { normal, critical }
 
 class _TapBurstAnimatedEntry extends StatelessWidget {
   const _TapBurstAnimatedEntry({
@@ -963,10 +936,9 @@ class _TapBurstAnimatedEntry extends StatelessWidget {
     required this.keyBase,
   });
 
-  static const _entryDuration = Duration(milliseconds: 340);
-  static const _startSlide = Offset(0, 0.18);
-  static const _startTurns = -0.03;
-  static const _startScale = 0.58;
+  static const _entryDuration = Duration(milliseconds: 180);
+  static const _startSlide = Offset(0, 0.04);
+  static const _startScale = 0.88;
 
   final _TapBurstEntry entry;
   final Widget child;
@@ -982,17 +954,12 @@ class _TapBurstAnimatedEntry extends StatelessWidget {
       offset: entry.isRising ? Offset.zero : _startSlide,
       duration: _entryDuration,
       curve: Curves.easeOutCubic,
-      child: AnimatedRotation(
-        turns: entry.isRising ? 0 : _startTurns,
+      child: AnimatedScale(
+        key: ValueKey('$keyBase-critical-entry'),
+        scale: entry.isRising ? 1 : _startScale,
         duration: _entryDuration,
         curve: Curves.easeOutBack,
-        child: AnimatedScale(
-          key: ValueKey('$keyBase-critical-entry'),
-          scale: entry.isRising ? 1 : _startScale,
-          duration: _entryDuration,
-          curve: Curves.elasticOut,
-          child: child,
-        ),
+        child: child,
       ),
     );
   }

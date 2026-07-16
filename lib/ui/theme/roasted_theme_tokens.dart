@@ -90,7 +90,7 @@ abstract final class DonerGradients {
     colors: [Color(0xFF5C4638), Color(0xFF4A362C)],
   );
 
-  static const turbo = LinearGradient(
+  static const secondaryAction = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [Color(0xFFB5541A), Color(0xFF8A2F12)],

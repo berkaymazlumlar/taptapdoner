@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:taptapdoner/domain/economy/currency_math.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
@@ -142,18 +143,16 @@ class StarterQuestEngine {
       StarterQuestGoalType.knifeLevel => _knifeLevel(state),
       StarterQuestGoalType.criticalCutCount =>
         state.stats.criticalCutCount.toDouble(),
-      StarterQuestGoalType.staffPurchased =>
-        _totalUpgradeLevel(state, UpgradeId.staff) >= 1 ? 1.0 : 0.0,
+      StarterQuestGoalType.staffPurchased => _totalUpgradeLevel(
+        state,
+        UpgradeId.staff,
+      ).toDouble(),
       StarterQuestGoalType.passiveIncomeActiveSeconds =>
         state.stats.passiveIncomeActiveSeconds,
       StarterQuestGoalType.maxCombo => _activeComboForCount(
         state.stats.maxCombo,
         state,
       ).toDouble(),
-      StarterQuestGoalType.turboUsedCount =>
-        state.stats.turboUsedCount.toDouble(),
-      StarterQuestGoalType.goldenDonerCollected =>
-        state.stats.goldenDonerCollected.toDouble(),
       StarterQuestGoalType.knifeItemIndex =>
         state.upgrade(UpgradeId.knife).itemIndex.toDouble(),
       StarterQuestGoalType.shopLevel => _shopLevel(state).toDouble(),
@@ -238,7 +237,6 @@ class StarterQuestEngine {
     if (reward.chests > 0 ||
         reward.featureKey != null ||
         reward.comboMultiplierBonus > 0 ||
-        reward.turboChargeSpeedPercent > 0 ||
         reward.globalBonusPercent > 0) {
       final nextFeatures = Set<String>.from(
         nextState.milestones.unlockedFeatureKeys,
@@ -254,9 +252,6 @@ class StarterQuestEngine {
           comboMultiplierBonus:
               nextState.milestones.comboMultiplierBonus +
               reward.comboMultiplierBonus,
-          turboChargeSpeedPercent:
-              nextState.milestones.turboChargeSpeedPercent +
-              reward.turboChargeSpeedPercent,
           globalBonusPercent:
               nextState.milestones.globalBonusPercent +
               reward.globalBonusPercent,
@@ -285,10 +280,10 @@ class StarterQuestEngine {
       return state;
     }
     return state.copyWith(
-      cash: state.cash + coins,
-      lifetimeCash: state.lifetimeCash + coins,
+      cash: CurrencyMath.add(state.cash, coins),
+      lifetimeCash: CurrencyMath.add(state.lifetimeCash, coins),
       prestige: state.prestige.copyWith(
-        runCashEarned: state.prestige.runCashEarned + coins,
+        runCashEarned: CurrencyMath.add(state.prestige.runCashEarned, coins),
       ),
     );
   }

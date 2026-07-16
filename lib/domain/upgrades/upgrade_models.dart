@@ -1,11 +1,10 @@
-enum UpgradeTrackType { knife, oven, staff, menu, turbo, offline }
+enum UpgradeTrackType { knife, oven, staff, menu, offline }
 
 enum UpgradeEffectType {
   tapMultiplier,
   globalIncomeMultiplier,
   passiveIncome,
   menuMultiplier,
-  turboMultiplier,
   offlineEfficiency,
 }
 
@@ -18,15 +17,9 @@ enum MilestoneRewardType {
   criticalMultiplier,
   comboDuration,
   comboMultiplier,
-  turboBonusPercent,
-  turboChargeSpeed,
-  turboDuration,
-  turboCooldownReduction,
   offlineEfficiency,
   offlineMaxDuration,
   offlineAdRewardPercent,
-  goldenDonerChance,
-  goldenDonerRewardPercent,
   tipChance,
   tipValuePercent,
   specialOrderChance,
@@ -58,8 +51,8 @@ const defaultUpgradeMilestoneRewards = [
   ),
   MilestoneReward(
     level: 20,
-    type: MilestoneRewardType.goldenDonerChance,
-    value: 0.0025,
+    type: MilestoneRewardType.globalBonusPercent,
+    value: 0.05,
     labelKey: 'milestone_20',
   ),
   MilestoneReward(

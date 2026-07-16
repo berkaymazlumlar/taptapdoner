@@ -60,14 +60,14 @@ void main() {
     expect(trayDecoration.boxShadow, isNotEmpty);
     expect(
       (trayDecoration.gradient as LinearGradient).colors.every(
-        (color) => color.alpha < 255,
+        (color) => color.a == 1,
       ),
       isTrue,
     );
     expect(selectedSegmentDecoration.gradient, isA<LinearGradient>());
     expect(
       (selectedSegmentDecoration.gradient as LinearGradient).colors.every(
-        (color) => color.alpha < 255,
+        (color) => color.a == 1,
       ),
       isTrue,
     );

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/domain/branches/branch_catalog.dart';
 import 'package:taptapdoner/domain/branches/branch_models.dart';
+import 'package:taptapdoner/domain/economy/currency_math.dart';
+import 'package:taptapdoner/domain/economy/game_number.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/economy/economy_engine.dart';
 import 'package:taptapdoner/domain/progression/collection2_models.dart';
@@ -88,23 +90,142 @@ void main() {
     );
   });
 
+  test('bulk upgrade purchase applies sequential costs and milestones', () {
+    final definition = config.upgrade(UpgradeId.knife);
+    final state = GameState.initial(
+      config,
+      nowUtc: nowUtc,
+    ).copyWith(cash: 50000);
+    final expectedCost = engine.upgradeCostForQuantity(
+      definition,
+      state.upgrade(UpgradeId.knife),
+      10,
+    );
+
+    final result = engine.buyUpgrade(state, UpgradeId.knife, quantity: 10);
+
+    expect(result.success, isTrue);
+    expect(result.purchasedCount, 10);
+    expect(result.cost, expectedCost);
+    expect(result.state.cash, 50000 - expectedCost);
+    expect(result.state.upgrade(UpgradeId.knife).itemIndex, 0);
+    expect(result.state.upgrade(UpgradeId.knife).level, 11);
+    expect(
+      result.milestoneGrants.map((grant) => grant.key),
+      containsAll(['knife_rusty_knife_5', 'knife_rusty_knife_10']),
+    );
+    expect(result.milestoneGrant?.key, 'knife_rusty_knife_10');
+    expect(result.state.milestones.hasFeature('critical_cut'), isTrue);
+  });
+
+  test('max upgrade preview stops at the affordable level', () {
+    final definition = config.upgrade(UpgradeId.knife);
+    final state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 109);
+    final expectedCost = engine.upgradeCostForQuantity(
+      definition,
+      state.upgrade(UpgradeId.knife),
+      4,
+    );
+
+    final result = engine.previewMaxUpgradePurchase(state, UpgradeId.knife);
+
+    expect(result.success, isTrue);
+    expect(result.purchasedCount, 4);
+    expect(result.cost, expectedCost);
+    expect(result.state.cash, 0);
+    expect(result.state.upgrade(UpgradeId.knife).level, 5);
+  });
+
+  test('bulk upgrade cost can exceed legacy int64 without overflowing', () {
+    final definition = config.upgrade(UpgradeId.knife);
+    final state = GameState.initial(config, nowUtc: nowUtc);
+
+    final cost = engine.upgradeCostForQuantity(
+      definition,
+      state.upgrade(UpgradeId.knife),
+      definition.maxLevel,
+    );
+
+    expect(cost, greaterThan(CurrencyMath.legacyInt64MaxCurrency));
+    expect(cost, isNonNegative);
+  });
+
+  test('coin grants can grow beyond the double exponent range', () {
+    final huge = GameNumber.fromParts(9.99, 400);
+    final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      cash: huge,
+      lifetimeCash: huge,
+      prestige: PrestigeState(reputation: 0, runCashEarned: huge),
+    );
+
+    final result = engine.addCoins(state, GameNumber.fromParts(5, 400));
+
+    expect(result.cash > GameNumber.fromParts(1, 401), isTrue);
+    expect(result.lifetimeCash, result.cash);
+    expect(result.prestige.runCashEarned, result.cash);
+  });
+
+  test('coin grants continue past the legacy int64 currency ceiling', () {
+    final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      cash: CurrencyMath.legacyInt64MaxCurrency - 5,
+      lifetimeCash: CurrencyMath.legacyInt64MaxCurrency - 5,
+      prestige: PrestigeState(
+        reputation: 0,
+        runCashEarned: CurrencyMath.legacyInt64MaxCurrency - 5,
+      ),
+    );
+
+    final result = engine.addCoins(state, CurrencyMath.legacyInt64MaxCurrency);
+
+    expect(result.cash, greaterThan(CurrencyMath.legacyInt64MaxCurrency));
+    expect(
+      result.lifetimeCash,
+      greaterThan(CurrencyMath.legacyInt64MaxCurrency),
+    );
+    expect(
+      result.prestige.runCashEarned,
+      greaterThan(CurrencyMath.legacyInt64MaxCurrency),
+    );
+  });
+
+  test('passive income saturates instead of overflowing negative', () {
+    final maxedUpgrades = {
+      for (final definition in config.upgrades)
+        definition.id: UpgradeState.fromTotalLevel(
+          definition: definition,
+          totalLevel: definition.maxLevel,
+        ),
+    };
+    final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      upgrades: maxedUpgrades,
+      milestones: const MilestoneState(
+        passiveBonusPercent: double.maxFinite,
+        globalBonusPercent: double.maxFinite,
+      ),
+    );
+
+    final passiveIncome = engine.passiveIncomePerSecond(state, nowUtc: nowUtc);
+
+    expect(passiveIncome, double.maxFinite);
+    expect(passiveIncome, isNonNegative);
+    expect(passiveIncome.isFinite, isTrue);
+  });
+
   test('first rusty knife milestones unlock active play systems', () {
     var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 50000);
     PurchaseResult? lastResult;
 
-    while (state.upgrade(UpgradeId.knife).level < 20) {
+    while (state.upgrade(UpgradeId.knife).level < 15) {
       lastResult = engine.buyUpgrade(state, UpgradeId.knife);
       expect(lastResult.success, isTrue);
       state = lastResult.state;
     }
 
-    expect(lastResult!.milestoneGrant!.key, 'knife_rusty_knife_20');
+    expect(lastResult!.milestoneGrant!.key, 'knife_rusty_knife_15');
     expect(state.milestones.hasFeature('critical_cut'), isTrue);
     expect(state.milestones.hasFeature('combo'), isTrue);
-    expect(state.milestones.hasFeature('golden_doner'), isTrue);
     expect(state.milestones.criticalChance, closeTo(0.01, 0.0001));
     expect(state.milestones.comboDurationSeconds, closeTo(0.25, 0.0001));
-    expect(state.milestones.goldenDonerChance, closeTo(0.0025, 0.0001));
   });
 
   test('combo multiplier and bonus stay inactive before ten taps', () {
@@ -162,44 +283,6 @@ void main() {
     },
   );
 
-  test('turbo multiplies tap income while passive income stays stable', () {
-    final activeTurboState = GameState.initial(config, nowUtc: nowUtc).copyWith(
-      rush: TimedEffectState(
-        endsAtUtc: nowUtc.add(const Duration(seconds: 10)),
-        cooldownEndsAtUtc: nowUtc.add(const Duration(seconds: 80)),
-      ),
-    );
-
-    final idleState = activeTurboState.copyWith(rush: const TimedEffectState());
-
-    expect(
-      engine.tapValue(activeTurboState, nowUtc: nowUtc),
-      engine.tapValue(idleState, nowUtc: nowUtc) * 3,
-    );
-    expect(
-      engine.passiveIncomePerSecond(activeTurboState, nowUtc: nowUtc),
-      engine.passiveIncomePerSecond(idleState, nowUtc: nowUtc),
-    );
-  });
-
-  test('turbo track raises the active turbo multiplier', () {
-    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 5000);
-    state = engine.buyUpgrade(state, UpgradeId.turbo).state;
-    state = engine.startRush(state, nowUtc: nowUtc);
-
-    expect(engine.tapValue(state, nowUtc: nowUtc), 3);
-    expect(engine.upgradeEffect(state, UpgradeId.turbo), 3.12);
-  });
-
-  test('turbo upgrade leaves idle tap multiplier at one', () {
-    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 5000);
-    final idleTap = engine.tapValue(state, nowUtc: nowUtc);
-
-    state = engine.buyUpgrade(state, UpgradeId.turbo).state;
-
-    expect(engine.tapValue(state, nowUtc: nowUtc), idleTap);
-  });
-
   test('offline track effect changes offline reward', () {
     var state = GameState.initial(config, nowUtc: nowUtc).copyWith(cash: 5000);
     final baseline = engine.offlineIncome(state, const Duration(hours: 1));
@@ -240,9 +323,6 @@ void main() {
   test('collection permanent tap bonus is included in tap income', () {
     final highTapConfig = EconomyConfig(
       baseTapValue: 100,
-      rushIncomeMultiplier: config.rushIncomeMultiplier,
-      rushDuration: config.rushDuration,
-      rushCooldown: config.rushCooldown,
       offlineCap: config.offlineCap,
       prestigeThreshold: config.prestigeThreshold,
       prestigeBonusPerPoint: config.prestigeBonusPerPoint,
@@ -264,9 +344,6 @@ void main() {
   test('collection2 bonuses are included in income formulas', () {
     final highTapConfig = EconomyConfig(
       baseTapValue: 100,
-      rushIncomeMultiplier: config.rushIncomeMultiplier,
-      rushDuration: config.rushDuration,
-      rushCooldown: config.rushCooldown,
       offlineCap: config.offlineCap,
       prestigeThreshold: config.prestigeThreshold,
       prestigeBonusPerPoint: config.prestigeBonusPerPoint,
@@ -309,9 +386,6 @@ void main() {
   test('shop level multiplier is included in tap and passive income', () {
     final highTapConfig = EconomyConfig(
       baseTapValue: 100,
-      rushIncomeMultiplier: config.rushIncomeMultiplier,
-      rushDuration: config.rushDuration,
-      rushCooldown: config.rushCooldown,
       offlineCap: config.offlineCap,
       prestigeThreshold: config.prestigeThreshold,
       prestigeBonusPerPoint: config.prestigeBonusPerPoint,
@@ -350,7 +424,7 @@ void main() {
     );
   });
 
-  test('branch income joins passive income only after shop level seven', () {
+  test('unlocked branch income remains active after a prestige reset', () {
     final branchState = const BranchSystemState(
       branchProgress: {
         'main_branch': BranchProgress(
@@ -377,23 +451,23 @@ void main() {
       ),
     );
 
-    expect(engine.branchIncomePerSecond(gatedState, nowUtc: nowUtc), 0);
+    expect(
+      engine.branchIncomePerSecond(gatedState, nowUtc: nowUtc),
+      closeTo(BranchCatalog.byId['main_branch']!.baseIncomePerSecond, 0.0001),
+    );
     expect(
       engine.branchIncomePerSecond(activeState, nowUtc: nowUtc),
       closeTo(BranchCatalog.byId['main_branch']!.baseIncomePerSecond, 0.0001),
     );
     expect(
-      engine.passiveIncomePerSecond(activeState, nowUtc: nowUtc),
-      greaterThan(engine.passiveIncomePerSecond(gatedState, nowUtc: nowUtc)),
+      engine.passiveIncomePerSecond(gatedState, nowUtc: nowUtc),
+      greaterThan(0),
     );
   });
 
   test('prestige shop purchase spends unspent points and applies bonuses', () {
     final highTapConfig = EconomyConfig(
       baseTapValue: 100,
-      rushIncomeMultiplier: config.rushIncomeMultiplier,
-      rushDuration: config.rushDuration,
-      rushCooldown: config.rushCooldown,
       offlineCap: config.offlineCap,
       prestigeThreshold: config.prestigeThreshold,
       prestigeBonusPerPoint: config.prestigeBonusPerPoint,
@@ -436,48 +510,38 @@ void main() {
     expect(engine.prestigeMultiplierForPoints(27), closeTo(2.35, 0.0001));
   });
 
-  test(
-    'prestige resets upgrade tracks and rush while preserving permanent stats',
-    () {
-      var state = GameState.initial(config, nowUtc: nowUtc).copyWith(
-        cash: 50000,
-        lifetimeCash: 2_500_000,
-        pendingOfflineCash: 1200,
-        prestige: const PrestigeState(reputation: 2, runCashEarned: 1_000_000),
-        rush: TimedEffectState(
-          endsAtUtc: nowUtc.add(const Duration(seconds: 10)),
-          cooldownEndsAtUtc: nowUtc.add(const Duration(seconds: 60)),
-        ),
-      );
+  test('prestige resets upgrade tracks while preserving permanent stats', () {
+    var state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      cash: 50000,
+      lifetimeCash: 2_500_000,
+      pendingOfflineCash: 1200,
+      prestige: const PrestigeState(reputation: 2, runCashEarned: 1_000_000),
+    );
 
-      for (var i = 0; i < UpgradeDefinition.maxItemLevel; i += 1) {
-        state = engine.buyUpgrade(state, UpgradeId.knife).state;
-      }
+    for (var i = 0; i < UpgradeDefinition.maxItemLevel; i += 1) {
+      state = engine.buyUpgrade(state, UpgradeId.knife).state;
+    }
 
-      expect(state.upgrade(UpgradeId.knife).itemIndex, 1);
-      expect(state.upgrade(UpgradeId.knife).level, 1);
-      expect(state.rush.isActiveAt(nowUtc), isTrue);
+    expect(state.upgrade(UpgradeId.knife).itemIndex, 1);
+    expect(state.upgrade(UpgradeId.knife).level, 1);
 
-      final prestiged = engine.applyPrestige(state, nowUtc: nowUtc);
+    final prestiged = engine.applyPrestige(state, nowUtc: nowUtc);
 
-      expect(prestiged.cash, 0);
-      expect(prestiged.pendingOfflineCash, 0);
-      expect(prestiged.lifetimeCash, state.lifetimeCash);
-      expect(prestiged.prestige.reputation, 3);
-      expect(prestiged.prestige.totalPrestigePoints, 3);
-      expect(prestiged.prestige.unspentPrestigePoints, 3);
-      expect(prestiged.prestige.prestigeCount, 1);
-      expect(prestiged.prestige.runCashEarned, 0);
-      expect(prestiged.rush.endsAtUtc, isNull);
-      expect(prestiged.rush.cooldownEndsAtUtc, isNull);
-      expect(prestiged.milestones.claimedMilestoneKeys, isEmpty);
-      expect(prestiged.milestones.tapBonusPercent, 0);
-      for (final upgrade in prestiged.upgrades.values) {
-        expect(upgrade.itemIndex, 0, reason: upgrade.id.key);
-        expect(upgrade.level, 1, reason: upgrade.id.key);
-      }
-    },
-  );
+    expect(prestiged.cash, 0);
+    expect(prestiged.pendingOfflineCash, 0);
+    expect(prestiged.lifetimeCash, state.lifetimeCash);
+    expect(prestiged.prestige.reputation, 3);
+    expect(prestiged.prestige.totalPrestigePoints, 3);
+    expect(prestiged.prestige.unspentPrestigePoints, 3);
+    expect(prestiged.prestige.prestigeCount, 1);
+    expect(prestiged.prestige.runCashEarned, 0);
+    expect(prestiged.milestones.claimedMilestoneKeys, isEmpty);
+    expect(prestiged.milestones.tapBonusPercent, 0);
+    for (final upgrade in prestiged.upgrades.values) {
+      expect(upgrade.itemIndex, 0, reason: upgrade.id.key);
+      expect(upgrade.level, 1, reason: upgrade.id.key);
+    }
+  });
 
   test(
     'prestige preserves permanent phase five and prestige shop state while resetting current run',

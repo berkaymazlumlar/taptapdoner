@@ -53,7 +53,7 @@ void main() {
     expect(find.text('What Resets'), findsOneWidget);
     expect(
       find.text(
-        'Current money, all upgrade progress, current shop level, temporary boosts, combo, Golden Doner, and turbo state',
+        'Current money, all upgrade progress, current shop level, temporary boosts, and combo state',
       ),
       findsNothing,
     );
@@ -98,6 +98,23 @@ void main() {
     expect(controller.availablePrestigePoints, 0);
   });
 
+  testWidgets('points to gain uses the shared number unit formatter', (
+    tester,
+  ) async {
+    final controller = _controller(
+      config,
+      nowUtc,
+      state: GameState.initial(config, nowUtc: nowUtc).copyWith(
+        prestige: const PrestigeState(runCashEarned: 1_522_756_000_000),
+      ),
+    );
+
+    await _pumpPage(tester, controller);
+
+    expect(find.text('+1.23 Thousand'), findsOneWidget);
+    expect(find.text('+1234'), findsNothing);
+  });
+
   testWidgets('prestige info tiles expand on demand', (tester) async {
     final controller = _controller(
       config,
@@ -114,7 +131,7 @@ void main() {
     );
 
     const resetText =
-        'Current money, all upgrade progress, current shop level, temporary boosts, combo, Golden Doner, and turbo state';
+        'Current money, all upgrade progress, current shop level, temporary boosts, and combo state';
     expect(find.text(resetText), findsNothing);
 
     final resetToggle = find.byKey(

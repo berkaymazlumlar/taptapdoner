@@ -1,8 +1,10 @@
 import 'dart:math';
 
 import 'package:taptapdoner/domain/branches/branch_catalog.dart';
+import 'package:taptapdoner/domain/economy/currency_math.dart';
 import 'package:taptapdoner/domain/economy/economy_calculator.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
+import 'package:taptapdoner/domain/economy/game_number.dart';
 import 'package:taptapdoner/domain/progression/achievement_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection2_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection_catalog.dart';
@@ -10,6 +12,7 @@ import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
 import 'package:taptapdoner/domain/progression/shop_progression_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
+import 'package:taptapdoner/domain/random_events/random_event_models.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 
@@ -18,15 +21,19 @@ class PurchaseResult {
     required this.success,
     required this.state,
     this.cost = 0,
+    this.purchasedCount = 0,
     this.reason,
     this.milestoneGrant,
+    this.milestoneGrants = const <MilestoneGrant>[],
   });
 
   final bool success;
   final GameState state;
-  final int cost;
+  final dynamic cost;
+  final int purchasedCount;
   final String? reason;
   final MilestoneGrant? milestoneGrant;
+  final List<MilestoneGrant> milestoneGrants;
 }
 
 class MilestoneGrant {
@@ -50,27 +57,25 @@ class ProductionGrant {
     required this.coins,
     required this.rawElapsed,
     required this.effectiveElapsed,
-    required this.rushElapsed,
   });
 
   const ProductionGrant.none()
     : coins = 0,
       rawElapsed = Duration.zero,
-      effectiveElapsed = Duration.zero,
-      rushElapsed = Duration.zero;
+      effectiveElapsed = Duration.zero;
 
-  final int coins;
+  final dynamic coins;
   final Duration rawElapsed;
   final Duration effectiveElapsed;
-  final Duration rushElapsed;
 
   bool get hasReward => coins > 0;
 }
 
 class EconomyEngine {
-  const EconomyEngine(this.config);
+  const EconomyEngine(this.config, {this.freePurchasesEnabled = false});
 
   final EconomyConfig config;
+  final bool freePurchasesEnabled;
 
   static const _comboMultiplierThresholds = <int, double>{
     10: 1.20,
@@ -83,8 +88,33 @@ class EconomyEngine {
     250: 5.00,
   };
 
-  int upgradeCost(UpgradeDefinition definition, UpgradeState state) {
-    return definition.costForLevel(_upgradeTotalLevel(definition, state));
+  dynamic upgradeCost(UpgradeDefinition definition, UpgradeState state) {
+    return _effectivePurchaseCost(
+      definition.costForLevel(_upgradeTotalLevel(definition, state)),
+    );
+  }
+
+  dynamic upgradeCostForQuantity(
+    UpgradeDefinition definition,
+    UpgradeState state,
+    int quantity,
+  ) {
+    if (quantity <= 0) {
+      return 0;
+    }
+    final currentTotalLevel = _upgradeTotalLevel(definition, state);
+    final remainingLevels = max(0, definition.maxLevel - currentTotalLevel);
+    final purchaseCount = min(quantity, remainingLevels);
+    dynamic totalCost = 0;
+    for (var offset = 0; offset < purchaseCount; offset += 1) {
+      totalCost = CurrencyMath.add(
+        totalCost,
+        _effectivePurchaseCost(
+          definition.costForLevel(currentTotalLevel + offset),
+        ),
+      );
+    }
+    return totalCost;
   }
 
   bool isUpgradeMaxed(UpgradeDefinition definition, UpgradeState state) {
@@ -109,8 +139,6 @@ class EconomyEngine {
             _bonusMultiplier(
               milestones.menuBonusPercent + collection2Bonuses.menuBonusPercent,
             ),
-      UpgradeId.turbo =>
-        baseEffect * _bonusMultiplier(milestones.turboBonusPercent),
       UpgradeId.offline =>
         (baseEffect + milestones.offlineEfficiencyBonus) *
             _bonusMultiplier(collection2Bonuses.offlineIncomeBonusPercent),
@@ -154,17 +182,17 @@ class EconomyEngine {
     return _upgradeTotalLevel(definition, state.upgrade(id));
   }
 
-  int tapValue(GameState state, {DateTime? nowUtc}) {
+  num tapValue(GameState state, {DateTime? nowUtc}) {
     final total = _tapIncome(
       state,
       nowUtc: nowUtc,
       comboMultiplier: comboMultiplierForCount(state.stats.currentCombo, state),
       criticalMultiplier: _criticalExpectedMultiplier(state),
     );
-    return max(1, total.round());
+    return max(1, CurrencyMath.roundDouble(total));
   }
 
-  int tapValueForActivePlay(
+  num tapValueForActivePlay(
     GameState state, {
     DateTime? nowUtc,
     double comboMultiplier = 1,
@@ -176,18 +204,30 @@ class EconomyEngine {
       comboMultiplier: comboMultiplier,
       criticalMultiplier: criticalMultiplier,
     );
-    return max(1, total.round());
+    return max(1, CurrencyMath.roundDouble(total));
   }
 
   double passiveIncomePerSecond(
     GameState state, {
     DateTime? nowUtc,
-    bool includeRush = true,
+    bool includeTemporaryBoost = true,
   }) {
     final now = (nowUtc ?? DateTime.now()).toUtc();
     final collectionBonuses = _permanentBonuses(state);
     final temporaryBoostMultiplier =
-        includeRush && state.passiveBoost.isActiveAt(now) ? 2.0 : 1.0;
+        (includeTemporaryBoost && state.passiveBoost.isActiveAt(now)
+            ? 2.0
+            : 1.0) *
+        randomEventModifierProduct(
+          state.randomEvents,
+          RandomEventModifierType.passiveIncome,
+          nowUtc: now,
+        ) *
+        randomEventModifierProduct(
+          state.randomEvents,
+          RandomEventModifierType.globalIncome,
+          nowUtc: now,
+        );
     final baseIncome = calculatePassiveIncomePerSecond(
       staffEffect: _staffEffect(state),
       ovenEffect: _ovenEffect(state),
@@ -201,26 +241,42 @@ class EconomyEngine {
           collectionBonuses.globalMultiplier * _prestigeGlobalMultiplier(state),
       temporaryBoostMultiplier: temporaryBoostMultiplier,
     );
-    return baseIncome +
-        _branchIncomePerSecond(
-          state,
-          collectionBonuses: collectionBonuses,
-          temporaryBoostMultiplier: temporaryBoostMultiplier,
-        );
+    return CurrencyMath.clampDouble(
+      baseIncome +
+          _branchIncomePerSecond(
+            state,
+            collectionBonuses: collectionBonuses,
+            temporaryBoostMultiplier: temporaryBoostMultiplier,
+          ),
+    );
   }
 
   double branchIncomePerSecond(
     GameState state, {
     DateTime? nowUtc,
-    bool includeRush = true,
+    bool includeTemporaryBoost = true,
   }) {
     final now = (nowUtc ?? DateTime.now()).toUtc();
     final collectionBonuses = _permanentBonuses(state);
-    return _branchIncomePerSecond(
-      state,
-      collectionBonuses: collectionBonuses,
-      temporaryBoostMultiplier:
-          includeRush && state.passiveBoost.isActiveAt(now) ? 2 : 1,
+    return CurrencyMath.clampDouble(
+      _branchIncomePerSecond(
+        state,
+        collectionBonuses: collectionBonuses,
+        temporaryBoostMultiplier:
+            (includeTemporaryBoost && state.passiveBoost.isActiveAt(now)
+                ? 2
+                : 1) *
+            randomEventModifierProduct(
+              state.randomEvents,
+              RandomEventModifierType.passiveIncome,
+              nowUtc: now,
+            ) *
+            randomEventModifierProduct(
+              state.randomEvents,
+              RandomEventModifierType.globalIncome,
+              nowUtc: now,
+            ),
+      ),
     );
   }
 
@@ -241,26 +297,36 @@ class EconomyEngine {
         );
   }
 
-  int offlineIncome(GameState state, Duration elapsed) {
+  num offlineIncome(GameState state, Duration elapsed) {
     if (elapsed <= Duration.zero) {
       return 0;
     }
     final seconds = elapsed.inMilliseconds / 1000;
     final value = calculateOfflineIncome(
-      passiveIncomePerSecond: passiveIncomePerSecond(state, includeRush: false),
+      passiveIncomePerSecond: passiveIncomePerSecond(
+        state,
+        includeTemporaryBoost: false,
+      ),
       offlineSeconds: seconds,
       offlineEfficiency: offlineEfficiency(state),
     );
-    return max(0, value.floor());
+    return CurrencyMath.floorDouble(value);
   }
 
   int availablePrestigePoints(GameState state) {
     if (config.prestigeThreshold <= 0) {
       return 0;
     }
-    return sqrt(
-      state.prestige.runCashEarned / config.prestigeThreshold,
-    ).floor();
+    final earned = state.prestige.runCashEarned;
+    if (earned is GameNumber) {
+      final threshold = GameNumber.fromNum(config.prestigeThreshold);
+      final ratio = earned / threshold;
+      if (ratio.exponent >= 38) {
+        return CurrencyMath.legacyInt64MaxCurrency;
+      }
+      return sqrt(ratio.toDouble()).floor();
+    }
+    return sqrt(earned / config.prestigeThreshold).floor();
   }
 
   GameState applyTap(GameState state, {DateTime? nowUtc}) {
@@ -318,14 +384,6 @@ class EconomyEngine {
       return 0;
     }
     return min(config.criticalMaxChance, _criticalChanceBeforeCap(state));
-  }
-
-  double goldenDonerIntervalMultiplier(GameState state) {
-    final bonus = _prestigeUpgradePercent(
-      state,
-      PrestigeShopCatalog.goldenLuck,
-    );
-    return max(0.50, 1 - bonus);
   }
 
   double shopMultiplier(GameState state) {
@@ -401,13 +459,15 @@ class EconomyEngine {
     if (rawBranchIncome <= 0) {
       return 0;
     }
-    return rawBranchIncome *
-        _prestigeMultiplier(state) *
-        collectionBonuses.passiveMultiplier *
-        _prestigePassiveMultiplier(state) *
-        collectionBonuses.globalMultiplier *
-        _prestigeGlobalMultiplier(state) *
-        temporaryBoostMultiplier;
+    return CurrencyMath.clampDouble(
+      rawBranchIncome *
+          _prestigeMultiplier(state) *
+          collectionBonuses.passiveMultiplier *
+          _prestigePassiveMultiplier(state) *
+          collectionBonuses.globalMultiplier *
+          _prestigeGlobalMultiplier(state) *
+          temporaryBoostMultiplier,
+    );
   }
 
   double _criticalChanceBeforeCap(GameState state) {
@@ -433,87 +493,112 @@ class EconomyEngine {
     );
   }
 
-  int goldenDonerReward(GameState state, {DateTime? nowUtc}) {
-    final tapBased = tapValueForActivePlay(state, nowUtc: nowUtc) * 50;
-    final passiveBased = (passiveIncomePerSecond(state, nowUtc: nowUtc) * 120)
-        .round();
-    final reward =
-        max(100, max(tapBased, passiveBased)) *
-        (1 +
-            state.milestones.goldenDonerRewardPercent +
-            Collection2Catalog.bonusTotalsFor(
-              state.collection2,
-            ).goldenDonerRewardBonusPercent);
-    return max(100, reward.round());
+  PurchaseResult previewUpgradePurchase(
+    GameState state,
+    UpgradeId id, {
+    int quantity = 1,
+  }) {
+    return _buyUpgrade(state, id, quantity: quantity);
   }
 
-  PurchaseResult buyUpgrade(GameState state, UpgradeId id) {
+  PurchaseResult previewMaxUpgradePurchase(GameState state, UpgradeId id) {
     final definition = config.upgrade(id);
     final current = state.upgrade(id);
     final currentTotalLevel = _upgradeTotalLevel(definition, current);
-    final cost = definition.costForLevel(currentTotalLevel);
-    if (definition.isMaxLevel(currentTotalLevel)) {
-      return PurchaseResult(
-        success: false,
-        state: state,
-        cost: cost,
-        reason: 'max_level',
-      );
-    }
-    if (state.cash < cost) {
-      return PurchaseResult(
-        success: false,
-        state: state,
-        cost: cost,
-        reason: 'insufficient_funds',
-      );
-    }
-    final nextTotalLevel = currentTotalLevel + 1;
-    var nextState = _applyUpgradeProgress(
+    return _buyUpgrade(
       state,
-      definition,
       id,
-      nextTotalLevel: nextTotalLevel,
-      claimMilestone: true,
-    ).copyWith(cash: state.cash - cost);
-    final milestoneGrant = _milestoneGrantFor(
-      state,
-      definition,
-      id,
-      nextTotalLevel,
+      quantity: max(0, definition.maxLevel - currentTotalLevel),
     );
-    if (milestoneGrant != null) {
-      nextState = _applyInstantMilestoneMoney(nextState, milestoneGrant);
+  }
+
+  PurchaseResult buyUpgrade(GameState state, UpgradeId id, {int quantity = 1}) {
+    return _buyUpgrade(state, id, quantity: quantity);
+  }
+
+  PurchaseResult _buyUpgrade(
+    GameState state,
+    UpgradeId id, {
+    required int quantity,
+  }) {
+    final definition = config.upgrade(id);
+    final requestedQuantity = max(0, quantity);
+    if (requestedQuantity <= 0) {
+      return PurchaseResult(
+        success: false,
+        state: state,
+        reason: 'invalid_quantity',
+      );
     }
+
+    var nextState = state;
+    dynamic totalCost = 0;
+    var purchasedCount = 0;
+    final milestoneGrants = <MilestoneGrant>[];
+    String? failureReason;
+    num failureCost = 0;
+
+    for (var index = 0; index < requestedQuantity; index += 1) {
+      final current = nextState.upgrade(id);
+      final currentTotalLevel = _upgradeTotalLevel(definition, current);
+      final rawCost = definition.costForLevel(currentTotalLevel);
+      final cost = _effectivePurchaseCostForState(nextState, rawCost);
+      if (definition.isMaxLevel(currentTotalLevel)) {
+        failureReason = 'max_level';
+        failureCost = cost;
+        break;
+      }
+      if (nextState.cash < cost) {
+        failureReason = 'insufficient_funds';
+        failureCost = cost;
+        break;
+      }
+
+      final nextTotalLevel = currentTotalLevel + 1;
+      final milestoneGrant = _milestoneGrantFor(
+        nextState,
+        definition,
+        id,
+        nextTotalLevel,
+      );
+      nextState = _applyUpgradeProgress(
+        nextState,
+        definition,
+        id,
+        nextTotalLevel: nextTotalLevel,
+        claimMilestone: true,
+      ).copyWith(cash: CurrencyMath.subtract(nextState.cash, cost));
+      if (milestoneGrant != null) {
+        nextState = _applyInstantMilestoneMoney(nextState, milestoneGrant);
+        milestoneGrants.add(milestoneGrant);
+      }
+      totalCost = CurrencyMath.add(totalCost, cost);
+      purchasedCount += 1;
+    }
+
+    if (purchasedCount <= 0) {
+      return PurchaseResult(
+        success: false,
+        state: state,
+        cost: failureCost,
+        reason: failureReason ?? 'not_purchased',
+      );
+    }
+
     return PurchaseResult(
       success: true,
       state: nextState,
-      cost: cost,
-      milestoneGrant: milestoneGrant,
-    );
-  }
-
-  bool canStartRush(GameState state, {DateTime? nowUtc}) {
-    final now = (nowUtc ?? DateTime.now()).toUtc();
-    return !state.rush.isActiveAt(now) && !state.rush.isCoolingDownAt(now);
-  }
-
-  GameState startRush(GameState state, {DateTime? nowUtc}) {
-    final now = (nowUtc ?? DateTime.now()).toUtc();
-    if (!canStartRush(state, nowUtc: now)) {
-      return state;
-    }
-    return state.copyWith(
-      rush: TimedEffectState(
-        endsAtUtc: now.add(_rushDuration(state)),
-        cooldownEndsAtUtc: now.add(_rushCooldown(state)),
-      ),
+      cost: totalCost,
+      purchasedCount: purchasedCount,
+      reason: failureReason,
+      milestoneGrant: milestoneGrants.isEmpty ? null : milestoneGrants.last,
+      milestoneGrants: List<MilestoneGrant>.unmodifiable(milestoneGrants),
     );
   }
 
   GameState applyOfflineReward(
     GameState state,
-    int coins, {
+    dynamic coins, {
     required DateTime nowUtc,
   }) {
     if (coins <= 0) {
@@ -526,7 +611,7 @@ class EconomyEngine {
     );
   }
 
-  GameState addCoins(GameState state, int coins) {
+  GameState addCoins(GameState state, dynamic coins) {
     if (coins <= 0) {
       return state;
     }
@@ -535,11 +620,11 @@ class EconomyEngine {
 
   GameState queueOfflineReward(
     GameState state,
-    int coins, {
+    dynamic coins, {
     required DateTime nowUtc,
   }) {
     return state.copyWith(
-      pendingOfflineCash: state.pendingOfflineCash + max(0, coins),
+      pendingOfflineCash: CurrencyMath.add(state.pendingOfflineCash, coins),
       lastActiveAtUtc: nowUtc,
       lastSavedAtUtc: nowUtc,
     );
@@ -574,17 +659,6 @@ class EconomyEngine {
     final startingCash = fastStartLevel <= 0
         ? 0
         : (100 * fastStartLevel * nextPrestige.prestigeCount);
-    final earlyTurboLevel = nextPrestige.prestigeUpgradeLevel(
-      PrestigeShopCatalog.earlyTurbo,
-    );
-    final earlyTurboDuration = earlyTurboLevel <= 0
-        ? Duration.zero
-        : Duration(
-            milliseconds:
-                (config.rushDuration.inMilliseconds *
-                        min(1.0, earlyTurboLevel * 0.10))
-                    .round(),
-          );
     final chestLevel = nextPrestige.prestigeUpgradeLevel(
       PrestigeShopCatalog.masterChest,
     );
@@ -599,9 +673,6 @@ class EconomyEngine {
       lifetimeCash: state.lifetimeCash,
       pendingOfflineCash: 0,
       prestige: nextPrestige,
-      rush: earlyTurboDuration > Duration.zero
-          ? TimedEffectState(endsAtUtc: now.add(earlyTurboDuration))
-          : initial.rush,
       stats: state.stats.copyWith(currentCombo: 0, clearLastTapAtUtc: true),
       quests: StarterQuestCatalog.initialProgress(),
       achievements: state.achievements,
@@ -636,7 +707,8 @@ class EconomyEngine {
     if (currentLevel >= definition.maxLevel) {
       return PurchaseResult(success: false, state: state, reason: 'max_level');
     }
-    final cost = definition.costForLevel(currentLevel);
+    final rawCost = definition.costForLevel(currentLevel);
+    final cost = _effectivePurchaseCost(rawCost);
     if (state.prestige.unspentPrestigePoints < cost) {
       return PurchaseResult(
         success: false,
@@ -657,11 +729,24 @@ class EconomyEngine {
         ),
       ),
       cost: cost,
+      purchasedCount: 1,
     );
   }
 
-  int rushTapBonus(GameState state, {DateTime? nowUtc}) {
-    return _activeTurboMultiplier(state, nowUtc: nowUtc).round();
+  int _effectivePurchaseCost(int rawCost) {
+    return freePurchasesEnabled ? 0 : rawCost;
+  }
+
+  num _effectivePurchaseCostForState(GameState state, int rawCost) {
+    if (freePurchasesEnabled) {
+      return 0;
+    }
+    final multiplier = randomEventModifierProduct(
+      state.randomEvents,
+      RandomEventModifierType.upgradeCost,
+      nowUtc: DateTime.now().toUtc(),
+    );
+    return max(0, CurrencyMath.roundDouble(rawCost * multiplier));
   }
 
   double prestigeMultiplier(GameState state) {
@@ -681,43 +766,16 @@ class EconomyEngine {
   }
 
   double _menuEffect(GameState state) {
-    return upgradeEffect(state, UpgradeId.menu);
+    return upgradeEffect(state, UpgradeId.menu) *
+        randomEventModifierProduct(
+          state.randomEvents,
+          RandomEventModifierType.menuMultiplier,
+          nowUtc: DateTime.now().toUtc(),
+        );
   }
 
   double _staffEffect(GameState state) {
     return upgradeEffect(state, UpgradeId.staff);
-  }
-
-  double _activeTurboMultiplier(GameState state, {DateTime? nowUtc}) {
-    final now = (nowUtc ?? DateTime.now()).toUtc();
-    if (!state.rush.isActiveAt(now)) {
-      return 1;
-    }
-    return upgradeEffect(state, UpgradeId.turbo);
-  }
-
-  Duration _rushDuration(GameState state) {
-    return config.rushDuration +
-        Duration(
-          milliseconds: max(
-            0,
-            (state.milestones.turboDurationSeconds * 1000).round(),
-          ),
-        );
-  }
-
-  Duration _rushCooldown(GameState state) {
-    final reduction = min(
-      0.8,
-      max(
-        0,
-        state.milestones.turboCooldownReductionPercent +
-            state.milestones.turboChargeSpeedPercent,
-      ),
-    );
-    final milliseconds = (config.rushCooldown.inMilliseconds * (1 - reduction))
-        .round();
-    return Duration(milliseconds: max(1000, milliseconds));
   }
 
   double _criticalExpectedMultiplier(GameState state) {
@@ -752,8 +810,18 @@ class EconomyEngine {
           collectionBonuses.tapMultiplier * _prestigeTapMultiplier(state),
       collectionGlobalMultiplier:
           collectionBonuses.globalMultiplier * _prestigeGlobalMultiplier(state),
-      temporaryBoostMultiplier: state.passiveBoost.isActiveAt(now) ? 2 : 1,
-      turboMultiplier: _activeTurboMultiplier(state, nowUtc: nowUtc),
+      temporaryBoostMultiplier:
+          (state.passiveBoost.isActiveAt(now) ? 2 : 1) *
+          randomEventModifierProduct(
+            state.randomEvents,
+            RandomEventModifierType.tapIncome,
+            nowUtc: now,
+          ) *
+          randomEventModifierProduct(
+            state.randomEvents,
+            RandomEventModifierType.globalIncome,
+            nowUtc: now,
+          ),
       comboMultiplier: activeMultiplier,
     );
   }
@@ -829,12 +897,12 @@ class EconomyEngine {
     );
   }
 
-  GameState _addCoins(GameState state, int coins) {
+  GameState _addCoins(GameState state, dynamic coins) {
     return state.copyWith(
-      cash: state.cash + coins,
-      lifetimeCash: state.lifetimeCash + coins,
+      cash: CurrencyMath.add(state.cash, coins),
+      lifetimeCash: CurrencyMath.add(state.lifetimeCash, coins),
       prestige: state.prestige.copyWith(
-        runCashEarned: state.prestige.runCashEarned + coins,
+        runCashEarned: CurrencyMath.add(state.prestige.runCashEarned, coins),
       ),
     );
   }
@@ -916,7 +984,7 @@ class EconomyEngine {
         grant.reward.value <= 0) {
       return state;
     }
-    return _addCoins(state, grant.reward.value.round());
+    return _addCoins(state, CurrencyMath.roundDouble(grant.reward.value));
   }
 
   double _bonusMultiplier(double percent) {

@@ -62,7 +62,6 @@ abstract final class CollectionCatalog {
       UpgradeId.staff => CollectionCategory.staff,
       UpgradeId.oven => CollectionCategory.oven,
       UpgradeId.menu => CollectionCategory.menu,
-      UpgradeId.turbo => CollectionCategory.turbo,
       UpgradeId.offline => CollectionCategory.offline,
     };
   }
@@ -96,10 +95,6 @@ abstract final class CollectionCatalog {
       ),
       UpgradeId.oven || UpgradeId.menu => PermanentBonus(
         type: PermanentBonusType.global,
-        percent: percent,
-      ),
-      UpgradeId.turbo => PermanentBonus(
-        type: PermanentBonusType.tap,
         percent: percent,
       ),
       UpgradeId.offline => PermanentBonus(

@@ -3,13 +3,16 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/services/audio/purchase_sfx_player.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
+import 'package:taptapdoner/ui/theme/ui_asset_paths.dart';
 import 'package:taptapdoner/ui/widgets/doner_game_primitives.dart';
 import 'package:taptapdoner/ui/widgets/stitch_bottom_sheet_primitives.dart';
 import 'package:taptapdoner/ui/widgets/value_formatters.dart';
@@ -23,6 +26,7 @@ class ShopPage extends StatelessWidget {
     required this.onOpenPrestige,
     super.key,
     this.onBack,
+    this.bottomInset = 0,
     this.presentation = ShopPagePresentation.sheet,
   });
 
@@ -30,6 +34,7 @@ class ShopPage extends StatelessWidget {
   final VoidCallback onOpenKitchen;
   final VoidCallback onOpenPrestige;
   final VoidCallback? onBack;
+  final double bottomInset;
   final ShopPagePresentation presentation;
 
   @override
@@ -78,6 +83,7 @@ class ShopPage extends StatelessWidget {
                             horizontalPadding: horizontalPadding,
                             compact: compact,
                             isTab: isTab,
+                            bottomInset: bottomInset,
                             onClose: closeAction,
                           ),
                         ),
@@ -101,6 +107,7 @@ void _showShopLevelUpDialog(
   showDialog<void>(
     context: context,
     builder: (context) {
+      final strings = AppStrings.of(context);
       return Dialog(
         key: const ValueKey('shop-level-up-popup'),
         backgroundColor: Colors.transparent,
@@ -130,7 +137,7 @@ void _showShopLevelUpDialog(
                   SizedBox(width: 10.w),
                   Expanded(
                     child: Text(
-                      'SHOP LEVEL UP',
+                      strings.shopLevelUpTitle.toLocaleUpperCase(context),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -158,7 +165,7 @@ void _showShopLevelUpDialog(
               ),
               SizedBox(height: 8.h),
               Text(
-                'Unlocked: ${snapshot.unlockLabel}',
+                '${strings.shopUnlockedLabel}: ${snapshot.unlockLabel}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -170,7 +177,7 @@ void _showShopLevelUpDialog(
               ),
               SizedBox(height: 4.h),
               Text(
-                'Income x${snapshot.incomeMultiplier.toStringAsFixed(2)}',
+                '${strings.shopIncomeLabel} x${snapshot.incomeMultiplier.toStringAsFixed(2)}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -182,7 +189,7 @@ void _showShopLevelUpDialog(
               ),
               SizedBox(height: 14.h),
               DonerGameButton(
-                label: 'OK',
+                label: strings.closeLabel,
                 icon: DonerIcons.shield,
                 enabled: true,
                 onPressed: () => Navigator.of(context).maybePop(),
@@ -204,6 +211,7 @@ class _ShopContent extends StatelessWidget {
     required this.horizontalPadding,
     required this.compact,
     required this.isTab,
+    required this.bottomInset,
     required this.onClose,
   });
 
@@ -212,6 +220,7 @@ class _ShopContent extends StatelessWidget {
   final double horizontalPadding;
   final bool compact;
   final bool isTab;
+  final double bottomInset;
   final VoidCallback onClose;
 
   @override
@@ -239,7 +248,7 @@ class _ShopContent extends StatelessWidget {
                   horizontalPadding,
                   0,
                   horizontalPadding,
-                  88.h,
+                  88.h + (isTab ? bottomInset : 0),
                 ),
                 sliver: SliverToBoxAdapter(
                   child: Column(
@@ -277,6 +286,7 @@ class _ShopProgressionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final nextName = snapshot.nextName;
     return Container(
       key: const ValueKey('shop-progression-card'),
@@ -316,7 +326,7 @@ class _ShopProgressionCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'SHOP LEVEL ${snapshot.currentLevel}',
+                      '${strings.shopLevelLabel.toLocaleUpperCase(context)} ${snapshot.currentLevel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -350,14 +360,14 @@ class _ShopProgressionCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: _ShopBonusPill(
-              label: 'Income',
+              label: strings.shopIncomeLabel,
               value: 'x${snapshot.incomeMultiplier.toStringAsFixed(2)}',
             ),
           ),
           SizedBox(height: 10.h),
           if (nextName == null)
             Text(
-              'Max shop level reached',
+              strings.shopMaxLevelLabel,
               style: TextStyle(
                 fontFamily: RoastedTypography.bodyFontFamily,
                 fontSize: 11.sp,
@@ -370,7 +380,7 @@ class _ShopProgressionCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Next: Lv. ${snapshot.nextLevel} $nextName',
+                    '${strings.shopNextLabel}: ${strings.levelLabel}. ${snapshot.nextLevel} $nextName',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -401,7 +411,7 @@ class _ShopProgressionCard extends StatelessWidget {
                   children: [
                     FaIcon(
                       requirement.completed
-                          ? DonerIcons.shield
+                          ? FontAwesomeIcons.check
                           : DonerIcons.lock,
                       size: 10.sp,
                       color: requirement.completed
@@ -524,7 +534,7 @@ class _ShopScrollHeader extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      strings.shopTitle.toUpperCase(),
+                      strings.shopTitle.toLocaleUpperCase(context),
                       key: const ValueKey('shop-sheet-title'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -567,8 +577,10 @@ class _ShopScrollHeader extends StatelessWidget {
                     child: _StatChip(
                       icon: DonerIcons.idleIncome,
                       label: strings.idleIncomeLabel,
-                      value:
-                          '${formatCompactDecimal(context, snapshot.hud.passiveIncomePerSecond)}/s',
+                      value: formatCompactCurrencyRate(
+                        context,
+                        snapshot.hud.passiveIncomePerSecond,
+                      ),
                       iconColor: DonerColors.orangeAccent,
                     ),
                   ),
@@ -577,7 +589,10 @@ class _ShopScrollHeader extends StatelessWidget {
                     child: _StatChip(
                       icon: DonerIcons.reputation,
                       label: strings.reputationLabel,
-                      value: snapshot.hud.reputation.toString(),
+                      value: formatCompactNumber(
+                        context,
+                        snapshot.hud.reputation,
+                      ),
                       iconColor: DonerColors.tealBright,
                     ),
                   ),
@@ -633,31 +648,6 @@ class _UpgradeCard extends StatelessWidget {
     final nextItemName = upgradeSnapshot.nextItemKey == null
         ? null
         : strings.upgradeItemName(upgrade.id, upgradeSnapshot.nextItemKey!);
-    final nextMilestoneItemName = upgradeSnapshot.nextMilestoneItemKey == null
-        ? null
-        : strings.upgradeItemName(
-            upgrade.id,
-            upgradeSnapshot.nextMilestoneItemKey!,
-          );
-    final nextMilestoneReward = upgradeSnapshot.nextMilestoneReward;
-    final nextMilestoneRewardText = nextMilestoneReward == null
-        ? null
-        : strings.milestoneRewardLabel(nextMilestoneReward);
-    final nextMilestoneText =
-        nextMilestoneItemName == null ||
-            upgradeSnapshot.nextMilestoneLevel == null
-        ? strings.upgradeMaxLevelLabel
-        : strings.upgradeMilestonePreview(
-            nextMilestoneItemName,
-            upgradeSnapshot.nextMilestoneLevel!,
-            nextMilestoneRewardText,
-          );
-    final nextItemPreviewValue = nextItemName == null
-        ? strings.upgradeMaxLevelLabel
-        : '$nextItemName Lv. 1';
-    final nextItemPreviewEffect = upgradeSnapshot.nextItemEffect == null
-        ? null
-        : _effect(context, upgrade, upgradeSnapshot.nextItemEffect!);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -674,40 +664,141 @@ class _UpgradeCard extends StatelessWidget {
             'Lv. ${upgradeSnapshot.itemLevel}/${upgradeSnapshot.maxItemLevel}';
         final tierText =
             '${strings.upgradeTierLabel} ${upgradeSnapshot.currentItemTier}';
+        final currentItemAssetPath = _upgradeAssetPath(
+          upgrade.id,
+          upgradeSnapshot.currentItemKey,
+        );
+        final nextItemAssetPath = upgradeSnapshot.nextItemKey == null
+            ? null
+            : _upgradeAssetPath(upgrade.id, upgradeSnapshot.nextItemKey!);
+        final accentColor = _upgradeAccent(upgrade.id);
+        final showcaseOwned = upgradeSnapshot.purchased || isSpecialState;
+        final borderColor = isSpecialState
+            ? DonerColors.goldPrimary.withValues(alpha: 0.58)
+            : upgradeSnapshot.purchased
+            ? accentColor.withValues(alpha: 0.34)
+            : DonerColors.borderSoft.withValues(alpha: 0.68);
         final titleBlock = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              strings.upgradeName(upgrade.id),
+              strings.upgradeName(upgrade.id).toLocaleUpperCase(context),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: _titleStyle(
+              style: _bodyStyle(
                 isSpecialState
                     ? DonerColors.goldPrimary
-                    : DonerColors.creamText,
-                size: compact ? 14 : 15,
-              ),
+                    : DonerColors.bodyText.withValues(alpha: 0.84),
+                size: compact ? 8.7 : 9.2,
+              ).copyWith(fontWeight: FontWeight.w900, letterSpacing: 1.1),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             Text(
               currentItemName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: _bodyStyle(
-                DonerColors.goldBright,
-                size: compact ? 10 : 11,
-              ).copyWith(fontWeight: FontWeight.w900),
+              style: _titleStyle(
+                DonerColors.creamText,
+                size: compact ? 16.5 : 18,
+              ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              '$tierText - $levelText',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _bodyStyle(
-                DonerColors.bodyText.withValues(alpha: 0.92),
-                size: compact ? 9.5 : 10,
-              ).copyWith(fontWeight: FontWeight.w800),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _UpgradeHeaderPill(
+                  label: tierText,
+                  accentColor: accentColor,
+                  highlighted: true,
+                ),
+                _UpgradeHeaderPill(label: levelText, accentColor: accentColor),
+              ],
             ),
+            const SizedBox(height: 10),
+            if (maxed)
+              _UpgradeActionButton(
+                key: ValueKey('shop-upgrade-button-${upgrade.id.key}'),
+                label: actionLabel,
+                enabled: canAfford,
+                maxed: maxed,
+                highlighted: unlocksNextItem,
+                onTap: null,
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: _UpgradeActionButton(
+                      key: ValueKey('shop-upgrade-button-${upgrade.id.key}'),
+                      label: actionLabel,
+                      enabled: canAfford,
+                      maxed: maxed,
+                      highlighted: unlocksNextItem,
+                      onTap: canAfford
+                          ? () {
+                              unawaited(
+                                _buyUpgradeWithFeedback(
+                                  context,
+                                  controller,
+                                  upgrade,
+                                ),
+                              );
+                            }
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _UpgradeActionButton(
+                      key: ValueKey('shop-upgrade-button-10-${upgrade.id.key}'),
+                      label: strings.upgradeBuyTenAction,
+                      enabled: upgradeSnapshot.canAffordTen,
+                      maxed: maxed,
+                      highlighted: false,
+                      fontSize: 10,
+                      onTap: upgradeSnapshot.canAffordTen
+                          ? () {
+                              unawaited(
+                                _buyUpgradeWithFeedback(
+                                  context,
+                                  controller,
+                                  upgrade,
+                                  quantity: 10,
+                                ),
+                              );
+                            }
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _UpgradeActionButton(
+                      key: ValueKey(
+                        'shop-upgrade-button-max-${upgrade.id.key}',
+                      ),
+                      label: strings.upgradeBuyMaxAction,
+                      enabled: upgradeSnapshot.maxAffordableQuantity > 0,
+                      maxed: maxed,
+                      highlighted: upgradeSnapshot.maxAffordableQuantity > 1,
+                      fontSize: 10,
+                      onTap: upgradeSnapshot.maxAffordableQuantity > 0
+                          ? () {
+                              unawaited(
+                                _buyUpgradeWithFeedback(
+                                  context,
+                                  controller,
+                                  upgrade,
+                                  buyMax: true,
+                                ),
+                              );
+                            }
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
           ],
         );
         final nextBlock = maxed
@@ -719,6 +810,7 @@ class _UpgradeCard extends StatelessWidget {
             ? _NextTierPreview(
                 key: ValueKey('shop-upgrade-next-item-${upgrade.id.key}'),
                 icon: _upgradeIcon(upgrade.id),
+                assetPath: nextItemAssetPath,
                 label: '${strings.upgradeNextTierLabel}:',
                 itemName: '$nextItemName Lv. 1',
                 effect: _effect(context, upgrade, upgradeSnapshot.nextEffect),
@@ -731,108 +823,155 @@ class _UpgradeCard extends StatelessWidget {
 
         return Container(
           key: ValueKey('shop-upgrade-card-${upgrade.id.key}'),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            gradient: DonerGradients.card,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSpecialState
-                  ? DonerColors.goldPrimary.withValues(alpha: 0.70)
-                  : upgradeSnapshot.purchased
-                  ? DonerColors.goldPrimary.withValues(alpha: 0.38)
-                  : DonerColors.borderSoft.withValues(alpha: 0.72),
-              width: 1.2,
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.alphaBlend(
+                  accentColor.withValues(alpha: 0.07),
+                  DonerColors.panelSecondary,
+                ),
+                Color.alphaBlend(
+                  accentColor.withValues(alpha: 0.03),
+                  DonerColors.panelPrimary,
+                ),
+                DonerColors.panelDark,
+              ],
             ),
-            boxShadow: isSpecialState ? DonerShadows.goldGlow : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _UpgradeIcon(
-                    icon: _upgradeIcon(upgrade.id),
-                    owned: upgradeSnapshot.purchased || isSpecialState,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(child: titleBlock),
-                  const SizedBox(width: 8),
-                  _UpgradeActionButton(
-                    key: ValueKey('shop-upgrade-button-${upgrade.id.key}'),
-                    label: actionLabel,
-                    enabled: canAfford,
-                    maxed: maxed,
-                    highlighted: unlocksNextItem,
-                    width: compact ? 82 : 104,
-                    onTap: canAfford
-                        ? () {
-                            unawaited(
-                              _buyUpgradeWithFeedback(
-                                context,
-                                controller,
-                                upgrade,
-                              ),
-                            );
-                          }
-                        : null,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 7),
-              Row(
-                children: [
-                  Expanded(
-                    child: _EffectBlock(
-                      label: '${strings.upgradeEffectName(upgrade.id)}:',
-                      value: _effect(
-                        context,
-                        upgrade,
-                        upgradeSnapshot.currentEffect,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(child: nextBlock),
-                  if (!maxed) ...[
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: _CostBlock(
-                        label: '${strings.upgradeCostLabel}:',
-                        value: _cash(context, upgradeSnapshot.cost),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: _InfoBlock(
-                      key: ValueKey(
-                        'shop-upgrade-next-milestone-${upgrade.id.key}',
-                      ),
-                      label: '${strings.upgradeNextMilestoneLabel}:',
-                      value: nextMilestoneText,
-                      highlighted: !maxed,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _InfoBlock(
-                      key: ValueKey(
-                        'shop-upgrade-next-preview-${upgrade.id.key}',
-                      ),
-                      label: '${strings.upgradeNextItemPreviewLabel}:',
-                      value: nextItemPreviewValue,
-                      detail: nextItemPreviewEffect,
-                      highlighted: unlocksNextItem,
-                    ),
-                  ),
-                ],
-              ),
+            border: Border.all(color: borderColor, width: 1.3),
+            boxShadow: [
+              ...DonerShadows.soft,
+              if (isSpecialState) ...DonerShadows.goldGlow,
             ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: compact ? -30 : -36,
+                  left: compact ? -18 : -26,
+                  child: _UpgradeCardGlow(
+                    size: compact ? 118 : 142,
+                    color: accentColor.withValues(
+                      alpha: showcaseOwned ? 0.16 : 0.10,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: compact ? -64 : -70,
+                  right: compact ? -42 : -48,
+                  child: _UpgradeCardGlow(
+                    size: compact ? 156 : 190,
+                    color: DonerColors.goldPrimary.withValues(
+                      alpha: isSpecialState ? 0.10 : 0.05,
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withValues(alpha: 0.06),
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: compact ? 120 : 134,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            accentColor.withValues(alpha: 0.08),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _UpgradeIcon(
+                            icon: _upgradeIcon(upgrade.id),
+                            assetPath: currentItemAssetPath,
+                            owned: showcaseOwned,
+                            accentColor: accentColor,
+                            compact: compact,
+                            badgeLabel: 'T${upgradeSnapshot.currentItemTier}',
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: titleBlock),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              borderColor.withValues(alpha: 0.58),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _EffectBlock(
+                              label:
+                                  '${strings.upgradeEffectName(upgrade.id)}:',
+                              value: _effect(
+                                context,
+                                upgrade,
+                                upgradeSnapshot.currentEffect,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: nextBlock),
+                          if (!maxed) ...[
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _CostBlock(
+                                label: '${strings.upgradeCostLabel}:',
+                                value: _cash(context, upgradeSnapshot.cost),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -840,84 +979,67 @@ class _UpgradeCard extends StatelessWidget {
   }
 }
 
-class _InfoBlock extends StatelessWidget {
-  const _InfoBlock({
+class _UpgradeCardGlow extends StatelessWidget {
+  const _UpgradeCardGlow({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
+        ),
+      ),
+    );
+  }
+}
+
+class _UpgradeHeaderPill extends StatelessWidget {
+  const _UpgradeHeaderPill({
     required this.label,
-    required this.value,
-    super.key,
-    this.detail,
+    required this.accentColor,
     this.highlighted = false,
   });
 
   final String label;
-  final String value;
-  final String? detail;
+  final Color accentColor;
   final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
+    final fill = highlighted
+        ? Color.alphaBlend(
+            accentColor.withValues(alpha: 0.10),
+            DonerColors.panelDark,
+          )
+        : DonerColors.panelDark.withValues(alpha: 0.78);
+    final border = highlighted
+        ? accentColor.withValues(alpha: 0.28)
+        : DonerColors.borderSoft.withValues(alpha: 0.52);
     return Container(
-      width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 38),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: highlighted
-            ? DonerColors.goldPrimary.withValues(alpha: 0.12)
-            : DonerColors.panelDark.withValues(alpha: 0.80),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(
-          color: highlighted
-              ? DonerColors.goldPrimary.withValues(alpha: 0.36)
-              : DonerColors.borderSoft.withValues(alpha: 0.48),
-        ),
+        color: fill,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: RoastedTypography.bodyFontFamily,
-              fontSize: 8.5,
-              fontWeight: FontWeight.w900,
-              height: 1,
-              color: DonerColors.bodyText.withValues(alpha: 0.82),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: RoastedTypography.headlineFontFamily,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w900,
-              height: 1,
-              color: highlighted
-                  ? DonerColors.goldBright
-                  : DonerColors.creamText,
-            ),
-          ),
-          if (detail != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              detail!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: RoastedTypography.bodyFontFamily,
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                height: 1,
-                color: DonerColors.goldPrimary,
-              ),
-            ),
-          ],
-        ],
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: RoastedTypography.bodyFontFamily,
+          fontSize: 8.6,
+          fontWeight: FontWeight.w900,
+          height: 1,
+          color: highlighted ? DonerColors.creamText : DonerColors.bodyText,
+        ),
       ),
     );
   }
@@ -938,15 +1060,25 @@ class _EffectBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 36),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      constraints: const BoxConstraints(minHeight: 42),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       decoration: BoxDecoration(
-        color: subdued
-            ? DonerColors.panelDark.withValues(alpha: 0.74)
-            : DonerColors.panelDark.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(9),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: subdued
+              ? [
+                  DonerColors.panelSecondary.withValues(alpha: 0.36),
+                  DonerColors.panelDark.withValues(alpha: 0.82),
+                ]
+              : [
+                  DonerColors.panelSecondary.withValues(alpha: 0.44),
+                  DonerColors.panelDark.withValues(alpha: 0.92),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: DonerColors.borderSoft.withValues(alpha: 0.48),
+          color: DonerColors.borderSoft.withValues(alpha: 0.42),
         ),
       ),
       child: Column(
@@ -959,23 +1091,23 @@ class _EffectBlock extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: RoastedTypography.bodyFontFamily,
-              fontSize: 8.5,
+              fontSize: 8.8,
               fontWeight: FontWeight.w900,
               height: 1,
               color: DonerColors.bodyText.withValues(alpha: 0.82),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: RoastedTypography.headlineFontFamily,
-              fontSize: 10.5,
+              fontSize: 11.2,
               fontWeight: FontWeight.w900,
               height: 1,
-              color: subdued ? DonerColors.goldBright : DonerColors.goldPrimary,
+              color: subdued ? DonerColors.bodyText : DonerColors.goldPrimary,
             ),
           ),
         ],
@@ -987,6 +1119,7 @@ class _EffectBlock extends StatelessWidget {
 class _NextTierPreview extends StatelessWidget {
   const _NextTierPreview({
     required this.icon,
+    this.assetPath,
     required this.label,
     required this.itemName,
     required this.effect,
@@ -994,6 +1127,7 @@ class _NextTierPreview extends StatelessWidget {
   });
 
   final FaIconData icon;
+  final String? assetPath;
   final String label;
   final String itemName;
   final String effect;
@@ -1002,19 +1136,29 @@ class _NextTierPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 38),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      constraints: const BoxConstraints(minHeight: 46),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       decoration: BoxDecoration(
-        color: DonerColors.goldPrimary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(
+              DonerColors.goldPrimary.withValues(alpha: 0.08),
+              DonerColors.panelSecondary,
+            ),
+            DonerColors.panelDark.withValues(alpha: 0.90),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: DonerColors.goldPrimary.withValues(alpha: 0.36),
+          color: DonerColors.goldPrimary.withValues(alpha: 0.20),
         ),
       ),
       child: Row(
         children: [
-          _MiniUpgradeIcon(icon: icon),
-          const SizedBox(width: 6),
+          _MiniUpgradeIcon(icon: icon, assetPath: assetPath),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1026,20 +1170,20 @@ class _NextTierPreview extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: RoastedTypography.bodyFontFamily,
-                    fontSize: 8.5,
+                    fontSize: 8.8,
                     fontWeight: FontWeight.w900,
                     height: 1,
-                    color: DonerColors.goldPrimary.withValues(alpha: 0.92),
+                    color: DonerColors.bodyText,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   itemName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: RoastedTypography.headlineFontFamily,
-                    fontSize: 10.5,
+                    fontSize: 11.2,
                     fontWeight: FontWeight.w900,
                     height: 1,
                     color: DonerColors.creamText,
@@ -1052,10 +1196,10 @@ class _NextTierPreview extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: RoastedTypography.bodyFontFamily,
-                    fontSize: 9,
+                    fontSize: 9.2,
                     fontWeight: FontWeight.w900,
                     height: 1,
-                    color: DonerColors.goldBright,
+                    color: DonerColors.goldPrimary,
                   ),
                 ),
               ],
@@ -1076,13 +1220,23 @@ class _MaxStateBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 36),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      constraints: const BoxConstraints(minHeight: 42),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       decoration: BoxDecoration(
-        color: DonerColors.goldPrimary.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(10),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(
+              DonerColors.goldPrimary.withValues(alpha: 0.08),
+              DonerColors.panelSecondary,
+            ),
+            DonerColors.panelDark.withValues(alpha: 0.88),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: DonerColors.goldPrimary.withValues(alpha: 0.32),
+          color: DonerColors.goldPrimary.withValues(alpha: 0.18),
         ),
       ),
       child: Row(
@@ -1096,10 +1250,10 @@ class _MaxStateBlock extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: RoastedTypography.headlineFontFamily,
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w900,
                 height: 1,
-                color: DonerColors.goldPrimary,
+                color: DonerColors.bodyText,
               ),
             ),
           ),
@@ -1119,13 +1273,20 @@ class _CostBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 36),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      constraints: const BoxConstraints(minHeight: 42),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       decoration: BoxDecoration(
-        color: DonerColors.panelDark.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(9),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            DonerColors.panelSecondary.withValues(alpha: 0.38),
+            DonerColors.panelDark.withValues(alpha: 0.92),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: DonerColors.borderSoft.withValues(alpha: 0.54),
+          color: DonerColors.borderSoft.withValues(alpha: 0.44),
         ),
       ),
       child: Column(
@@ -1138,20 +1299,20 @@ class _CostBlock extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: RoastedTypography.bodyFontFamily,
-              fontSize: 8.5,
+              fontSize: 8.8,
               fontWeight: FontWeight.w900,
               height: 1,
               color: DonerColors.bodyText.withValues(alpha: 0.82),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: RoastedTypography.headlineFontFamily,
-              fontSize: 10.5,
+              fontSize: 11.2,
               fontWeight: FontWeight.w900,
               height: 1,
               color: DonerColors.creamText,
@@ -1170,8 +1331,8 @@ class _UpgradeActionButton extends StatelessWidget {
     required this.maxed,
     required this.highlighted,
     required this.onTap,
+    this.fontSize = 11,
     super.key,
-    this.width = double.infinity,
   });
 
   final String label;
@@ -1179,7 +1340,7 @@ class _UpgradeActionButton extends StatelessWidget {
   final bool maxed;
   final bool highlighted;
   final VoidCallback? onTap;
-  final double width;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -1190,7 +1351,7 @@ class _UpgradeActionButton extends StatelessWidget {
     final radius = BorderRadius.circular(10);
 
     return SizedBox(
-      width: width,
+      width: double.infinity,
       child: Opacity(
         opacity: actionable ? 1 : 0.78,
         child: Material(
@@ -1200,7 +1361,7 @@ class _UpgradeActionButton extends StatelessWidget {
             onTap: actionable ? onTap : null,
             borderRadius: radius,
             child: Ink(
-              height: 32,
+              height: 38,
               decoration: BoxDecoration(
                 gradient: actionable || highlighted
                     ? DonerGradients.activeButton
@@ -1220,12 +1381,12 @@ class _UpgradeActionButton extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      label.toUpperCase(),
+                      label.toLocaleUpperCase(context),
                       maxLines: 1,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: RoastedTypography.bodyFontFamily,
-                        fontSize: 10.5,
+                        fontSize: fontSize,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.7,
                         height: 1,
@@ -1244,23 +1405,36 @@ class _UpgradeActionButton extends StatelessWidget {
 }
 
 class _MiniUpgradeIcon extends StatelessWidget {
-  const _MiniUpgradeIcon({required this.icon});
+  const _MiniUpgradeIcon({required this.icon, this.assetPath});
 
   final FaIconData icon;
+  final String? assetPath;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 24,
-      height: 24,
+      width: 30,
+      height: 30,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: DonerColors.panelDark.withValues(alpha: 0.80),
-        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            DonerColors.panelSecondary.withValues(alpha: 0.42),
+            DonerColors.panelDark.withValues(alpha: 0.94),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: DonerColors.borderSoft),
       ),
       child: Center(
-        child: FaIcon(icon, size: 11, color: DonerColors.goldPrimary),
+        child: _UpgradeIconGraphic(
+          icon: icon,
+          assetPath: assetPath,
+          size: 24,
+          iconColor: DonerColors.goldPrimary,
+        ),
       ),
     );
   }
@@ -1308,7 +1482,7 @@ class _StatChip extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    label.toUpperCase(),
+                    label.toLocaleUpperCase(context),
                     style: TextStyle(
                       fontFamily: RoastedTypography.bodyFontFamily,
                       fontSize: 7.5.sp,
@@ -1339,19 +1513,138 @@ class _StatChip extends StatelessWidget {
 }
 
 class _UpgradeIcon extends StatelessWidget {
-  const _UpgradeIcon({required this.icon, required this.owned});
+  const _UpgradeIcon({
+    required this.icon,
+    required this.owned,
+    required this.accentColor,
+    this.assetPath,
+    this.badgeLabel,
+    this.compact = false,
+  });
 
   final FaIconData icon;
   final bool owned;
+  final Color accentColor;
+  final String? assetPath;
+  final String? badgeLabel;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return DonerIconMedallion(
-      icon: icon,
-      size: 42,
-      iconSize: 18,
-      backgroundColor: owned ? DonerColors.tealPrimary : DonerColors.panelDark,
-      iconColor: owned ? DonerColors.goldBright : DonerColors.bodyText,
+    final frameWidth = compact ? 92.0 : 106.0;
+    final frameHeight = compact ? 102.0 : 116.0;
+    final iconColor = owned ? DonerColors.creamText : DonerColors.bodyText;
+    final borderColor = owned
+        ? DonerColors.goldPrimary
+        : DonerColors.borderSoft;
+    final frameStart = Color.alphaBlend(
+      accentColor.withValues(alpha: 0.18),
+      DonerColors.panelSecondary,
+    );
+    final frameEnd = Color.alphaBlend(
+      accentColor.withValues(alpha: 0.04),
+      DonerColors.panelDark,
+    );
+    final iconSize = compact ? 62.0 : 76.0;
+
+    return Container(
+      width: frameWidth,
+      height: frameHeight,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [frameStart, frameEnd, DonerColors.panelDark],
+        ),
+        border: Border.all(color: borderColor, width: 1.5),
+        boxShadow: [
+          ...DonerShadows.soft,
+          if (owned)
+            BoxShadow(
+              color: accentColor.withValues(alpha: 0.14),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(7),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.12),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (badgeLabel != null && badgeLabel!.isNotEmpty)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: _UpgradeHeaderPill(
+                label: badgeLabel!,
+                accentColor: accentColor,
+                highlighted: true,
+              ),
+            ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 24, 8, 8),
+              child: _UpgradeIconGraphic(
+                icon: icon,
+                assetPath: assetPath,
+                size: iconSize,
+                iconColor: iconColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpgradeIconGraphic extends StatelessWidget {
+  const _UpgradeIconGraphic({
+    required this.icon,
+    required this.size,
+    required this.iconColor,
+    this.assetPath,
+  });
+
+  final FaIconData icon;
+  final String? assetPath;
+  final double size;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    if (assetPath == null) {
+      return FaIcon(icon, size: size, color: iconColor);
+    }
+
+    return Image.asset(
+      assetPath!,
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return FaIcon(icon, size: size, color: iconColor);
+      },
     );
   }
 }
@@ -1378,7 +1671,9 @@ String _cash(BuildContext context, num value) =>
 
 String _effect(BuildContext context, UpgradeDefinition upgrade, double value) {
   final strings = AppStrings.of(context);
-  final effectName = strings.upgradeEffectName(upgrade.id).toLowerCase();
+  final effectName = strings
+      .upgradeEffectName(upgrade.id)
+      .toLocaleLowerCase(context);
   return switch (upgrade.id) {
     UpgradeId.staff =>
       '+${_compactEffectNumber(context, value)}${strings.isTurkish ? '/sn' : '/s'} $effectName',
@@ -1390,17 +1685,19 @@ String _effect(BuildContext context, UpgradeDefinition upgrade, double value) {
 String _multiplier(double value) => 'x${value.toStringAsFixed(2)}';
 
 String _compactEffectNumber(BuildContext context, double value) {
-  if (value.abs() < 10) {
+  if (value.isFinite && value.abs() < 10) {
     return value.toStringAsFixed(value % 1 == 0 ? 0 : 1);
   }
-  return formatCompactNumber(context, value.round());
+  return formatCompactNumber(context, value);
 }
 
 Future<void> _buyUpgradeWithFeedback(
   BuildContext context,
   GameController controller,
-  UpgradeDefinition upgrade,
-) async {
+  UpgradeDefinition upgrade, {
+  int quantity = 1,
+  bool buyMax = false,
+}) async {
   final strings = AppStrings.of(context);
   final before = controller.state.upgrade(upgrade.id);
   final beforeItemIndex = before.itemIndex
@@ -1411,7 +1708,9 @@ Future<void> _buyUpgradeWithFeedback(
     upgrade.items[beforeItemIndex].key,
   );
 
-  final bought = await controller.buyUpgrade(upgrade.id);
+  final bought = buyMax
+      ? await controller.buyMaxUpgrade(upgrade.id)
+      : await controller.buyUpgrade(upgrade.id, quantity: quantity);
   if (!bought) {
     return;
   }
@@ -1559,8 +1858,30 @@ FaIconData _upgradeIcon(UpgradeId id) => switch (id) {
   UpgradeId.oven => DonerIcons.upgradeOven,
   UpgradeId.staff => DonerIcons.upgradeStaff,
   UpgradeId.menu => DonerIcons.upgradeMenu,
-  UpgradeId.turbo => DonerIcons.upgradeTurbo,
   UpgradeId.offline => DonerIcons.upgradeOffline,
+};
+
+Color _upgradeAccent(UpgradeId id) => switch (id) {
+  UpgradeId.knife => const Color(0xFF8E7A61),
+  UpgradeId.oven => const Color(0xFF8D5D44),
+  UpgradeId.staff => const Color(0xFF9C845F),
+  UpgradeId.menu => const Color(0xFF8B5A48),
+  UpgradeId.offline => const Color(0xFF7F6B5D),
+};
+
+String? _upgradeAssetPath(UpgradeId id, String itemKey) => switch ((
+  id,
+  itemKey,
+)) {
+  (UpgradeId.knife, 'rusty_knife') => UiAssetPaths.upgradeRustyKnife,
+  (UpgradeId.knife, 'sharp_knife') => UiAssetPaths.upgradeSharpKnife,
+  (UpgradeId.knife, 'double_knife') => UiAssetPaths.upgradeDoubleKnife,
+  (UpgradeId.knife, 'electric_knife') => UiAssetPaths.upgradeElectricKnife,
+  (UpgradeId.knife, 'golden_knife') => UiAssetPaths.upgradeGoldenKnife,
+  (UpgradeId.knife, 'flaming_knife') => UiAssetPaths.upgradeFlamingKnife,
+  (UpgradeId.knife, 'laser_knife') => UiAssetPaths.upgradeLaserKnife,
+  (UpgradeId.knife, 'doner_excalibur') => UiAssetPaths.upgradeDonerExcalibur,
+  _ => null,
 };
 
 double _shopStatRowHeight(bool compact) => compact ? 52.h : 56.h;

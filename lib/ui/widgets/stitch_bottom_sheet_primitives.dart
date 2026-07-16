@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/ui/layout/stitch_sheet_metrics.dart';
 import 'package:taptapdoner/ui/theme/doner_icons.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
@@ -282,7 +283,7 @@ class StitchSheetHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                title.toUpperCase(),
+                title.toLocaleUpperCase(context),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: titleStyle,
@@ -336,7 +337,7 @@ class StitchSheetSectionDivider extends StatelessWidget {
                   ),
                   SizedBox(width: 8.w),
                   Text(
-                    label.toUpperCase(),
+                    label.toLocaleUpperCase(context),
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontFamily: RoastedTypography.bodyFontFamily,
                       fontWeight: FontWeight.w900,
@@ -404,7 +405,7 @@ class StitchStatChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                label.toUpperCase(),
+                label.toLocaleUpperCase(context),
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   fontFamily: RoastedTypography.bodyFontFamily,
                   fontWeight: FontWeight.w800,
@@ -626,7 +627,7 @@ class _ActionButtonVisual extends StatelessWidget {
     final background = isPrimary
         ? DonerGradients.activeButton
         : isSecondary
-        ? DonerGradients.turbo
+        ? DonerGradients.secondaryAction
         : null;
 
     final textColor = isPrimary
@@ -672,7 +673,7 @@ class _ActionButtonVisual extends StatelessWidget {
             ],
             Flexible(
               child: Text(
-                label.toUpperCase(),
+                label.toLocaleUpperCase(context),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,

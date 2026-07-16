@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:taptapdoner/app/game_view_models.dart';
 import 'package:taptapdoner/domain/branches/branch_catalog.dart';
 import 'package:taptapdoner/domain/customers/customer_order_models.dart';
+import 'package:taptapdoner/domain/economy/currency_math.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/economy/economy_engine.dart';
+import 'package:taptapdoner/domain/economy/number_units.dart';
 import 'package:taptapdoner/domain/goals/goal_catalog.dart';
 import 'package:taptapdoner/domain/goals/goal_engine.dart';
 import 'package:taptapdoner/domain/goals/goal_models.dart';
@@ -20,8 +22,12 @@ import 'package:taptapdoner/domain/progression/prestige_shop_catalog.dart';
 import 'package:taptapdoner/domain/progression/shop_progression_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_engine.dart';
+import 'package:taptapdoner/domain/random_events/random_event_catalog.dart';
+import 'package:taptapdoner/domain/random_events/random_event_models.dart';
+import 'package:taptapdoner/domain/random_events/random_event_service.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
+import 'package:taptapdoner/l10n/app_strings.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
 import 'package:taptapdoner/services/background/background_production_calculator.dart';
 import 'package:taptapdoner/services/save/save_repository.dart';
@@ -36,23 +42,13 @@ class TapOutcome {
     required this.comboMultiplier,
     required this.isCritical,
     required this.criticalMultiplier,
-    required this.goldenDonerHit,
-    required this.goldenDonerCompleted,
-    required this.goldenDonerReward,
-    required this.goldenDonerHits,
-    required this.goldenDonerRequiredHits,
   });
 
-  final int coins;
+  final num coins;
   final int combo;
   final double comboMultiplier;
   final bool isCritical;
   final double criticalMultiplier;
-  final bool goldenDonerHit;
-  final bool goldenDonerCompleted;
-  final int goldenDonerReward;
-  final int goldenDonerHits;
-  final int goldenDonerRequiredHits;
 }
 
 class _CustomerOrderUpdateResult {
@@ -82,14 +78,20 @@ class GameController extends ChangeNotifier {
     RewardedAdService? adService,
     Clock? clock,
     math.Random? random,
+    bool freePurchasesEnabled = false,
   }) : config = config ?? EconomyConfig.standard(),
        _saveRepository = saveRepository ?? SharedPreferencesSaveRepository(),
        _adService = adService ?? const NoopRewardedAdService(),
        _clock = clock ?? _defaultClock,
-       _random = random ?? math.Random() {
-    _engine = EconomyEngine(this.config);
+       _random = random ?? math.Random(),
+       _freePurchasesEnabled = freePurchasesEnabled {
+    _engine = EconomyEngine(
+      this.config,
+      freePurchasesEnabled: _freePurchasesEnabled,
+    );
     _questEngine = StarterQuestEngine(this.config);
     _goalEngine = const GoalEngine();
+    _randomEventService = const RandomEventService();
     _backgroundCalculator = BackgroundProductionCalculator(
       config: this.config,
       engine: _engine,
@@ -109,8 +111,8 @@ class GameController extends ChangeNotifier {
     _hudSnapshotListenable = ValueNotifier<GameHudSnapshot>(
       _computeHudSnapshot(nowUtc: nowUtc),
     );
-    _rushSnapshotListenable = ValueNotifier<RushSnapshot>(
-      _computeRushSnapshot(nowUtc: nowUtc),
+    _randomEventSnapshotListenable = ValueNotifier<RandomEventSnapshot?>(
+      _computeRandomEventSnapshot(nowUtc: nowUtc),
     );
     _activePlaySnapshotListenable = ValueNotifier<ActivePlaySnapshot>(
       _computeActivePlaySnapshot(nowUtc: nowUtc),
@@ -146,14 +148,16 @@ class GameController extends ChangeNotifier {
   final RewardedAdService _adService;
   final Clock _clock;
   final math.Random _random;
+  final bool _freePurchasesEnabled;
 
   late final EconomyEngine _engine;
   late final StarterQuestEngine _questEngine;
   late final GoalEngine _goalEngine;
+  late final RandomEventService _randomEventService;
   late final BackgroundProductionCalculator _backgroundCalculator;
   late GameState _state;
   late final ValueNotifier<GameHudSnapshot> _hudSnapshotListenable;
-  late final ValueNotifier<RushSnapshot> _rushSnapshotListenable;
+  late final ValueNotifier<RandomEventSnapshot?> _randomEventSnapshotListenable;
   late final ValueNotifier<ActivePlaySnapshot> _activePlaySnapshotListenable;
   late final ValueNotifier<CustomerOrderSnapshot>
   _customerOrderSnapshotListenable;
@@ -173,13 +177,14 @@ class GameController extends ChangeNotifier {
   PurchaseResult? _lastPurchaseResult;
   LastChestRewardSnapshot? _lastChestRewardSnapshot;
   ShopLevelUpSnapshot? _pendingShopLevelUpSnapshot;
+  int _debugRandomEventCursor = 0;
 
   GameState get state => _state;
   PurchaseResult? get lastPurchaseResult => _lastPurchaseResult;
   ValueListenable<GameHudSnapshot> get hudSnapshotListenable =>
       _hudSnapshotListenable;
-  ValueListenable<RushSnapshot> get rushSnapshotListenable =>
-      _rushSnapshotListenable;
+  ValueListenable<RandomEventSnapshot?> get randomEventSnapshotListenable =>
+      _randomEventSnapshotListenable;
   ValueListenable<ActivePlaySnapshot> get activePlaySnapshotListenable =>
       _activePlaySnapshotListenable;
   ValueListenable<CustomerOrderSnapshot> get customerOrderSnapshotListenable =>
@@ -198,18 +203,15 @@ class GameController extends ChangeNotifier {
       _progressionSnapshotListenable;
   bool get isInitialized => _isInitialized;
   bool get isTicking => _activeTickTimer?.isActive ?? false;
-  bool get isRushActive => _rushSnapshotListenable.value.isActive;
-  bool get canStartRush => _rushSnapshotListenable.value.canStart;
+  bool get freePurchasesEnabled => _freePurchasesEnabled;
   bool get hasPendingOfflineReward => _state.pendingOfflineCash > 0;
   bool get canDoubleOfflineReward => _adService.isAvailable;
-  int get tapValue => _hudSnapshotListenable.value.tapValue;
+  num get tapValue => _hudSnapshotListenable.value.tapValue;
   double get passiveIncomePerSecond =>
       _hudSnapshotListenable.value.passiveIncomePerSecond;
   int get availablePrestigePoints =>
       _prestigeSnapshotListenable.value.availablePoints;
-  Duration get rushRemaining => _rushSnapshotListenable.value.remaining;
-  Duration get rushCooldownRemaining =>
-      _rushSnapshotListenable.value.cooldownRemaining;
+  bool get _debugUnlimitedChestsEnabled => _freePurchasesEnabled;
   List<UpgradeDefinition> get upgrades => config.upgrades;
 
   ShopLevelUpSnapshot? consumeShopLevelUpSnapshot() {
@@ -232,6 +234,7 @@ class GameController extends ChangeNotifier {
       _scheduleInitialCustomerSpawnIfNeeded(nowUtc);
       _refreshActivePlayState(nowUtc);
       _refreshViewModels(nowUtc: nowUtc);
+      _showInitialDebugRandomEvent(nowUtc);
       _isInitialized = true;
       await _queueSave();
       notifyListeners();
@@ -251,6 +254,7 @@ class GameController extends ChangeNotifier {
     _scheduleInitialCustomerSpawnIfNeeded(nowUtc);
     _refreshActivePlayState(nowUtc);
     _refreshViewModels(nowUtc: nowUtc);
+    _showInitialDebugRandomEvent(nowUtc);
     _isInitialized = true;
     await _queueSave();
     notifyListeners();
@@ -261,23 +265,32 @@ class GameController extends ChangeNotifier {
       return;
     }
     final nowUtc = _clock();
-    final wasRushActive = _rushSnapshotListenable.value.isActive;
-    final passiveRate = _hudSnapshotListenable.value.passiveIncomePerSecond;
-    final earned = passiveRate * elapsed.inMilliseconds / 1000;
-    _passiveCarry += earned;
+    final rawPassiveRate = _hudSnapshotListenable.value.passiveIncomePerSecond;
+    final passiveRate = CurrencyMath.clampDouble(rawPassiveRate);
+    final earned = CurrencyMath.clampDouble(
+      passiveRate * elapsed.inMilliseconds / 1000,
+    );
+    _passiveCarry = CurrencyMath.clampDouble(_passiveCarry + earned);
     _notifyAccumulator += elapsed.inMilliseconds / 1000;
 
-    final wholeCoins = _passiveCarry.floor();
-    var refreshEconomySnapshots = false;
+    final wholeCoins = CurrencyMath.floorDouble(_passiveCarry);
+    var refreshEconomySnapshots = rawPassiveRate != passiveRate;
     var activePlayStateChanged = false;
+    var passiveBoostStateChanged = false;
     var notifyLegacyListeners = false;
     var questStateChanged = false;
     var progressionStateChanged = false;
     var customerOrderStateChanged = false;
     var goalStateChanged = false;
+    var randomEventStateChanged = false;
 
     goalStateChanged = _refreshGoalState(nowUtc);
     activePlayStateChanged = _refreshActivePlayState(nowUtc);
+    randomEventStateChanged = _refreshRandomEventState(nowUtc);
+    if (randomEventStateChanged) {
+      refreshEconomySnapshots = true;
+      activePlayStateChanged = true;
+    }
 
     if (passiveRate > 0) {
       _state = _state.copyWith(
@@ -290,7 +303,11 @@ class GameController extends ChangeNotifier {
     }
 
     if (wholeCoins > 0) {
-      _passiveCarry -= wholeCoins;
+      if (!_passiveCarry.isFinite) {
+        _passiveCarry = 0;
+      } else {
+        _passiveCarry -= wholeCoins;
+      }
       _state = _engine.addCoins(_state, wholeCoins);
       final branchRate = _engine.branchIncomePerSecond(_state, nowUtc: nowUtc);
       if (branchRate > 0 && passiveRate > 0) {
@@ -312,29 +329,13 @@ class GameController extends ChangeNotifier {
       notifyLegacyListeners = true;
     }
 
-    if (!_state.rush.isActiveAt(nowUtc) &&
-        !_state.rush.isCoolingDownAt(nowUtc) &&
-        _state.rush.endsAtUtc != null) {
-      _state = _state.copyWith(
-        rush: _state.rush.copyWith(
-          clearEndsAtUtc: true,
-          clearCooldownEndsAtUtc: true,
-        ),
-      );
-      refreshEconomySnapshots = true;
-    }
-
     if (!_state.passiveBoost.isActiveAt(nowUtc) &&
         _state.passiveBoost.endsAtUtc != null) {
       _state = _state.copyWith(
         passiveBoost: _state.passiveBoost.copyWith(clearEndsAtUtc: true),
       );
       refreshEconomySnapshots = true;
-    }
-
-    final isRushActiveNow = _state.rush.isActiveAt(nowUtc);
-    if (wasRushActive != isRushActiveNow) {
-      refreshEconomySnapshots = true;
+      passiveBoostStateChanged = true;
     }
 
     questStateChanged = _refreshQuestState() || questStateChanged;
@@ -376,18 +377,22 @@ class GameController extends ChangeNotifier {
 
     if (refreshEconomySnapshots || _notifyAccumulator >= 0.2) {
       _notifyAccumulator = 0;
-      _refreshRushViewModel(nowUtc: nowUtc);
     }
     if (activePlayStateChanged ||
-        _state.goldenDoner.isActiveAt(nowUtc) ||
+        passiveBoostStateChanged ||
+        _state.passiveBoost.isActiveAt(nowUtc) ||
+        _state.randomEvents.activeModifiers.isNotEmpty ||
         _state.stats.currentCombo > 0) {
       _refreshActivePlayViewModel(nowUtc: nowUtc);
     }
     if (customerOrderStateChanged) {
       _refreshCustomerOrderViewModel(nowUtc: nowUtc);
     }
+    if (randomEventStateChanged) {
+      _refreshRandomEventViewModel(nowUtc: nowUtc);
+    }
 
-    if (notifyLegacyListeners) {
+    if (notifyLegacyListeners || randomEventStateChanged) {
       notifyListeners();
     }
   }
@@ -417,7 +422,7 @@ class GameController extends ChangeNotifier {
     goalStateChanged =
         _recordGoalEvent(GoalObjectiveType.tapCount, 1, nowUtc: nowUtc) ||
         goalStateChanged;
-    final earnedCoins = outcome.coins + outcome.goldenDonerReward;
+    final earnedCoins = outcome.coins;
     if (earnedCoins > 0) {
       goalStateChanged =
           _recordGoalEvent(
@@ -441,15 +446,6 @@ class GameController extends ChangeNotifier {
       goalStateChanged =
           _recordGoalEvent(
             GoalObjectiveType.triggerCritical,
-            1,
-            nowUtc: nowUtc,
-          ) ||
-          goalStateChanged;
-    }
-    if (outcome.goldenDonerCompleted) {
-      goalStateChanged =
-          _recordGoalEvent(
-            GoalObjectiveType.collectGoldenDoner,
             1,
             nowUtc: nowUtc,
           ) ||
@@ -489,15 +485,6 @@ class GameController extends ChangeNotifier {
         ),
       );
     }
-    if (outcome.goldenDonerCompleted) {
-      customerOrderUpdate = customerOrderUpdate.merge(
-        _recordCustomerOrderEvent(
-          OrderObjectiveType.collectGoldenDoner,
-          1,
-          nowUtc: nowUtc,
-        ),
-      );
-    }
     goalStateChanged =
         goalStateChanged || goalsBeforeCustomerUpdate != _state.goals;
     final progressionStateChanged = customerOrderUpdate.progressionChanged
@@ -505,9 +492,7 @@ class GameController extends ChangeNotifier {
         : _refreshTapProgressionState();
     final questStateChanged = _refreshQuestState();
     _refreshHudViewModel(nowUtc: nowUtc);
-    if (customerOrderUpdate.economyChanged) {
-      _refreshRushViewModel(nowUtc: nowUtc);
-    }
+    if (customerOrderUpdate.economyChanged) {}
     _refreshActivePlayViewModel(nowUtc: nowUtc);
     if (questStateChanged) {
       _refreshQuestViewModel();
@@ -525,38 +510,45 @@ class GameController extends ChangeNotifier {
     return outcome;
   }
 
-  Future<bool> buyUpgrade(UpgradeId id) async {
-    final result = _engine.buyUpgrade(_state, id);
+  Future<bool> buyUpgrade(UpgradeId id, {int quantity = 1}) async {
+    final result = _engine.buyUpgrade(_state, id, quantity: quantity);
     _lastPurchaseResult = result;
     if (!result.success) {
       return false;
     }
     final nowUtc = _clock();
     final previousShopLevel = _state.shopProgression.currentShopLevel;
+    final purchasedCount = result.purchasedCount;
     _state = result.state.copyWith(
       stats: result.state.stats.copyWith(
-        totalUpgradesPurchased: _state.stats.totalUpgradesPurchased + 1,
+        totalUpgradesPurchased:
+            _state.stats.totalUpgradesPurchased + purchasedCount,
       ),
     );
-    final milestoneReward = result.milestoneGrant?.reward;
-    if (milestoneReward?.type == MilestoneRewardType.chest) {
-      _grantChest(ChestType.small, quantity: milestoneReward?.quantity ?? 1);
+    for (final grant in result.milestoneGrants) {
+      if (grant.reward.type == MilestoneRewardType.chest) {
+        _grantChest(ChestType.small, quantity: grant.reward.quantity);
+      }
     }
     final goalsBeforeCustomerUpdate = _state.goals;
     final customerOrderUpdate = _recordCustomerOrderEvent(
       OrderObjectiveType.buyUpgrade,
-      1,
+      purchasedCount.toDouble(),
       nowUtc: nowUtc,
     );
     var goalStateChanged = goalsBeforeCustomerUpdate != _state.goals;
     goalStateChanged =
-        _recordGoalEvent(GoalObjectiveType.buyUpgrades, 1, nowUtc: nowUtc) ||
+        _recordGoalEvent(
+          GoalObjectiveType.buyUpgrades,
+          purchasedCount.toDouble(),
+          nowUtc: nowUtc,
+        ) ||
         goalStateChanged;
-    if (result.milestoneGrant != null) {
+    if (result.milestoneGrants.isNotEmpty) {
       goalStateChanged =
           _recordGoalEvent(
             GoalObjectiveType.completeMilestones,
-            1,
+            result.milestoneGrants.length.toDouble(),
             nowUtc: nowUtc,
           ) ||
           goalStateChanged;
@@ -589,46 +581,13 @@ class GameController extends ChangeNotifier {
     return true;
   }
 
-  Future<bool> startRush() async {
-    if (!canStartRush) {
+  Future<bool> buyMaxUpgrade(UpgradeId id) async {
+    final preview = _engine.previewMaxUpgradePurchase(_state, id);
+    if (preview.purchasedCount <= 0) {
+      _lastPurchaseResult = preview;
       return false;
     }
-    final nowUtc = _clock();
-    _refreshGoalState(nowUtc);
-    _state = _engine.startRush(_state, nowUtc: nowUtc);
-    _state = _state.copyWith(
-      stats: _state.stats.copyWith(
-        turboUsedCount: _state.stats.turboUsedCount + 1,
-      ),
-    );
-    var goalStateChanged = _recordGoalEvent(
-      GoalObjectiveType.useTurbo,
-      1,
-      nowUtc: nowUtc,
-    );
-    final goalsBeforeCustomerUpdate = _state.goals;
-    final customerOrderUpdate = _recordCustomerOrderEvent(
-      OrderObjectiveType.useTurbo,
-      1,
-      nowUtc: nowUtc,
-    );
-    goalStateChanged =
-        goalStateChanged || goalsBeforeCustomerUpdate != _state.goals;
-    final questStateChanged = _refreshQuestState();
-    _refreshProgressionState();
-    _refreshViewModels();
-    if (questStateChanged) {
-      _refreshQuestViewModel();
-    }
-    if (customerOrderUpdate.stateChanged) {
-      _refreshCustomerOrderViewModel();
-    }
-    if (goalStateChanged) {
-      _refreshGoalViewModel(nowUtc: nowUtc);
-    }
-    notifyListeners();
-    unawaited(_queueSave());
-    return true;
+    return buyUpgrade(id, quantity: preview.purchasedCount);
   }
 
   Future<bool> claimActiveQuestReward() async {
@@ -715,7 +674,8 @@ class GameController extends ChangeNotifier {
   }
 
   Future<LastChestRewardSnapshot?> openChest(ChestType type) async {
-    if (_state.chestInventory.count(type) <= 0) {
+    final hasStoredChest = _state.chestInventory.count(type) > 0;
+    if (!hasStoredChest && !_debugUnlimitedChestsEnabled) {
       return null;
     }
     final nowUtc = _clock();
@@ -725,7 +685,9 @@ class GameController extends ChangeNotifier {
     final reputationBefore = _state.customerReputation.totalReputation;
     final collectionUnlocksBefore = _collectionUnlockCount(_state);
     _state = _state.copyWith(
-      chestInventory: _state.chestInventory.remove(type),
+      chestInventory: _debugUnlimitedChestsEnabled
+          ? _state.chestInventory
+          : _state.chestInventory.remove(type),
       stats: _state.stats.copyWith(chestsOpened: _state.stats.chestsOpened + 1),
     );
     _state = _applyChestReward(_state, reward, nowUtc: nowUtc);
@@ -821,16 +783,21 @@ class GameController extends ChangeNotifier {
     final nowUtc = _clock();
     _refreshProgressionState();
     final definition = BranchCatalog.byId[branchId];
-    if (definition == null || !BranchCatalog.canUnlock(_state, definition)) {
+    if (definition == null ||
+        !BranchCatalog.canUnlock(
+          _state,
+          definition,
+          ignoreCostRequirement: _freePurchasesEnabled,
+        )) {
       return false;
     }
-    final cost = BranchCatalog.unlockCost(definition);
+    final cost = _effectivePurchaseCost(BranchCatalog.unlockCost(definition));
     final progress = _state.branches.progressFor(branchId);
     final completedRegionsBefore = BranchCatalog.completedRegionIds(
       _state.branches,
     );
     _state = _state.copyWith(
-      cash: math.max(0, _state.cash - cost),
+      cash: CurrencyMath.subtract(_state.cash, cost),
       branches: _state.branches.updateProgress(
         progress.copyWith(
           isUnlocked: true,
@@ -869,17 +836,26 @@ class GameController extends ChangeNotifier {
     final nowUtc = _clock();
     _refreshProgressionState();
     final definition = BranchCatalog.byId[branchId];
-    if (definition == null || !BranchCatalog.canLevelUp(_state, definition)) {
+    if (definition == null ||
+        !BranchCatalog.canLevelUp(
+          _state,
+          definition,
+          ignoreCostRequirement: _freePurchasesEnabled,
+        )) {
       return false;
     }
     final progress = _state.branches.progressFor(branchId);
-    final cost = BranchCatalog.levelUpCost(definition, progress);
-    final milestonesBefore = _state.branches.claimedBranchMilestones.length;
+    final cost = _effectivePurchaseCost(
+      BranchCatalog.levelUpCost(definition, progress),
+    );
+    final milestonesBefore = BranchCatalog.claimedLevelMilestoneCount(
+      _state.branches,
+    );
     final completedRegionsBefore = BranchCatalog.completedRegionIds(
       _state.branches,
     );
     _state = _state.copyWith(
-      cash: math.max(0, _state.cash - cost),
+      cash: CurrencyMath.subtract(_state.cash, cost),
       branches: _state.branches.updateProgress(
         progress.copyWith(level: progress.level + 1),
       ),
@@ -899,7 +875,8 @@ class GameController extends ChangeNotifier {
         ) ||
         goalStateChanged;
     final newMilestones =
-        _state.branches.claimedBranchMilestones.length - milestonesBefore;
+        BranchCatalog.claimedLevelMilestoneCount(_state.branches) -
+        milestonesBefore;
     if (newMilestones > 0) {
       goalStateChanged =
           _recordGoalEvent(
@@ -932,6 +909,9 @@ class GameController extends ChangeNotifier {
       return false;
     }
     final progress = _state.branches.progressFor(branchId);
+    if (progress.assignedManagerId == managerId) {
+      return false;
+    }
     _state = _state.copyWith(
       branches: _state.branches.updateProgress(
         progress.copyWith(assignedManagerId: managerId),
@@ -946,6 +926,23 @@ class GameController extends ChangeNotifier {
     if (goalStateChanged) {
       _refreshGoalViewModel(nowUtc: nowUtc);
     }
+    notifyListeners();
+    await _queueSave();
+    return true;
+  }
+
+  Future<bool> unassignBranchManager(String branchId) async {
+    _refreshProgressionState();
+    if (!BranchCatalog.canUnassignManager(_state, branchId: branchId)) {
+      return false;
+    }
+    final progress = _state.branches.progressFor(branchId);
+    _state = _state.copyWith(
+      branches: _state.branches.updateProgress(
+        progress.copyWith(clearAssignedManagerId: true),
+      ),
+    );
+    _refreshViewModels(nowUtc: _clock());
     notifyListeners();
     await _queueSave();
     return true;
@@ -1035,12 +1032,12 @@ class GameController extends ChangeNotifier {
     final passiveRate = _engine.passiveIncomePerSecond(
       state,
       nowUtc: nowUtc,
-      includeRush: false,
+      includeTemporaryBoost: false,
     );
     final branchRate = _engine.branchIncomePerSecond(
       state,
       nowUtc: nowUtc,
-      includeRush: false,
+      includeTemporaryBoost: false,
     );
     if (branchRate <= 0 || passiveRate <= 0) {
       return nextState;
@@ -1077,6 +1074,58 @@ class GameController extends ChangeNotifier {
     return result;
   }
 
+  Future<void> dismissRandomEvent() async {
+    final activeEventId = _state.randomEvents.activeEventId;
+    if (activeEventId == null) {
+      return;
+    }
+    final nowUtc = _clock();
+    _state = _state.copyWith(
+      randomEvents: _state.randomEvents.copyWith(clearActiveEventId: true),
+    );
+    _refreshRandomEventViewModel(nowUtc: nowUtc);
+    notifyListeners();
+    await _queueSave();
+  }
+
+  Future<void> showDebugRandomEvent() async {
+    if (!kDebugMode) {
+      return;
+    }
+    final nowUtc = _clock();
+    _showDebugRandomEvent(nowUtc);
+    _refreshRandomEventViewModel(nowUtc: nowUtc);
+    notifyListeners();
+    await _queueSave();
+  }
+
+  Future<RandomEventResolutionSnapshot?> chooseRandomEvent(
+    String choiceKey,
+  ) async {
+    final activeEventId = _state.randomEvents.activeEventId;
+    final event = RandomEventCatalog.byId[activeEventId];
+    final choice = event?.choiceByKey(choiceKey);
+    if (event == null || choice == null) {
+      return null;
+    }
+    final nowUtc = _clock();
+    final outcome = _randomEventService.resolveOutcome(choice, _random);
+    final effectLabel = _applyRandomEventOutcome(event, outcome, nowUtc);
+    _refreshGoalState(nowUtc);
+    _refreshQuestState();
+    _refreshProgressionState();
+    _refreshViewModels(nowUtc: nowUtc);
+    notifyListeners();
+    await _queueSave();
+    return RandomEventResolutionSnapshot(
+      eventTitle: event.title,
+      choiceLabel: choice.label,
+      outcomeKey: outcome.key,
+      resultText: outcome.resultText,
+      effectLabel: effectLabel,
+    );
+  }
+
   Future<void> dismissOfflineReward() async {
     _state = _engine.clearPendingOfflineReward(_state, nowUtc: _clock());
     _refreshViewModels();
@@ -1088,13 +1137,14 @@ class GameController extends ChangeNotifier {
     final nowUtc = _clock();
     _refreshGoalState(nowUtc);
     _refreshActivePlayState(nowUtc);
+    _refreshRandomEventState(nowUtc);
     _refreshHudViewModel(nowUtc: nowUtc);
-    _refreshRushViewModel(nowUtc: nowUtc);
     _refreshActivePlayViewModel(nowUtc: nowUtc);
     _refreshCustomerOrderViewModel(nowUtc: nowUtc);
     _refreshQuestViewModel();
     _refreshGoalViewModel(nowUtc: nowUtc);
     _refreshProgressionViewModel();
+    _refreshRandomEventViewModel(nowUtc: nowUtc);
   }
 
   void prepareShopView() {
@@ -1147,7 +1197,7 @@ class GameController extends ChangeNotifier {
   void dispose() {
     stopTicking();
     _hudSnapshotListenable.dispose();
-    _rushSnapshotListenable.dispose();
+    _randomEventSnapshotListenable.dispose();
     _activePlaySnapshotListenable.dispose();
     _customerOrderSnapshotListenable.dispose();
     _questSnapshotListenable.dispose();
@@ -1160,6 +1210,259 @@ class GameController extends ChangeNotifier {
 
   String _normalizeLocale(String localeCode) {
     return localeCode == 'tr' ? 'tr' : 'en';
+  }
+
+  bool _refreshRandomEventState(DateTime nowUtc) {
+    var changed = false;
+    final pruned = _state.randomEvents.pruneExpired(nowUtc);
+    if (pruned != _state.randomEvents) {
+      _state = _state.copyWith(randomEvents: pruned);
+      changed = true;
+    }
+
+    final event = _randomEventService.pickRandomEvent(
+      allEvents: RandomEventCatalog.events,
+      state: _state,
+      nowUtc: nowUtc,
+      random: _random,
+    );
+    if (event == null) {
+      return changed;
+    }
+
+    _state = _state.copyWith(
+      randomEvents: _state.randomEvents.markShown(event, nowUtc),
+    );
+    unawaited(_queueSave());
+    return true;
+  }
+
+  void _showInitialDebugRandomEvent(DateTime nowUtc) {
+    if (!kDebugMode || _state.randomEvents.activeEventId != null) {
+      return;
+    }
+    _showDebugRandomEvent(nowUtc);
+  }
+
+  void _showDebugRandomEvent(DateTime nowUtc) {
+    final events = RandomEventCatalog.events;
+    if (events.isEmpty) {
+      return;
+    }
+    final currentEventId = _state.randomEvents.activeEventId;
+    var event = events[_debugRandomEventCursor % events.length];
+    _debugRandomEventCursor += 1;
+    if (events.length > 1 && event.id == currentEventId) {
+      event = events[_debugRandomEventCursor % events.length];
+      _debugRandomEventCursor += 1;
+    }
+    _state = _state.copyWith(
+      randomEvents: _state.randomEvents
+          .copyWith(clearActiveEventId: true)
+          .markShown(event, nowUtc),
+    );
+  }
+
+  String _applyRandomEventOutcome(
+    RandomEventDefinition event,
+    RandomEventOutcome outcome,
+    DateTime nowUtc,
+  ) {
+    final effect = outcome.effect;
+    final passiveRate = math.max(1.0, passiveIncomePerSecond);
+    final currentCash = _state.cash;
+    switch (effect.type) {
+      case RandomEventEffectType.instantMoney:
+        final coins = CurrencyMath.roundDouble(passiveRate * effect.value);
+        if (coins > 0) {
+          _state = _engine.addCoins(_state, coins);
+          _recordGoalEvent(
+            GoalObjectiveType.earnMoney,
+            coins.toDouble(),
+            nowUtc: nowUtc,
+          );
+        }
+        _applyInlineReputationGain(effect, nowUtc);
+        return '+${_formatAmount(coins)} ${_state.localeCode == 'tr' ? 'para' : 'cash'}';
+      case RandomEventEffectType.moneyCost:
+        final capSeconds = double.tryParse(effect.target ?? '') ?? 300;
+        final cost = math.min<double>(
+          currentCash * effect.value,
+          passiveRate * capSeconds,
+        );
+        final coins = CurrencyMath.roundDouble(cost);
+        _state = _state.copyWith(
+          cash: CurrencyMath.subtract(_state.cash, coins),
+        );
+        return '-${_formatAmount(coins)} ${_state.localeCode == 'tr' ? 'para' : 'cash'}';
+      case RandomEventEffectType.tapBoost:
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.tapIncome,
+          effect,
+          nowUtc,
+        );
+        return 'Tap x${effect.value.toStringAsFixed(1)}';
+      case RandomEventEffectType.tapPenalty:
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.tapIncome,
+          effect,
+          nowUtc,
+        );
+        return 'Tap -${((1 - effect.value) * 100).round()}%';
+      case RandomEventEffectType.passiveBoost:
+        _applyInlineCost(effect, nowUtc, passiveRate);
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.passiveIncome,
+          effect,
+          nowUtc,
+        );
+        return 'Pasif +${((effect.value - 1) * 100).round()}%';
+      case RandomEventEffectType.passivePenalty:
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.passiveIncome,
+          effect,
+          nowUtc,
+        );
+        return 'Pasif -${((1 - effect.value) * 100).round()}%';
+      case RandomEventEffectType.globalBoost:
+        _applyInlineCost(effect, nowUtc, passiveRate);
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.globalIncome,
+          effect,
+          nowUtc,
+        );
+        return effect.value >= 2
+            ? 'Tüm gelir x${effect.value.toStringAsFixed(0)}'
+            : 'Tüm gelir +${((effect.value - 1) * 100).round()}%';
+      case RandomEventEffectType.globalPenalty:
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.globalIncome,
+          effect,
+          nowUtc,
+        );
+        return 'Tüm gelir -${((1 - effect.value) * 100).round()}%';
+      case RandomEventEffectType.menuBoost:
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.menuMultiplier,
+          effect,
+          nowUtc,
+        );
+        return 'Menü +${((effect.value - 1) * 100).round()}%';
+      case RandomEventEffectType.menuPenalty:
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.menuMultiplier,
+          effect,
+          nowUtc,
+        );
+        return 'Menü -${((1 - effect.value) * 100).round()}%';
+      case RandomEventEffectType.upgradeDiscount:
+        _applyInlineCost(effect, nowUtc, passiveRate);
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.upgradeCost,
+          effect,
+          nowUtc,
+        );
+        return 'Upgrade maliyeti -${((1 - effect.value) * 100).round()}%';
+      case RandomEventEffectType.upgradeCostPenalty:
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.upgradeCost,
+          effect,
+          nowUtc,
+        );
+        return 'Upgrade maliyeti +${((effect.value - 1) * 100).round()}%';
+      case RandomEventEffectType.reputationGain:
+        final reputation = math.max(0, effect.value.round());
+        _state = _state.copyWith(
+          customerReputation: _state.customerReputation.add(reputation),
+        );
+        return '+$reputation itibar';
+      case RandomEventEffectType.reputationBoost:
+      case RandomEventEffectType.reputationPenalty:
+      case RandomEventEffectType.permanentBonus:
+      case RandomEventEffectType.challengeStart:
+      case RandomEventEffectType.noEffect:
+        return 'Etki yok';
+    }
+  }
+
+  void _addRandomEventModifier(
+    RandomEventDefinition event,
+    RandomEventModifierType type,
+    RandomEventEffect effect,
+    DateTime nowUtc,
+  ) {
+    final duration = effect.duration ?? const Duration(minutes: 5);
+    final modifier = TimedModifierState(
+      id: '${event.id}_${type.name}_${nowUtc.millisecondsSinceEpoch}',
+      sourceEventId: event.id,
+      type: type,
+      value: effect.value,
+      expiresAtUtc: nowUtc.add(duration),
+    );
+    _state = _state.copyWith(
+      randomEvents: _state.randomEvents.copyWith(
+        activeModifiers: <TimedModifierState>[
+          ..._state.randomEvents.activeModifiers.where(
+            (entry) => entry.isActiveAt(nowUtc),
+          ),
+          modifier,
+        ],
+      ),
+    );
+  }
+
+  void _applyInlineCost(
+    RandomEventEffect effect,
+    DateTime nowUtc,
+    double passiveRate,
+  ) {
+    final target = effect.target ?? '';
+    if (!target.startsWith('cost:')) {
+      return;
+    }
+    final percent = double.tryParse(target.substring('cost:'.length)) ?? 0;
+    if (percent <= 0) {
+      return;
+    }
+    final cap = passiveRate * 300;
+    final cost = CurrencyMath.roundDouble(
+      math.min<double>(_state.cash * percent, cap),
+    );
+    _state = _state.copyWith(cash: CurrencyMath.subtract(_state.cash, cost));
+  }
+
+  void _applyInlineReputationGain(RandomEventEffect effect, DateTime nowUtc) {
+    final target = effect.target ?? '';
+    if (!target.startsWith('reputation:')) {
+      return;
+    }
+    final reputation =
+        int.tryParse(target.substring('reputation:'.length)) ?? 0;
+    if (reputation <= 0) {
+      return;
+    }
+    _state = _state.copyWith(
+      customerReputation: _state.customerReputation.add(reputation),
+    );
+    _recordGoalEvent(
+      GoalObjectiveType.gainReputation,
+      reputation.toDouble(),
+      nowUtc: nowUtc,
+    );
+  }
+
+  String _formatAmount(num value) {
+    return formatNumberWithUnitNames(value, locale: _state.localeCode);
   }
 
   Future<void> _queueSave() {
@@ -1184,7 +1487,7 @@ class GameController extends ChangeNotifier {
 
   void _refreshViewModels({DateTime? nowUtc}) {
     _refreshEconomyViewModels(nowUtc: nowUtc);
-    _refreshRushViewModel(nowUtc: nowUtc);
+    _refreshRandomEventViewModel(nowUtc: nowUtc);
     _refreshActivePlayViewModel(nowUtc: nowUtc);
     _refreshCustomerOrderViewModel(nowUtc: nowUtc);
     _refreshQuestViewModel();
@@ -1225,10 +1528,10 @@ class GameController extends ChangeNotifier {
     );
   }
 
-  void _refreshRushViewModel({DateTime? nowUtc}) {
+  void _refreshRandomEventViewModel({DateTime? nowUtc}) {
     _setSnapshotIfChanged(
-      _rushSnapshotListenable,
-      _computeRushSnapshot(nowUtc: (nowUtc ?? _clock()).toUtc()),
+      _randomEventSnapshotListenable,
+      _computeRandomEventSnapshot(nowUtc: (nowUtc ?? _clock()).toUtc()),
     );
   }
 
@@ -1425,7 +1728,7 @@ class GameController extends ChangeNotifier {
   _CustomerOrderUpdateResult _advanceCustomerOrders({
     required DateTime nowUtc,
     required Duration elapsed,
-    required int passiveCoinsEarned,
+    required num passiveCoinsEarned,
   }) {
     if (elapsed <= Duration.zero) {
       return const _CustomerOrderUpdateResult();
@@ -1621,7 +1924,7 @@ class GameController extends ChangeNotifier {
       switch (reward.type) {
         case OrderRewardType.money:
         case OrderRewardType.tip:
-          final coins = reward.amount.round();
+          final coins = CurrencyMath.roundDouble(reward.amount);
           if (coins > 0) {
             _state = _engine.addCoins(_state, coins);
             _recordGoalEvent(
@@ -1704,13 +2007,6 @@ class GameController extends ChangeNotifier {
             passiveBoost: TimedEffectState(
               endsAtUtc: nowUtc.add(Duration(seconds: durationSeconds)),
             ),
-          );
-          stateChanged = true;
-          economyChanged = true;
-          break;
-        case OrderRewardType.turboCharge:
-          _state = _state.copyWith(
-            rush: _state.rush.copyWith(clearCooldownEndsAtUtc: true),
           );
           stateChanged = true;
           economyChanged = true;
@@ -1894,10 +2190,11 @@ class GameController extends ChangeNotifier {
       state.shopProgression.currentShopLevel,
     );
     final nextShop = ShopProgressionCatalog.byLevel(eligibleLevel);
+    final strings = AppStrings.forLanguageCode(state.localeCode);
     _pendingShopLevelUpSnapshot = ShopLevelUpSnapshot(
-      previousLevelName: previousShop.name,
-      currentLevelName: nextShop.name,
-      unlockLabel: nextShop.unlockLabel,
+      previousLevelName: strings.shopLevelName(previousShop.id),
+      currentLevelName: strings.shopLevelName(nextShop.id),
+      unlockLabel: strings.shopUnlockLabel(nextShop.id),
       incomeMultiplier: nextShop.incomeMultiplier,
     );
     final progression = state.shopProgression.unlockThroughLevel(eligibleLevel);
@@ -1911,9 +2208,43 @@ class GameController extends ChangeNotifier {
 
   GameState _refreshBranchProgression(GameState state) {
     final branches = BranchCatalog.refreshState(state.branches);
-    return branches == state.branches
+    var nextState = branches == state.branches
         ? state
         : state.copyWith(branches: branches);
+    if (branches.claimedBranchMilestones.contains(
+          BranchCatalog.firstManagerGrantMarker,
+        ) ||
+        !branches.branchProgress.values.any(
+          (progress) =>
+              progress.isUnlocked &&
+              progress.level >= BranchCatalog.managerUnlockLevel,
+        )) {
+      return nextState;
+    }
+
+    final markedMilestones = Set<String>.from(branches.claimedBranchMilestones)
+      ..add(BranchCatalog.firstManagerGrantMarker);
+    nextState = nextState.copyWith(
+      branches: branches.copyWith(
+        claimedBranchMilestones: Set<String>.unmodifiable(markedMilestones),
+      ),
+    );
+    final alreadyHasStaff = Collection2Catalog.staffCards.any(
+      (staff) => nextState.collection2.isStaffCardUnlocked(staff.id),
+    );
+    if (alreadyHasStaff) {
+      return nextState;
+    }
+    final apprentice = Collection2Catalog.staffCardById['staff_apprentice'];
+    if (apprentice == null) {
+      return nextState;
+    }
+    final grant = Collection2Catalog.addStaffCards(
+      nextState.collection2,
+      apprentice.id,
+      apprentice.requiredCards,
+    );
+    return nextState.copyWith(collection2: grant.state);
   }
 
   GameState _unlockCollectionItemsForCurrentUpgrades(GameState state) {
@@ -1985,11 +2316,9 @@ class GameController extends ChangeNotifier {
             .toDouble(),
       'staff_1' =>
         _engine.upgradeTotalLevel(state, UpgradeId.staff) > 0 ? 1 : 0,
-      'turbo_1' => state.stats.turboUsedCount.toDouble(),
       'combo_15' =>
         _engine.activeComboForCount(state.stats.maxCombo, state).toDouble(),
       'critical_3' => state.stats.criticalCutCount.toDouble(),
-      'golden_1' => state.stats.goldenDonerCollected.toDouble(),
       'chest_1' => state.stats.chestsOpened.toDouble(),
       'collection_5' => _collectionUnlockCount(state).toDouble(),
       'prestige_1' => state.prestige.reputation.toDouble(),
@@ -2008,7 +2337,7 @@ class GameController extends ChangeNotifier {
   GameState _applyAchievementReward(GameState state, AchievementReward reward) {
     switch (reward.type) {
       case AchievementRewardType.cash:
-        return _engine.addCoins(state, reward.amount.round());
+        return _engine.addCoins(state, CurrencyMath.roundDouble(reward.amount));
       case AchievementRewardType.chest:
         final chestType = reward.chestType ?? ChestType.small;
         return state.copyWith(
@@ -2037,7 +2366,7 @@ class GameController extends ChangeNotifier {
     for (final reward in rewards) {
       switch (reward.type) {
         case GoalRewardType.money:
-          final coins = reward.amount.round();
+          final coins = CurrencyMath.roundDouble(reward.amount);
           if (coins > 0) {
             nextState = _engine.addCoins(nextState, coins);
           }
@@ -2063,11 +2392,6 @@ class GameController extends ChangeNotifier {
             passiveBoost: TimedEffectState(
               endsAtUtc: nowUtc.add(Duration(seconds: durationSeconds)),
             ),
-          );
-          break;
-        case GoalRewardType.turboCharge:
-          nextState = nextState.copyWith(
-            rush: nextState.rush.copyWith(clearCooldownEndsAtUtc: true),
           );
           break;
         case GoalRewardType.prestigePoint:
@@ -2144,7 +2468,7 @@ class GameController extends ChangeNotifier {
     final multiplier = Collection2Catalog.bonusTotalsFor(
       state.collection2,
     ).reputationGainMultiplier;
-    final gained = math.max(1, (amount * multiplier).round());
+    final gained = math.max(1, CurrencyMath.roundInt(amount * multiplier));
     return state.copyWith(
       customerReputation: state.customerReputation.add(gained),
     );
@@ -2229,7 +2553,10 @@ class GameController extends ChangeNotifier {
         final bonus = Collection2Catalog.bonusTotalsFor(
           state.collection2,
         ).chestRewardMultiplier;
-        return _engine.addCoins(state, (reward.amount * bonus).round());
+        return _engine.addCoins(
+          state,
+          CurrencyMath.roundDouble(reward.amount * bonus),
+        );
       case ChestRewardType.reputation:
         return _addCustomerReputation(state, reward.amount.round());
       case ChestRewardType.temporaryIncomeBoost:
@@ -2239,10 +2566,6 @@ class GameController extends ChangeNotifier {
               Duration(seconds: reward.durationSeconds ?? 45),
             ),
           ),
-        );
-      case ChestRewardType.turboCharge:
-        return state.copyWith(
-          rush: state.rush.copyWith(clearCooldownEndsAtUtc: true),
         );
       case ChestRewardType.cosmeticToken:
         return state.copyWith(
@@ -2287,24 +2610,26 @@ class GameController extends ChangeNotifier {
   }
 
   String _chestRewardLabel(ChestReward reward) {
+    final isTr = _state.localeCode == 'tr';
     return switch (reward.rewardType) {
-      ChestRewardType.money => '+${reward.amount.round()} cash',
-      ChestRewardType.reputation => '+${reward.amount.round()} reputation',
+      ChestRewardType.money =>
+        '+${_formatAmount(reward.amount)} ${isTr ? 'para' : 'cash'}',
+      ChestRewardType.reputation =>
+        '+${_formatAmount(reward.amount)} ${isTr ? 'itibar' : 'reputation'}',
       ChestRewardType.temporaryIncomeBoost =>
-        'x${reward.amount.round()} income for ${reward.durationSeconds ?? 0}s',
-      ChestRewardType.turboCharge => 'Turbo ready',
+        'x${_formatMultiplier(reward.amount)} income for ${reward.durationSeconds ?? 0}s',
       ChestRewardType.cosmeticToken =>
-        'Cosmetic token x${reward.amount.round()}',
+        'Cosmetic token x${_formatAmount(reward.amount)}',
       ChestRewardType.recipeShard =>
-        '${_collection2ItemName(reward.itemId) ?? 'Recipe shard'} x${reward.amount.round()}',
+        '${_collection2ItemName(reward.itemId) ?? 'Recipe shard'} x${_formatAmount(reward.amount)}',
       ChestRewardType.staffCardShard =>
-        '${_collection2ItemName(reward.itemId) ?? 'Staff shard'} x${reward.amount.round()}',
+        '${_collection2ItemName(reward.itemId) ?? 'Staff shard'} x${_formatAmount(reward.amount)}',
       ChestRewardType.decorShard =>
-        '${_collection2ItemName(reward.itemId) ?? 'Decor shard'} x${reward.amount.round()}',
+        '${_collection2ItemName(reward.itemId) ?? 'Decor shard'} x${_formatAmount(reward.amount)}',
       ChestRewardType.knifeSkinShard =>
-        '${_collection2ItemName(reward.itemId) ?? 'Knife skin shard'} x${reward.amount.round()}',
+        '${_collection2ItemName(reward.itemId) ?? 'Knife skin shard'} x${_formatAmount(reward.amount)}',
       ChestRewardType.prestigeShard =>
-        'Prestige shard x${reward.amount.round()}',
+        'Prestige shard x${_formatAmount(reward.amount)}',
       ChestRewardType.permanentTapBonus =>
         'Tap income +${(reward.amount * 100).round()}%',
       ChestRewardType.permanentPassiveBonus =>
@@ -2316,7 +2641,7 @@ class GameController extends ChangeNotifier {
 
   String _customerOrderRewardLabel(List<OrderReward> rewards) {
     if (rewards.isEmpty) {
-      return _state.localeCode == 'tr' ? 'Odul yok' : 'No reward';
+      return _state.localeCode == 'tr' ? 'Ödül yok' : 'No reward';
     }
     return rewards.map(_customerOrderSingleRewardLabel).join(' + ');
   }
@@ -2325,35 +2650,34 @@ class GameController extends ChangeNotifier {
     final isTr = _state.localeCode == 'tr';
     return switch (reward.type) {
       OrderRewardType.money =>
-        '+${reward.amount.round()} ${isTr ? 'para' : 'cash'}',
+        '+${_formatAmount(reward.amount)} ${isTr ? 'para' : 'cash'}',
       OrderRewardType.tip =>
-        '+${reward.amount.round()} ${isTr ? 'bahsis' : 'tip'}',
+        '+${_formatAmount(reward.amount)} ${isTr ? 'bahşiş' : 'tip'}',
       OrderRewardType.reputation =>
-        '+${reward.amount.round()} ${isTr ? 'Un' : 'Rep'}',
+        '+${_formatAmount(reward.amount)} ${isTr ? 'Un' : 'Rep'}',
       OrderRewardType.chest =>
-        '${_chestTypeLabel(reward.chestType ?? ChestType.small)} ${isTr ? 'sandik' : 'chest'}',
+        '${_chestTypeLabel(reward.chestType ?? ChestType.small)} ${isTr ? 'sandık' : 'chest'}',
       OrderRewardType.temporaryBoost =>
-        '${reward.durationSeconds ?? 30}s x${reward.amount.round()} ${isTr ? 'boost' : 'boost'}',
-      OrderRewardType.turboCharge => isTr ? 'Turbo hazir' : 'Turbo ready',
+        '${reward.durationSeconds ?? 30}s x${_formatMultiplier(reward.amount)} ${isTr ? 'boost' : 'boost'}',
       OrderRewardType.recipeShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Tarif parcasi' : 'Recipe shard',
+        isTr ? 'Tarif parçası' : 'Recipe shard',
       ),
       OrderRewardType.staffCardShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Personel parcasi' : 'Staff shard',
+        isTr ? 'Personel parçası' : 'Staff shard',
       ),
       OrderRewardType.decorShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Dekor parcasi' : 'Decor shard',
+        isTr ? 'Dekor parçası' : 'Decor shard',
       ),
       OrderRewardType.knifeSkinShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Bicak skin parcasi' : 'Knife skin shard',
+        isTr ? 'Bıçak görünümü parçası' : 'Knife skin shard',
       ),
     };
   }
@@ -2377,34 +2701,6 @@ class GameController extends ChangeNotifier {
   bool _refreshActivePlayState(DateTime nowUtc) {
     final previousState = _state;
     _state = _expireComboIfNeeded(_state, nowUtc);
-    _state = _expireGoldenDonerIfNeeded(_state, nowUtc);
-
-    if (!_state.milestones.hasFeature('golden_doner')) {
-      return previousState != _state;
-    }
-    if (_state.goldenDoner.isActiveAt(nowUtc)) {
-      return previousState != _state;
-    }
-    final nextSpawnAt = _state.goldenDoner.nextSpawnAtUtc;
-    if (nextSpawnAt == null) {
-      _state = _state.copyWith(
-        goldenDoner: _scheduleNextGoldenDoner(_state.goldenDoner, nowUtc),
-      );
-      return true;
-    }
-    if (!nextSpawnAt.isAfter(nowUtc)) {
-      _state = _state.copyWith(
-        goldenDoner: GoldenDonerState(
-          activeUntilUtc: nowUtc.add(config.goldenDonerActiveDuration),
-          lastSpawnAtUtc: nowUtc,
-          requiredHits: config.goldenDonerRequiredHits,
-          currentHits: 0,
-          rewardPreview: _engine.goldenDonerReward(_state, nowUtc: nowUtc),
-        ),
-      );
-      return true;
-    }
-
     return previousState != _state;
   }
 
@@ -2421,43 +2717,6 @@ class GameController extends ChangeNotifier {
       return state;
     }
     return state.copyWith(stats: state.stats.copyWith(currentCombo: 0));
-  }
-
-  GameState _expireGoldenDonerIfNeeded(GameState state, DateTime nowUtc) {
-    final goldenDoner = state.goldenDoner;
-    if (goldenDoner.activeUntilUtc == null || goldenDoner.isActiveAt(nowUtc)) {
-      return state;
-    }
-    return state.copyWith(
-      goldenDoner: _scheduleNextGoldenDoner(goldenDoner.clearActive(), nowUtc),
-    );
-  }
-
-  GoldenDonerState _scheduleNextGoldenDoner(
-    GoldenDonerState state,
-    DateTime nowUtc,
-  ) {
-    return state.copyWith(nextSpawnAtUtc: nowUtc.add(_goldenDonerInterval()));
-  }
-
-  Duration _goldenDonerInterval() {
-    final minInterval = config.goldenDonerMinSpawnInterval;
-    final maxInterval = config.goldenDonerMaxSpawnInterval;
-    if (maxInterval <= minInterval) {
-      return _scaledGoldenDonerInterval(minInterval);
-    }
-    final range = maxInterval.inMilliseconds - minInterval.inMilliseconds;
-    final raw =
-        minInterval +
-        Duration(milliseconds: (_random.nextDouble() * range).round());
-    return _scaledGoldenDonerInterval(raw);
-  }
-
-  Duration _scaledGoldenDonerInterval(Duration raw) {
-    final multiplier = _engine.goldenDonerIntervalMultiplier(_state);
-    return Duration(
-      milliseconds: math.max(1000, (raw.inMilliseconds * multiplier).round()),
-    );
   }
 
   TapOutcome _applyTapOutcome(DateTime nowUtc) {
@@ -2517,77 +2776,44 @@ class GameController extends ChangeNotifier {
     );
     _state = _engine.addCoins(_state, tapCoins);
 
-    var goldenDonerHit = false;
-    var goldenDonerCompleted = false;
-    var goldenDonerReward = 0;
-    var goldenDonerHits = _state.goldenDoner.currentHits;
-    final goldenDonerRequiredHits = _state.goldenDoner.requiredHits;
-    if (_state.goldenDoner.isActiveAt(nowUtc)) {
-      goldenDonerHit = true;
-      goldenDonerHits = _state.goldenDoner.currentHits + 1;
-      if (goldenDonerHits >= _state.goldenDoner.requiredHits) {
-        goldenDonerCompleted = true;
-        goldenDonerReward = _state.goldenDoner.rewardPreview;
-        _state = _engine.addCoins(_state, goldenDonerReward);
-        _state = _state.copyWith(
-          goldenDoner: _scheduleNextGoldenDoner(
-            _state.goldenDoner.clearActive(),
-            nowUtc,
-          ),
-          stats: _state.stats.copyWith(
-            goldenDonerCollected: _state.stats.goldenDonerCollected + 1,
-          ),
-        );
-      } else {
-        _state = _state.copyWith(
-          goldenDoner: _state.goldenDoner.copyWith(
-            currentHits: goldenDonerHits,
-          ),
-        );
-      }
-    }
-
     return TapOutcome(
       coins: tapCoins,
       combo: activeCombo,
       comboMultiplier: comboMultiplier,
       isCritical: isCritical,
       criticalMultiplier: criticalMultiplier,
-      goldenDonerHit: goldenDonerHit,
-      goldenDonerCompleted: goldenDonerCompleted,
-      goldenDonerReward: goldenDonerReward,
-      goldenDonerHits: goldenDonerHits,
-      goldenDonerRequiredHits: goldenDonerRequiredHits,
     );
   }
 
   GameHudSnapshot _computeHudSnapshot({required DateTime nowUtc}) {
     return GameHudSnapshot(
       cash: _state.cash,
-      passiveIncomePerSecond: _engine.passiveIncomePerSecond(
-        _state,
-        nowUtc: nowUtc,
+      passiveIncomePerSecond: CurrencyMath.clampDouble(
+        _engine.passiveIncomePerSecond(_state, nowUtc: nowUtc),
       ),
       reputation: _state.prestige.totalPrestigePoints,
       tapValue: _engine.tapValue(_state, nowUtc: nowUtc),
     );
   }
 
-  RushSnapshot _computeRushSnapshot({required DateTime nowUtc}) {
-    return RushSnapshot(
-      isActive: _state.rush.isActiveAt(nowUtc),
-      canStart: _engine.canStartRush(_state, nowUtc: nowUtc),
-      remaining: _displayDuration(_state.rush.remainingActive(nowUtc)),
-      cooldownRemaining: _displayDuration(
-        _state.rush.remainingCooldown(nowUtc),
-      ),
+  RandomEventSnapshot? _computeRandomEventSnapshot({required DateTime nowUtc}) {
+    final activeEventId = _state.randomEvents.activeEventId;
+    final event = RandomEventCatalog.byId[activeEventId];
+    if (event == null) {
+      return null;
+    }
+    final modifierCount = _state.randomEvents.activeModifiers
+        .where((modifier) => modifier.isActiveAt(nowUtc))
+        .length;
+    return RandomEventSnapshot(
+      event: event,
+      remainingModifierCount: modifierCount,
     );
   }
 
   ActivePlaySnapshot _computeActivePlaySnapshot({required DateTime nowUtc}) {
     final comboUnlocked = _state.milestones.hasFeature('combo');
     final criticalUnlocked = _state.milestones.hasFeature('critical_cut');
-    final goldenDonerUnlocked = _state.milestones.hasFeature('golden_doner');
     final activeCombo = _engine.activeComboForCount(
       _state.stats.currentCombo,
       _state,
@@ -2611,15 +2837,94 @@ class GameController extends ChangeNotifier {
       criticalUnlocked: criticalUnlocked,
       criticalChance: _engine.criticalChance(_state),
       criticalMultiplier: _engine.criticalMultiplier(_state),
-      goldenDonerUnlocked: goldenDonerUnlocked,
-      goldenDonerActive: _state.goldenDoner.isActiveAt(nowUtc),
-      goldenDonerRemaining: _displayDuration(
-        _state.goldenDoner.remainingActive(nowUtc),
+      temporaryIncomeBoostActive: _state.passiveBoost.isActiveAt(nowUtc),
+      temporaryIncomeBoostRemaining: _displayDuration(
+        _state.passiveBoost.remainingActive(nowUtc),
       ),
-      goldenDonerHits: _state.goldenDoner.currentHits,
-      goldenDonerRequiredHits: _state.goldenDoner.requiredHits,
-      goldenDonerRewardPreview: _state.goldenDoner.rewardPreview,
+      activeEffects: _computeActiveEffectSnapshots(nowUtc),
     );
+  }
+
+  List<ActiveEffectSnapshot> _computeActiveEffectSnapshots(DateTime nowUtc) {
+    final isTr = _state.localeCode == 'tr';
+    final effects = <ActiveEffectSnapshot>[];
+    if (_state.passiveBoost.isActiveAt(nowUtc)) {
+      effects.add(
+        ActiveEffectSnapshot(
+          id: 'passive_boost',
+          label: isTr ? 'x2 Gelir' : 'x2 Income',
+          remaining: _displayDuration(
+            _state.passiveBoost.remainingActive(nowUtc),
+          ),
+          isPositive: true,
+        ),
+      );
+    }
+
+    for (final modifier in _state.randomEvents.activeModifiers) {
+      if (!modifier.isActiveAt(nowUtc)) {
+        continue;
+      }
+      effects.add(
+        ActiveEffectSnapshot(
+          id: modifier.id,
+          label: _randomEventModifierLabel(modifier, isTr: isTr),
+          remaining: _displayDuration(modifier.expiresAtUtc.difference(nowUtc)),
+          isPositive: _isPositiveRandomEventModifier(modifier),
+        ),
+      );
+    }
+
+    return List<ActiveEffectSnapshot>.unmodifiable(effects);
+  }
+
+  String _randomEventModifierLabel(
+    TimedModifierState modifier, {
+    required bool isTr,
+  }) {
+    final value = modifier.value;
+    final percent = ((value - 1).abs() * 100).round();
+    final sign = value >= 1 ? '+' : '-';
+    return switch (modifier.type) {
+      RandomEventModifierType.tapIncome =>
+        value >= 2 ? 'Tap x${_formatMultiplier(value)}' : 'Tap $sign$percent%',
+      RandomEventModifierType.passiveIncome =>
+        isTr ? 'Pasif $sign$percent%' : 'Passive $sign$percent%',
+      RandomEventModifierType.globalIncome =>
+        value >= 2
+            ? (isTr
+                  ? 'Gelir x${_formatMultiplier(value)}'
+                  : 'Income x${_formatMultiplier(value)}')
+            : (isTr ? 'Gelir $sign$percent%' : 'Income $sign$percent%'),
+      RandomEventModifierType.menuMultiplier =>
+        isTr ? 'Menü $sign$percent%' : 'Menu $sign$percent%',
+      RandomEventModifierType.upgradeCost =>
+        value < 1
+            ? (isTr ? 'Upgrade Maliyeti -$percent%' : 'Upgrade Cost -$percent%')
+            : (isTr
+                  ? 'Upgrade Maliyeti +$percent%'
+                  : 'Upgrade Cost +$percent%'),
+      RandomEventModifierType.reputationGain =>
+        isTr ? 'İtibar $sign$percent%' : 'Reputation $sign$percent%',
+    };
+  }
+
+  bool _isPositiveRandomEventModifier(TimedModifierState modifier) {
+    return switch (modifier.type) {
+      RandomEventModifierType.upgradeCost => modifier.value <= 1,
+      RandomEventModifierType.tapIncome ||
+      RandomEventModifierType.passiveIncome ||
+      RandomEventModifierType.globalIncome ||
+      RandomEventModifierType.menuMultiplier ||
+      RandomEventModifierType.reputationGain => modifier.value >= 1,
+    };
+  }
+
+  String _formatMultiplier(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(1);
   }
 
   CustomerOrderSnapshot _computeCustomerOrderSnapshot({
@@ -2732,7 +3037,10 @@ class GameController extends ChangeNotifier {
               .length;
           return BranchRegionSnapshot(
             id: region.id,
-            name: region.name,
+            name: BranchCatalog.regionName(
+              region.id,
+              localeCode: _state.localeCode,
+            ),
             unlocked: _state.branches.unlockedRegionIds.contains(region.id),
             completed: BranchCatalog.isRegionComplete(
               _state.branches,
@@ -2766,16 +3074,31 @@ class GameController extends ChangeNotifier {
             name: definition.name,
             cityName: definition.cityName,
             regionId: definition.regionId,
-            regionName: region?.name ?? definition.regionId,
+            regionName: BranchCatalog.regionName(
+              region?.id ?? definition.regionId,
+              localeCode: _state.localeCode,
+            ),
             description: definition.description,
             assetKey: definition.assetKey,
             unlocked: progress.isUnlocked,
             level: progress.level,
             maxLevel: definition.maxLevel,
-            unlockCost: BranchCatalog.unlockCost(definition),
-            levelUpCost: BranchCatalog.levelUpCost(definition, progress),
-            canUnlock: BranchCatalog.canUnlock(_state, definition),
-            canLevelUp: BranchCatalog.canLevelUp(_state, definition),
+            unlockCost: _effectivePurchaseCost(
+              BranchCatalog.unlockCost(definition),
+            ),
+            levelUpCost: _effectivePurchaseCost(
+              BranchCatalog.levelUpCost(definition, progress),
+            ),
+            canUnlock: BranchCatalog.canUnlock(
+              _state,
+              definition,
+              ignoreCostRequirement: _freePurchasesEnabled,
+            ),
+            canLevelUp: BranchCatalog.canLevelUp(
+              _state,
+              definition,
+              ignoreCostRequirement: _freePurchasesEnabled,
+            ),
             incomePerSecond:
                 BranchCatalog.rawBranchIncomeFor(
                   definition,
@@ -2790,14 +3113,19 @@ class GameController extends ChangeNotifier {
                   _state.collection2,
                 ) *
                 incomeScale,
-            requirements: BranchCatalog.unlockRequirements(_state, definition)
-                .map(
-                  (requirement) => BranchRequirementSnapshot(
-                    label: requirement.label,
-                    completed: requirement.completed,
-                  ),
-                )
-                .toList(growable: false),
+            requirements:
+                BranchCatalog.unlockRequirements(
+                      _state,
+                      definition,
+                      ignoreCostRequirement: _freePurchasesEnabled,
+                    )
+                    .map(
+                      (requirement) => BranchRequirementSnapshot(
+                        label: requirement.label,
+                        completed: requirement.completed,
+                      ),
+                    )
+                    .toList(growable: false),
             reachedMilestoneCount: BranchCatalog.reachedMilestoneCount(
               progress.level,
             ),
@@ -2843,12 +3171,27 @@ class GameController extends ChangeNotifier {
       final state = _state.upgrade(upgrade.id);
       final totalLevel = _engine.upgradeTotalLevel(_state, upgrade.id);
       final maxed = _engine.isUpgradeMaxed(upgrade, state);
-      final cost = _engine.upgradeCost(upgrade, state);
+      final cost = _effectiveUpgradeCost(
+        _engine.upgradeCost(upgrade, state),
+        nowUtc,
+      );
       final itemLevel = upgrade.itemLevelForTotalLevel(totalLevel);
       final currentItem = _engine.currentUpgradeItem(_state, upgrade.id);
       final nextItem = _engine.nextUpgradeItem(_state, upgrade.id);
       final nextMilestone = upgrade.nextMilestoneForLevel(totalLevel);
       final nextMilestoneItem = upgrade.nextMilestoneItemForLevel(totalLevel);
+      final remainingLevels = math.max(0, upgrade.maxLevel - totalLevel);
+      final tenQuantity = math.min(10, remainingLevels);
+      final tenCost = _effectiveUpgradeCost(
+        _engine.upgradeCostForQuantity(upgrade, state, tenQuantity),
+        nowUtc,
+      );
+      final tenPreview = _engine.previewUpgradePurchase(
+        _state,
+        upgrade.id,
+        quantity: tenQuantity,
+      );
+      final maxPreview = _engine.previewMaxUpgradePurchase(_state, upgrade.id);
       upgrades[upgrade.id] = ShopUpgradeSnapshot(
         totalLevel: totalLevel,
         itemLevel: itemLevel,
@@ -2868,27 +3211,35 @@ class GameController extends ChangeNotifier {
             !maxed && totalLevel > 0 && itemLevel == currentItem.maxLevel,
         cost: cost,
         canAfford: !maxed && _state.cash >= cost,
+        buyTenCost: tenCost,
+        canAffordTen:
+            !maxed &&
+            tenQuantity > 0 &&
+            tenPreview.purchasedCount == tenQuantity,
+        maxAffordableQuantity: maxPreview.purchasedCount,
+        maxAffordableCost: _effectiveUpgradeCost(maxPreview.cost, nowUtc),
       );
     }
 
+    final strings = AppStrings.forLanguageCode(_state.localeCode);
     final currentShop = ShopProgressionCatalog.byLevel(
       _state.shopProgression.currentShopLevel,
     );
     final nextShop = ShopProgressionCatalog.nextAfter(currentShop.level);
     final progression = ShopProgressionSnapshot(
       currentLevel: currentShop.level,
-      currentName: currentShop.name,
+      currentName: strings.shopLevelName(currentShop.id),
       highestLevel: _state.shopProgression.highestShopLevel,
       incomeMultiplier: currentShop.incomeMultiplier,
       nextLevel: nextShop?.level,
-      nextName: nextShop?.name,
+      nextName: nextShop == null ? null : strings.shopLevelName(nextShop.id),
       nextIncomeMultiplier: nextShop?.incomeMultiplier,
       requirements: nextShop == null
           ? const <ShopRequirementSnapshot>[]
           : nextShop.requirements
                 .map(
                   (requirement) => ShopRequirementSnapshot(
-                    label: requirement.label(),
+                    label: _shopRequirementLabel(requirement, strings),
                     completed: requirement.isMet(_state, config),
                   ),
                 )
@@ -2900,6 +3251,30 @@ class GameController extends ChangeNotifier {
       upgrades: Map<UpgradeId, ShopUpgradeSnapshot>.unmodifiable(upgrades),
       progression: progression,
     );
+  }
+
+  String _shopRequirementLabel(
+    ShopLevelRequirement requirement,
+    AppStrings strings,
+  ) {
+    return switch (requirement.type) {
+      ShopLevelRequirementType.runCashEarned => strings.shopRunCashRequirement(
+        requirement.target,
+      ),
+      ShopLevelRequirementType.upgradeTotalLevel =>
+        strings.shopUpgradeCountRequirement(
+          strings.upgradeName(requirement.upgradeId!),
+          requirement.target,
+        ),
+      ShopLevelRequirementType.upgradeItemUnlocked =>
+        strings.shopUpgradeItemRequirement(
+          strings.upgradeName(requirement.upgradeId!),
+          strings.upgradeItemName(requirement.upgradeId!, requirement.itemKey!),
+        ),
+      ShopLevelRequirementType.prestigeCount => strings.shopPrestigeRequirement(
+        requirement.target,
+      ),
+    };
   }
 
   PrestigeSnapshot _computePrestigeSnapshot() {
@@ -2918,7 +3293,7 @@ class GameController extends ChangeNotifier {
       shopUpgrades: PrestigeShopCatalog.upgrades
           .map((upgrade) {
             final level = _state.prestige.prestigeUpgradeLevel(upgrade.id);
-            final cost = upgrade.costForLevel(level);
+            final cost = _effectivePurchaseCost(upgrade.costForLevel(level));
             final maxed = level >= upgrade.maxLevel;
             return PrestigeShopUpgradeSnapshot(
               id: upgrade.id,
@@ -2931,13 +3306,19 @@ class GameController extends ChangeNotifier {
               canAfford:
                   !maxed && _state.prestige.unspentPrestigePoints >= cost,
               maxed: maxed,
-              currentEffectLabel: upgrade.effectLabel(level),
-              nextEffectLabel: upgrade.effectLabel(level + 1),
+              currentEffectLabel: upgrade.effectLabel(
+                level,
+                localeCode: _state.localeCode,
+              ),
+              nextEffectLabel: upgrade.effectLabel(
+                level + 1,
+                localeCode: _state.localeCode,
+              ),
             );
           })
           .toList(growable: false),
       resetItems: const [
-        'Current money, all upgrade progress, current shop level, temporary boosts, combo, Golden Doner, and turbo state',
+        'Current money, all upgrade progress, current shop level, temporary boosts, and combo state',
         'Current run quest progress',
         'Active customer order and customer spawn timer',
         'Branch income activation until this run reaches Shop Lv. 7 again',
@@ -2956,6 +3337,22 @@ class GameController extends ChangeNotifier {
         'Permanent premium boosts',
       ],
     );
+  }
+
+  int _effectivePurchaseCost(int rawCost) {
+    return _freePurchasesEnabled ? 0 : rawCost;
+  }
+
+  num _effectiveUpgradeCost(num rawCost, DateTime nowUtc) {
+    if (_freePurchasesEnabled) {
+      return 0;
+    }
+    final multiplier = randomEventModifierProduct(
+      _state.randomEvents,
+      RandomEventModifierType.upgradeCost,
+      nowUtc: nowUtc,
+    );
+    return math.max(0, CurrencyMath.roundDouble(rawCost * multiplier));
   }
 
   ProgressionSnapshot _computeProgressionSnapshot() {
@@ -3100,8 +3497,7 @@ class GameController extends ChangeNotifier {
       collectionSets: collectionSets,
       chests: ChestInventorySnapshot(
         counts: Map<ChestType, int>.unmodifiable({
-          for (final type in ChestType.values)
-            type: _state.chestInventory.count(type),
+          for (final type in ChestType.values) type: _debugChestCount(type),
         }),
       ),
       latestClaimableAchievement: latestClaimableAchievement,
@@ -3109,9 +3505,18 @@ class GameController extends ChangeNotifier {
     );
   }
 
+  int _debugChestCount(ChestType type) {
+    if (_debugUnlimitedChestsEnabled) {
+      return math.max(99, _state.chestInventory.count(type));
+    }
+    return _state.chestInventory.count(type);
+  }
+
   String _achievementRewardLabel(AchievementReward reward) {
+    final isTr = _state.localeCode == 'tr';
     return switch (reward.type) {
-      AchievementRewardType.cash => '+${reward.amount.round()} cash',
+      AchievementRewardType.cash =>
+        '+${_formatAmount(reward.amount)} ${isTr ? 'para' : 'cash'}',
       AchievementRewardType.chest =>
         '${_chestTypeLabel(reward.chestType ?? ChestType.small)} chest',
       AchievementRewardType.permanentTapBonus =>
@@ -3120,7 +3525,8 @@ class GameController extends ChangeNotifier {
         'Passive +${(reward.amount * 100).round()}%',
       AchievementRewardType.permanentGlobalBonus =>
         'Global +${(reward.amount * 100).round()}%',
-      AchievementRewardType.cosmeticToken => 'Token x${reward.amount.round()}',
+      AchievementRewardType.cosmeticToken =>
+        'Token x${_formatAmount(reward.amount)}',
     };
   }
 
@@ -3128,38 +3534,37 @@ class GameController extends ChangeNotifier {
     final isTr = _state.localeCode == 'tr';
     return switch (reward.type) {
       GoalRewardType.money =>
-        '+${reward.amount.round()} ${isTr ? 'para' : 'cash'}',
+        '+${_formatAmount(reward.amount)} ${isTr ? 'para' : 'cash'}',
       GoalRewardType.reputation =>
-        '+${reward.amount.round()} ${isTr ? 'un' : 'rep'}',
+        '+${_formatAmount(reward.amount)} ${isTr ? 'un' : 'rep'}',
       GoalRewardType.chest =>
-        '${_chestTypeLabel(reward.chestType ?? ChestType.small)} ${isTr ? 'sandik' : 'chest'}',
+        '${_chestTypeLabel(reward.chestType ?? ChestType.small)} ${isTr ? 'sandık' : 'chest'}',
       GoalRewardType.temporaryBoost =>
-        '${reward.durationSeconds ?? 30}s x${reward.amount.round()} boost',
-      GoalRewardType.turboCharge => isTr ? 'Turbo hazir' : 'Turbo ready',
+        '${reward.durationSeconds ?? 30}s x${_formatMultiplier(reward.amount)} boost',
       GoalRewardType.recipeShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Tarif parcasi' : 'Recipe shard',
+        isTr ? 'Tarif parçası' : 'Recipe shard',
       ),
       GoalRewardType.staffCardShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Personel parcasi' : 'Staff shard',
+        isTr ? 'Personel parçası' : 'Staff shard',
       ),
       GoalRewardType.decorShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Dekor parcasi' : 'Decor shard',
+        isTr ? 'Dekor parçası' : 'Decor shard',
       ),
       GoalRewardType.knifeSkinShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Bicak skin parcasi' : 'Knife skin shard',
+        isTr ? 'Bıçak görünümü parçası' : 'Knife skin shard',
       ),
       GoalRewardType.prestigePoint =>
-        '+${reward.amount.round()} ${isTr ? 'prestij puani' : 'prestige point'}',
+        '+${_formatAmount(reward.amount)} ${isTr ? 'prestij puani' : 'prestige point'}',
       GoalRewardType.prestigeShard =>
-        isTr ? 'Prestij parcasi' : 'Prestige shard',
+        isTr ? 'Prestij parçası' : 'Prestige shard',
     };
   }
 
@@ -3170,7 +3575,7 @@ class GameController extends ChangeNotifier {
   ) {
     final name = _collection2ItemName(itemId) ?? fallback;
     final quantity = amount.round();
-    return quantity > 0 ? '$name x$quantity' : name;
+    return quantity > 0 ? '$name x${_formatAmount(quantity)}' : name;
   }
 
   String? _collection2ItemName(String? itemId) {
@@ -3191,7 +3596,6 @@ class GameController extends ChangeNotifier {
         RecipeBonusType.menuMultiplier => 'menu',
         RecipeBonusType.tipValue => 'tip',
         RecipeBonusType.customerReward => 'customer',
-        RecipeBonusType.goldenDonerReward => 'golden',
         RecipeBonusType.globalIncome => 'global',
       },
     );

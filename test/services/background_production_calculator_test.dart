@@ -13,17 +13,11 @@ void main() {
   );
   final baseline = DateTime.utc(2026, 4, 1, 12);
 
-  GameState buildState({
-    required DateTime lastActiveAtUtc,
-    DateTime? rushEndsAtUtc,
-  }) {
-    return GameState.initial(config, nowUtc: baseline).copyWith(
-      lastActiveAtUtc: lastActiveAtUtc,
-      rush: TimedEffectState(
-        endsAtUtc: rushEndsAtUtc,
-        cooldownEndsAtUtc: rushEndsAtUtc?.add(const Duration(seconds: 60)),
-      ),
-    );
+  GameState buildState({required DateTime lastActiveAtUtc}) {
+    return GameState.initial(
+      config,
+      nowUtc: baseline,
+    ).copyWith(lastActiveAtUtc: lastActiveAtUtc);
   }
 
   test('negative elapsed is clamped to zero', () {
@@ -50,16 +44,14 @@ void main() {
     expect(grant.coins, 17280);
   });
 
-  test('offline income ignores rush and applies offline efficiency', () {
+  test('offline income applies offline efficiency', () {
     final grant = calculator.calculate(
       state: buildState(
         lastActiveAtUtc: baseline.subtract(const Duration(hours: 2)),
-        rushEndsAtUtc: baseline.subtract(const Duration(hours: 1, minutes: 30)),
       ),
       nowUtc: baseline,
     );
 
-    expect(grant.rushElapsed, Duration.zero);
     expect(grant.coins, 1440);
   });
 }

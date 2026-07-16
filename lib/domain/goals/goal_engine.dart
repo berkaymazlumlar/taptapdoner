@@ -260,7 +260,6 @@ class GoalEngine {
       GoalObjectiveType.earnMoney ||
       GoalObjectiveType.buyUpgrades ||
       GoalObjectiveType.openChests ||
-      GoalObjectiveType.useTurbo ||
       GoalObjectiveType.levelUpShop ||
       GoalObjectiveType.completeMilestones ||
       GoalObjectiveType.unlockCollectionItem => true,
@@ -283,9 +282,6 @@ class GoalEngine {
         'critical_cut',
       ),
       GoalObjectiveType.reachCombo => state.milestones.hasFeature('combo'),
-      GoalObjectiveType.collectGoldenDoner => state.milestones.hasFeature(
-        'golden_doner',
-      ),
       GoalObjectiveType.doPrestige =>
         state.prestige.prestigeCount > 0 ||
             state.stats.openPrestigeScreenOnce ||

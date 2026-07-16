@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taptapdoner/app/app_theme.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/l10n/app_strings.dart';
+import 'package:taptapdoner/l10n/locale_case.dart';
 import 'package:taptapdoner/ui/overlays/game_shell_overlay.dart';
 import 'package:taptapdoner/ui/overlays/offline_reward_overlay.dart';
 import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
@@ -31,7 +33,8 @@ class _TapTapDonerAppState extends State<TapTapDonerApp> {
   void initState() {
     super.initState();
     _ownsController = widget.controller == null;
-    _controller = widget.controller ?? GameController();
+    _controller =
+        widget.controller ?? GameController(freePurchasesEnabled: kDebugMode);
     _localeCode = _resolveLocaleCode();
     _controller.addListener(_handleControllerUpdate);
     _lifecycleListener = AppLifecycleListener(
@@ -245,7 +248,7 @@ class _StartupSplashBackdrop extends StatelessWidget {
       ),
       child: Center(
         child: Text(
-          AppStrings.of(context).appTitle.toUpperCase(),
+          AppStrings.of(context).appTitle.toLocaleUpperCase(context),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(

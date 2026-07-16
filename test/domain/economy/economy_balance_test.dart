@@ -16,7 +16,10 @@ void main() {
     );
     expect(
       timeline.firstStaffReachable,
-      _between(const Duration(minutes: 3), const Duration(minutes: 5)),
+      _between(
+        const Duration(minutes: 3),
+        const Duration(minutes: 5, seconds: 15),
+      ),
     );
     expect(timeline.firstOvenReachable, lessThanOrEqualTo(25.minutes));
     expect(
@@ -60,10 +63,6 @@ _BalanceTimeline _simulateActivePlay(
   while (elapsed <= const Duration(hours: 24)) {
     final tickNow = now.add(elapsed);
 
-    if (engine.canStartRush(state, nowUtc: tickNow)) {
-      state = engine.startRush(state, nowUtc: tickNow);
-    }
-
     tapCarry += 0.5;
     while (tapCarry >= 1) {
       state = engine.applyTap(state, nowUtc: tickNow);
@@ -93,7 +92,7 @@ _BalanceTimeline _simulateActivePlay(
     while (bought) {
       bought = false;
       UpgradeDefinition? choice;
-      var choiceCost = 0;
+      num choiceCost = 0;
       for (final upgrade in config.upgrades) {
         final upgradeState = state.upgrade(upgrade.id);
         if (engine.isUpgradeMaxed(upgrade, upgradeState)) {
