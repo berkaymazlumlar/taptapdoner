@@ -59,7 +59,7 @@ abstract final class RandomEventCatalog {
       choices.add(
         RandomEventChoice(
           key: 'rewarded_ad',
-          label: 'Reklam ?zle',
+          label: 'Reklam İzle',
           outcomeLogic: seed.adOption,
           requiresRewardedAd: true,
           outcomes: _rewardedAdOutcomes(seed),
@@ -78,7 +78,7 @@ abstract final class RandomEventCatalog {
         probability: 1,
         effect: effect,
         resultText:
-            'Reklam deste?iyle risk azald? ve f?rsat g?venli ?ekilde de?erlendirildi.',
+            'Reklam desteğiyle risk azaldı ve fırsat güvenli şekilde değerlendirildi.',
       ),
     ];
   }
@@ -95,7 +95,7 @@ abstract final class RandomEventCatalog {
         _noEffect(
           eventId,
           choiceKey,
-          'F?rsat? pas ge?tin. D?kk?n d?zeni bozulmad?.',
+          'Fırsatı pas geçtin. Dükkân düzeni bozulmadı.',
         ),
       ];
     }
@@ -130,8 +130,8 @@ abstract final class RandomEventCatalog {
 
   static bool _isMostlyNoEffect(String logic) {
     final lower = logic.toLowerCase();
-    return lower.contains('f?rsat ka?ar') ||
-        lower.contains('hi?bir ?ey olmaz') && !lower.contains('%');
+    return lower.contains('fırsat kaçar') ||
+        lower.contains('hiçbir şey olmaz') && !lower.contains('%');
   }
 
   static List<_ProbabilityPiece> _probabilityPieces(String logic) {
@@ -165,6 +165,26 @@ abstract final class RandomEventCatalog {
     final combined = '$lower ${fullLogic.toLowerCase()}';
     final upfrontCost = _costTarget(fullLogic);
 
+    if (lower.contains('itibar') &&
+        lower.contains('kazanımı') &&
+        _mentionsPenalty(lower)) {
+      return RandomEventEffect(
+        type: RandomEventEffectType.reputationPenalty,
+        value: _penaltyMultiplier(lower, fallback: 0.8),
+        duration: _duration(lower),
+      );
+    }
+    if (lower.contains('itibar') &&
+        lower.contains('kazanımı') &&
+        _mentionsGain(lower)) {
+      return RandomEventEffect(
+        type: RandomEventEffectType.reputationBoost,
+        value: _boostMultiplier(lower, fallback: 1.2),
+        duration: _duration(lower),
+        target: upfrontCost,
+      );
+    }
+
     if (_mentionsLoss(lower) && !_hasSupportedPositiveEffect(lower, tags)) {
       return RandomEventEffect(
         type: RandomEventEffectType.moneyCost,
@@ -172,8 +192,8 @@ abstract final class RandomEventCatalog {
         target: _capSeconds(lower),
       );
     }
-    if (lower.contains('hi?bir ?ey') ||
-        lower.contains('bo?') ||
+    if (lower.contains('hiçbir şey') ||
+        lower.contains('boş') ||
         lower.contains('deneyim')) {
       return const RandomEventEffect(
         type: RandomEventEffectType.noEffect,
@@ -220,6 +240,7 @@ abstract final class RandomEventCatalog {
     }
     if ((lower.contains('pasif') ||
             lower.contains('passive') ||
+            lower.contains('staff effect') ||
             tags.contains('passive_boost')) &&
         _mentionsGain(lower)) {
       return RandomEventEffect(
@@ -229,7 +250,7 @@ abstract final class RandomEventCatalog {
         target: upfrontCost,
       );
     }
-    if ((lower.contains('men?') || lower.contains('menu')) &&
+    if ((lower.contains('menü') || lower.contains('menu')) &&
         _mentionsPenalty(lower)) {
       return RandomEventEffect(
         type: RandomEventEffectType.menuPenalty,
@@ -237,7 +258,7 @@ abstract final class RandomEventCatalog {
         duration: _duration(lower),
       );
     }
-    if ((lower.contains('men?') ||
+    if ((lower.contains('menü') ||
             lower.contains('menu') ||
             tags.contains('menu_boost')) &&
         _mentionsGain(lower)) {
@@ -263,7 +284,7 @@ abstract final class RandomEventCatalog {
         duration: _duration(lower),
       );
     }
-    if ((lower.contains('t?m gelir') ||
+    if ((lower.contains('tüm gelir') ||
             lower.contains('gelir') ||
             tags.contains('global')) &&
         _mentionsPenalty(lower)) {
@@ -273,7 +294,7 @@ abstract final class RandomEventCatalog {
         duration: _duration(lower),
       );
     }
-    if ((lower.contains('t?m gelir') ||
+    if ((lower.contains('tüm gelir') ||
             lower.contains('gelir') ||
             tags.contains('global_boost')) &&
         _mentionsGain(lower)) {
@@ -325,51 +346,51 @@ abstract final class RandomEventCatalog {
     required bool isDecline,
   }) {
     if (isDecline && type == RandomEventEffectType.noEffect) {
-      return 'F?rsat? pas ge?tin. D?kk?n d?zeni bozulmad?.';
+      return 'Fırsatı pas geçtin. Dükkân düzeni bozulmadı.';
     }
     return switch (type) {
       RandomEventEffectType.instantMoney =>
-        'F?rsat kazanca d?nd?. Kasaya ek para girdi.',
-      RandomEventEffectType.moneyCost => 'Bu karar?n k???k bir maliyeti oldu.',
-      RandomEventEffectType.tapBoost => 'Kesim temposu y?kseldi.',
+        'Fırsat kazanca döndü. Kasaya ek para girdi.',
+      RandomEventEffectType.moneyCost => 'Bu kararın küçük bir maliyeti oldu.',
+      RandomEventEffectType.tapBoost => 'Kesim temposu yükseldi.',
       RandomEventEffectType.tapPenalty =>
-        'Kesim temposu k?sa s?reli?ine d??t?.',
+        'Kesim temposu kısa süreliğine düştü.',
       RandomEventEffectType.passiveBoost =>
-        'Ekip daha verimli ?al??maya ba?lad?.',
-      RandomEventEffectType.passivePenalty => 'Ekip k?sa s?reli?ine yava?lad?.',
-      RandomEventEffectType.globalBoost => 'D?kk?n?n genel kazanc? y?kseldi.',
+        'Ekip daha verimli çalışmaya başladı.',
+      RandomEventEffectType.passivePenalty => 'Ekip kısa süreliğine yavaşladı.',
+      RandomEventEffectType.globalBoost => 'Dükkânın genel kazancı yükseldi.',
       RandomEventEffectType.globalPenalty =>
-        'D?kk?n?n genel kazanc? k?sa s?reli?ine d??t?.',
+        'Dükkânın genel kazancı kısa süreliğine düştü.',
       RandomEventEffectType.menuBoost =>
-        'Men? etkisi k?sa s?reli?ine g??lendi.',
+        'Menü etkisi kısa süreliğine güçlendi.',
       RandomEventEffectType.menuPenalty =>
-        'Men? etkisi k?sa s?reli?ine zay?flad?.',
+        'Menü etkisi kısa süreliğine zayıfladı.',
       RandomEventEffectType.upgradeDiscount =>
-        'Upgrade maliyetleri k?sa s?reli?ine d??t?.',
+        'Upgrade maliyetleri kısa süreliğine düştü.',
       RandomEventEffectType.upgradeCostPenalty =>
-        'Upgrade maliyetleri k?sa s?reli?ine y?kseldi.',
-      RandomEventEffectType.reputationGain => 'D?kk?n?n itibar? artt?.',
+        'Upgrade maliyetleri kısa süreliğine yükseldi.',
+      RandomEventEffectType.reputationGain => 'Dükkânın itibarı arttı.',
       RandomEventEffectType.reputationBoost ||
       RandomEventEffectType.reputationPenalty ||
       RandomEventEffectType.permanentBonus ||
       RandomEventEffectType.challengeStart ||
-      RandomEventEffectType.noEffect => 'Kayda de?er bir de?i?iklik olmad?.',
+      RandomEventEffectType.noEffect => 'Kayda değer bir değişiklik olmadı.',
     };
   }
 
   static bool _mentionsGain(String text) {
     return text.contains('+') ||
         text.contains('x') ||
-        text.contains('?') ||
+        text.contains('×') ||
         text.contains('kazan') ||
-        text.contains('s?f?rlan?r') ||
-        text.contains('ba?ar?l?');
+        text.contains('sıfırlanır') ||
+        text.contains('başarılı');
   }
 
   static bool _mentionsPenalty(String text) {
     return text.contains('-') ||
-        text.contains('d??') ||
-        text.contains('yar?ya') ||
+        text.contains('düş') ||
+        text.contains('yarıya') ||
         text.contains('ceza') ||
         text.contains('risk');
   }
@@ -420,21 +441,21 @@ abstract final class RandomEventCatalog {
   }
 
   static double _incomeSeconds(String text) {
-    final match = RegExp(r'[x?]\s*(\d+(?:[\.,]\d+)?)').firstMatch(text);
+    final match = RegExp(r'[x×]\s*(\d+(?:[\.,]\d+)?)').firstMatch(text);
     if (match != null) {
       return double.parse(match.group(1)!.replaceAll(',', '.'));
     }
-    if (text.contains('b?y?k')) {
+    if (text.contains('büyük')) {
       return 900;
     }
-    if (text.contains('k???k')) {
+    if (text.contains('küçük')) {
       return 150;
     }
     return 300;
   }
 
   static double _boostMultiplier(String text, {required double fallback}) {
-    final multiply = RegExp(r'[x?]\s*(\d+(?:[\.,]\d+)?)').firstMatch(text);
+    final multiply = RegExp(r'[x×]\s*(\d+(?:[\.,]\d+)?)').firstMatch(text);
     if (multiply != null) {
       return double.parse(multiply.group(1)!.replaceAll(',', '.'));
     }
@@ -450,7 +471,7 @@ abstract final class RandomEventCatalog {
     if (minus != null) {
       return 1 - double.parse(minus.group(1)!.replaceAll(',', '.')) / 100;
     }
-    if (text.contains('yar?ya')) {
+    if (text.contains('yarıya')) {
       return 0.5;
     }
     return fallback;
@@ -693,13 +714,12 @@ const _eventSeeds = <_EventSeed>[
     acceptLabel: "Yetiş",
     declineLabel: "Boş Ver",
     rewardSummary: "60 saniye tap x3",
-    riskSummary: "Turbo bekleme uzar",
-    acceptLogic:
-        "60 saniye boyunca her tap x3. Etkinlik bitince 2 dakika turbo cooldown uzar.",
+    riskSummary: "K?sa s?reli yo?un tempo",
+    acceptLogic: "60 saniye boyunca her tap x3.",
     declineLogic:
         "Hayır seçilirse genelde hiçbir şey olmaz; sadece fırsat kaçar.",
     adOption: "",
-    effectTags: "tap_boost;turbo_penalty",
+    effectTags: "tap_boost",
     cooldownGroup: "crowd",
   ),
   _EventSeed(
@@ -762,26 +782,6 @@ const _eventSeeds = <_EventSeed>[
     adOption: "",
     effectTags: "money_cost;global_boost",
     cooldownGroup: "supplier",
-  ),
-  _EventSeed(
-    id: "EVT_010",
-    title: "Turbo Tüpü Bulundu",
-    type: "reward",
-    rarity: "common",
-    weight: 100,
-    unlockCondition: "turbo unlocked",
-    eventText: "Depoda eski bir turbo tüpü buldun. Kullanmak ister misin?",
-    acceptLabel: "Kullan",
-    declineLabel: "Sakla",
-    rewardSummary: "Turbo anında hazır olur",
-    riskSummary: "Turbo süresi azalabilir",
-    acceptLogic:
-        "Turbo cooldown sıfırlanır. %20 risk: bir sonraki turbo süresi yarıya iner.",
-    declineLogic:
-        "Hayır seçilirse genelde hiçbir şey olmaz; sadece fırsat kaçar.",
-    adOption: "",
-    effectTags: "turbo_ready;turbo_penalty",
-    cooldownGroup: "turbo",
   ),
   _EventSeed(
     id: "EVT_011",
@@ -1051,13 +1051,12 @@ const _eventSeeds = <_EventSeed>[
     acceptLabel: "Kabul Et",
     declineLabel: "Reddet",
     rewardSummary: "5 dakika passive x2",
-    riskSummary: "Yoğunluk turboyu etkileyebilir",
-    acceptLogic:
-        "5 dakika passive income x2. %25 risk: turbo cooldown +1 dakika.",
+    riskSummary: "Yoğunluk k?sa s?rer",
+    acceptLogic: "5 dakika passive income x2.",
     declineLogic:
         "Hayır seçilirse genelde hiçbir şey olmaz; sadece fırsat kaçar.",
     adOption: "",
-    effectTags: "passive_boost;turbo_penalty",
+    effectTags: "passive_boost",
     cooldownGroup: "delivery",
   ),
   _EventSeed(
@@ -1327,7 +1326,7 @@ const _eventSeeds = <_EventSeed>[
     type: "challenge",
     rarity: "rare",
     weight: 55,
-    unlockCondition: "turbo unlocked",
+    unlockCondition: "default",
     eventText:
         "1 dakikada en çok döner kesme challenge’ı trend oldu. Katılacak mısın?",
     acceptLabel: "Katıl",

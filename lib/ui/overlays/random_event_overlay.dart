@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:taptapdoner/app/game_controller.dart';
@@ -20,9 +22,98 @@ class RandomEventOverlay extends StatefulWidget {
   State<RandomEventOverlay> createState() => _RandomEventOverlayState();
 }
 
-class _RandomEventOverlayState extends State<RandomEventOverlay> {
+class _RandomEventOverlayState extends State<RandomEventOverlay>
+    with TickerProviderStateMixin {
   RandomEventResolutionSnapshot? _resolution;
   bool _busy = false;
+  bool _closing = false;
+  bool _reduceMotion = false;
+  late final AnimationController _entranceController;
+  late final AnimationController _exitController;
+  late final Animation<double> _entranceScale;
+  late final Animation<double> _entranceTurn;
+
+  @override
+  void initState() {
+    super.initState();
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 780),
+    );
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+    _entranceScale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.36,
+          end: 1.12,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 58,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.12,
+          end: 0.96,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.96,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 22,
+      ),
+    ]).animate(_entranceController);
+    _entranceTurn = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.018, end: 0.012),
+        weight: 48,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.012, end: -0.006),
+        weight: 24,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: -0.006, end: 0),
+        weight: 28,
+      ),
+    ]).animate(_entranceController);
+    _entranceController.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _entranceController.value = 1;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant RandomEventOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.snapshot.event.id != widget.snapshot.event.id) {
+      _resolution = null;
+      _closing = false;
+      _exitController.reset();
+      if (_reduceMotion) {
+        _entranceController.value = 1;
+      } else {
+        _entranceController.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _entranceController.dispose();
+    _exitController.dispose();
+    super.dispose();
+  }
 
   Future<void> _choose(RandomEventChoice choice) async {
     if (_busy) {
@@ -42,10 +133,25 @@ class _RandomEventOverlayState extends State<RandomEventOverlay> {
   }
 
   Future<void> _close() async {
+    if (_closing || _busy) {
+      return;
+    }
+    setState(() {
+      _closing = true;
+      _busy = true;
+    });
+    if (!_reduceMotion) {
+      await _exitController.forward(from: 0);
+    }
+    if (!mounted) {
+      return;
+    }
     await widget.controller.dismissRandomEvent();
     if (mounted) {
       setState(() {
         _resolution = null;
+        _closing = false;
+        _busy = false;
       });
     }
   }
@@ -71,24 +177,95 @@ class _RandomEventOverlayState extends State<RandomEventOverlay> {
   Widget build(BuildContext context) {
     final event = widget.snapshot.event;
     return Positioned.fill(
-      child: ColoredBox(
-        color: Colors.black.withValues(alpha: 0.58),
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: _EventPanel(
-                  event: event,
-                  resolution: _resolution,
-                  busy: _busy,
-                  canShowRewardedAd: widget.controller.canDoubleOfflineReward,
-                  onClose: _close,
-                  onDebugNext: kDebugMode ? _showNextDebugEvent : null,
-                  onChoice: _choose,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_entranceController, _exitController]),
+        builder: (context, child) {
+          final entrance = _entranceController.value;
+          final exit = Curves.easeIn.transform(_exitController.value);
+          final visible = 1 - exit;
+          final backdropOpacity =
+              Curves.easeOut.transform((entrance / 0.28).clamp(0, 1)) * visible;
+          final burstProgress = ((entrance - 0.04) / 0.58).clamp(0.0, 1.0);
+          final burstOpacity = math.sin(burstProgress * math.pi) * visible;
+
+          return Opacity(
+            opacity: visible,
+            child: ColoredBox(
+              key: const ValueKey('random-event-backdrop'),
+              color: Colors.black.withValues(alpha: 0.58 * backdropOpacity),
+              child: SafeArea(
+                child: Center(
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      IgnorePointer(
+                        child: Opacity(
+                          key: const ValueKey('random-event-surprise-burst'),
+                          opacity: burstOpacity,
+                          child: Transform.scale(
+                            scale: 0.35 + (burstProgress * 1.25),
+                            child: Container(
+                              width: 310,
+                              height: 310,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    DonerColors.goldBright.withValues(
+                                      alpha: 0.42,
+                                    ),
+                                    DonerColors.goldPrimary.withValues(
+                                      alpha: 0.12,
+                                    ),
+                                    Colors.transparent,
+                                  ],
+                                  stops: const [0, 0.42, 1],
+                                ),
+                                border: Border.all(
+                                  color: DonerColors.goldBright.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Transform.translate(
+                        offset: Offset(0, (1 - entrance) * 54 + exit * 12),
+                        child: Transform.rotate(
+                          angle: _entranceTurn.value * math.pi * 2,
+                          child: Transform.scale(
+                            scale: _entranceScale.value * (1 - exit * 0.04),
+                            child: Opacity(
+                              opacity: Curves.easeOut.transform(
+                                (entrance / 0.2).clamp(0, 1),
+                              ),
+                              child: child,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+            ),
+          );
+        },
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: _EventPanel(
+              event: event,
+              resolution: _resolution,
+              busy: _busy,
+              canShowRewardedAd: widget.controller.canDoubleOfflineReward,
+              onClose: _close,
+              onDebugNext: kDebugMode ? _showNextDebugEvent : null,
+              onChoice: _choose,
             ),
           ),
         ),

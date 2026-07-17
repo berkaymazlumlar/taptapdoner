@@ -1117,6 +1117,16 @@ class GameController extends ChangeNotifier {
     final nowUtc = _clock();
     final outcome = _randomEventService.resolveOutcome(choice, _random);
     final effectLabel = _applyRandomEventOutcome(event, outcome, nowUtc);
+    _state = _state.copyWith(
+      randomEvents: _state.randomEvents.resolveActive(
+        eventId: event.id,
+        choiceKey: choice.key,
+        outcomeKey: outcome.key,
+        modifiers: _state.randomEvents.activeModifiers,
+        nowUtc: nowUtc,
+        clearActiveEventId: false,
+      ),
+    );
     _refreshGoalState(nowUtc);
     _refreshQuestState();
     _refreshProgressionState();
@@ -1388,12 +1398,30 @@ class GameController extends ChangeNotifier {
         return 'Upgrade maliyeti +${((effect.value - 1) * 100).round()}%';
       case RandomEventEffectType.reputationGain:
         final reputation = math.max(0, effect.value.round());
-        _state = _state.copyWith(
-          customerReputation: _state.customerReputation.add(reputation),
+        _state = _addCustomerReputation(_state, reputation);
+        _recordGoalEvent(
+          GoalObjectiveType.gainReputation,
+          reputation.toDouble(),
+          nowUtc: nowUtc,
         );
         return '+$reputation itibar';
       case RandomEventEffectType.reputationBoost:
+        _applyInlineCost(effect, nowUtc, passiveRate);
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.reputationGain,
+          effect,
+          nowUtc,
+        );
+        return 'İtibar +${((effect.value - 1) * 100).round()}%';
       case RandomEventEffectType.reputationPenalty:
+        _addRandomEventModifier(
+          event,
+          RandomEventModifierType.reputationGain,
+          effect,
+          nowUtc,
+        );
+        return 'İtibar -${((1 - effect.value) * 100).round()}%';
       case RandomEventEffectType.permanentBonus:
       case RandomEventEffectType.challengeStart:
       case RandomEventEffectType.noEffect:
@@ -1945,9 +1973,7 @@ class GameController extends ChangeNotifier {
         case OrderRewardType.reputation:
           final reputation = reward.amount.round();
           if (reputation > 0) {
-            _state = _state.copyWith(
-              customerReputation: _state.customerReputation.add(reputation),
-            );
+            _state = _addCustomerReputation(_state, reputation);
             _recordGoalEvent(
               GoalObjectiveType.gainReputation,
               reputation.toDouble(),
@@ -2471,9 +2497,15 @@ class GameController extends ChangeNotifier {
     if (amount <= 0) {
       return state;
     }
-    final multiplier = Collection2Catalog.bonusTotalsFor(
-      state.collection2,
-    ).reputationGainMultiplier;
+    final multiplier =
+        Collection2Catalog.bonusTotalsFor(
+          state.collection2,
+        ).reputationGainMultiplier *
+        randomEventModifierProduct(
+          state.randomEvents,
+          RandomEventModifierType.reputationGain,
+          nowUtc: _clock(),
+        );
     final gained = math.max(1, CurrencyMath.roundInt(amount * multiplier));
     return state.copyWith(
       customerReputation: state.customerReputation.add(gained),

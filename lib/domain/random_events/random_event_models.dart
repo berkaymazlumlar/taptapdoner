@@ -296,6 +296,7 @@ class RandomEventRuntimeState {
     required String outcomeKey,
     required List<TimedModifierState> modifiers,
     required DateTime nowUtc,
+    bool clearActiveEventId = true,
   }) {
     final nextHistory = history.isEmpty
         ? <RandomEventHistoryEntry>[
@@ -316,7 +317,7 @@ class RandomEventRuntimeState {
             ...history.skip(1),
           ];
     return copyWith(
-      clearActiveEventId: true,
+      clearActiveEventId: clearActiveEventId,
       activeModifiers: modifiers,
       history: nextHistory.take(20).toList(growable: false),
     );

@@ -145,8 +145,6 @@ class RandomEventService {
         return state.upgrade(UpgradeId.menu).purchased;
       case 'oven unlocked':
         return state.upgrade(UpgradeId.oven).purchased;
-      case 'turbo unlocked':
-        return state.upgrade(UpgradeId.oven).purchased;
       case 'delivery unlocked':
         return state.upgrade(UpgradeId.offline).purchased ||
             state.upgrade(UpgradeId.staff).purchased;

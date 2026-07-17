@@ -9,14 +9,41 @@ import 'package:taptapdoner/domain/state/game_state.dart';
 
 void main() {
   test('catalog contains the full random event sheet', () {
-    expect(RandomEventCatalog.events, hasLength(80));
+    expect(RandomEventCatalog.events, hasLength(79));
     expect(RandomEventCatalog.byId.keys, containsAll(['EVT_001', 'EVT_080']));
+    expect(RandomEventCatalog.byId, isNot(contains('EVT_010')));
+    expect(
+      RandomEventCatalog.events.any(
+        (event) =>
+            event.effectTags.any((tag) => tag.contains('turbo')) ||
+            event.rewardSummary.toLowerCase().contains('turbo') ||
+            event.riskSummary.toLowerCase().contains('turbo') ||
+            event.eventText.toLowerCase().contains('turbo'),
+      ),
+      isFalse,
+    );
     expect(
       RandomEventCatalog.events.where(
         (event) => event.choices.any((choice) => choice.requiresRewardedAd),
       ),
       hasLength(3),
     );
+  });
+
+  test('catalog does not emit unsupported effect types', () {
+    final unsupported = {
+      RandomEventEffectType.permanentBonus,
+      RandomEventEffectType.challengeStart,
+    };
+    final unsupportedOutcomes = [
+      for (final event in RandomEventCatalog.events)
+        for (final choice in event.choices)
+          for (final outcome in choice.outcomes)
+            if (unsupported.contains(outcome.effect.type))
+              '${event.id}:${choice.key}:${outcome.key}:${outcome.effect.type.name}',
+    ];
+
+    expect(unsupportedOutcomes, isEmpty);
   });
 
   test(

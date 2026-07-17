@@ -14,6 +14,8 @@ import 'package:taptapdoner/domain/progression/chest_drop_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection2_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection2_models.dart';
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
+import 'package:taptapdoner/domain/random_events/random_event_catalog.dart';
+import 'package:taptapdoner/domain/random_events/random_event_models.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/domain/upgrades/upgrade_catalog.dart';
 import 'package:taptapdoner/services/ads/rewarded_ad_service.dart';
@@ -818,6 +820,85 @@ void main() {
       expect(controller.state.customerReputation.totalReputation, 50);
       expect(controller.state.customerReputation.currentLevel, 2);
       expect(controller.state.customerOrders.spawnRemainingSeconds, 240);
+    },
+  );
+
+  test(
+    'random event reputation reward updates reputation and resolves event',
+    () async {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final event = RandomEventCatalog.byId['EVT_070']!;
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              randomEvents: const RandomEventRuntimeState().markShown(
+                event,
+                nowUtc,
+              ),
+            ),
+          );
+
+      final resolution = await controller.chooseRandomEvent('decline');
+
+      expect(resolution, isNotNull);
+      expect(resolution!.effectLabel, '+1 itibar');
+      expect(controller.state.customerReputation.totalReputation, 1);
+      expect(controller.state.randomEvents.activeEventId, event.id);
+      expect(controller.state.randomEvents.history.first.choiceKey, 'decline');
+    },
+  );
+
+  test(
+    'random event reputation boost affects later reputation rewards',
+    () async {
+      final nowUtc = DateTime.utc(2026, 4, 1, 12);
+      final event = RandomEventCatalog.byId['EVT_008']!;
+      final order = CustomerOrder(
+        id: 'event_reputation_order',
+        customerTypeId: CustomerOrderCatalog.regularCustomer,
+        customerName: 'Regular Customer',
+        title: 'Reputation Order',
+        description: 'Cut 1 doner.',
+        objectiveType: OrderObjectiveType.tapCount,
+        targetValue: 1,
+        durationSeconds: 20,
+        remainingSeconds: 20,
+        rarity: OrderRarity.common,
+        minShopLevel: 1,
+        rewards: const [
+          OrderReward(type: OrderRewardType.reputation, amount: 10),
+        ],
+      );
+      final controller =
+          GameController(
+            config: config,
+            saveRepository: _RecordingSaveRepository(),
+            adService: const NoopRewardedAdService(),
+            clock: () => nowUtc,
+          )..hydrate(
+            GameState.initial(config, nowUtc: nowUtc).copyWith(
+              cash: 1000,
+              customerOrders: CustomerSystemState.initial(
+                nowUtc: nowUtc,
+              ).copyWith(activeOrder: order),
+              randomEvents: const RandomEventRuntimeState().markShown(
+                event,
+                nowUtc,
+              ),
+            ),
+          );
+
+      final resolution = await controller.chooseRandomEvent('accept');
+      await controller.tap();
+
+      expect(resolution, isNotNull);
+      expect(resolution!.effectLabel, 'İtibar +20%');
+      expect(controller.state.customerReputation.totalReputation, 12);
     },
   );
 

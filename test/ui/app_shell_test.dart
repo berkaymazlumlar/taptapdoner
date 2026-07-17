@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:taptapdoner/app/game_controller.dart';
 import 'package:taptapdoner/domain/economy/economy_config.dart';
 import 'package:taptapdoner/domain/quests/starter_quest_catalog.dart';
+import 'package:taptapdoner/domain/random_events/random_event_catalog.dart';
 import 'package:taptapdoner/domain/random_events/random_event_models.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 import 'package:taptapdoner/game/tap_tap_doner_game.dart';
@@ -224,6 +225,34 @@ void main() {
       find.byKey(const ValueKey('active-effect-timer-debug_passive_penalty')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('random event plays its exit before being dismissed', (
+    tester,
+  ) async {
+    final event = RandomEventCatalog.byId['EVT_001']!;
+    final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      randomEvents: const RandomEventRuntimeState().markShown(event, nowUtc),
+    );
+    final controller = _controllerForApp(config, nowUtc, state: state);
+
+    await _pumpAppForTabs(tester, controller);
+
+    expect(find.byKey(const ValueKey('random-event-panel')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('random-event-surprise-burst')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('random-event-close')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byKey(const ValueKey('random-event-panel')), findsOneWidget);
+
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('random-event-panel')), findsNothing);
   });
 
   testWidgets('combo quest shows unlock copy behind the info button', (
