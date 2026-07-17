@@ -1108,6 +1108,12 @@ class GameController extends ChangeNotifier {
     if (event == null || choice == null) {
       return null;
     }
+    if (choice.requiresRewardedAd) {
+      final reward = await _adService.showOfflineRewardDouble();
+      if (reward != RewardOutcome.granted) {
+        return null;
+      }
+    }
     final nowUtc = _clock();
     final outcome = _randomEventService.resolveOutcome(choice, _random);
     final effectLabel = _applyRandomEventOutcome(event, outcome, nowUtc);
@@ -2229,13 +2235,13 @@ class GameController extends ChangeNotifier {
         claimedBranchMilestones: Set<String>.unmodifiable(markedMilestones),
       ),
     );
-    final alreadyHasStaff = Collection2Catalog.staffCards.any(
-      (staff) => nextState.collection2.isStaffCardUnlocked(staff.id),
+    final alreadyHasStaff = Collection2Catalog.masterCards.any(
+      (staff) => nextState.collection2.isMasterCardUnlocked(staff.id),
     );
     if (alreadyHasStaff) {
       return nextState;
     }
-    final apprentice = Collection2Catalog.staffCardById['staff_apprentice'];
+    final apprentice = Collection2Catalog.masterCardById['staff_apprentice'];
     if (apprentice == null) {
       return nextState;
     }
@@ -2617,25 +2623,25 @@ class GameController extends ChangeNotifier {
       ChestRewardType.reputation =>
         '+${_formatAmount(reward.amount)} ${isTr ? 'itibar' : 'reputation'}',
       ChestRewardType.temporaryIncomeBoost =>
-        'x${_formatMultiplier(reward.amount)} income for ${reward.durationSeconds ?? 0}s',
+        'x${_formatMultiplier(reward.amount)} ${isTr ? 'gelir, ${reward.durationSeconds ?? 0} sn' : 'income for ${reward.durationSeconds ?? 0}s'}',
       ChestRewardType.cosmeticToken =>
-        'Cosmetic token x${_formatAmount(reward.amount)}',
+        '${isTr ? 'Kozmetik jeton' : 'Cosmetic token'} x${_formatAmount(reward.amount)}',
       ChestRewardType.recipeShard =>
-        '${_collection2ItemName(reward.itemId) ?? 'Recipe shard'} x${_formatAmount(reward.amount)}',
+        '${_collection2ItemName(reward.itemId) ?? (isTr ? 'Müşteri kartı' : 'Customer card')} x${_formatAmount(reward.amount)}',
       ChestRewardType.staffCardShard =>
-        '${_collection2ItemName(reward.itemId) ?? 'Staff shard'} x${_formatAmount(reward.amount)}',
+        '${_collection2ItemName(reward.itemId) ?? (isTr ? 'Usta kartı' : 'Master card')} x${_formatAmount(reward.amount)}',
       ChestRewardType.decorShard =>
         '${_collection2ItemName(reward.itemId) ?? 'Decor shard'} x${_formatAmount(reward.amount)}',
       ChestRewardType.knifeSkinShard =>
-        '${_collection2ItemName(reward.itemId) ?? 'Knife skin shard'} x${_formatAmount(reward.amount)}',
+        '${_collection2ItemName(reward.itemId) ?? (isTr ? 'Özel an kartı' : 'Moment card')} x${_formatAmount(reward.amount)}',
       ChestRewardType.prestigeShard =>
-        'Prestige shard x${_formatAmount(reward.amount)}',
+        '${isTr ? 'Prestij parçası' : 'Prestige shard'} x${_formatAmount(reward.amount)}',
       ChestRewardType.permanentTapBonus =>
-        'Tap income +${(reward.amount * 100).round()}%',
+        '${isTr ? 'Dokunma geliri' : 'Tap income'} +${(reward.amount * 100).round()}%',
       ChestRewardType.permanentPassiveBonus =>
-        'Passive income +${(reward.amount * 100).round()}%',
+        '${isTr ? 'Pasif gelir' : 'Passive income'} +${(reward.amount * 100).round()}%',
       ChestRewardType.permanentGlobalBonus =>
-        'Global income +${(reward.amount * 100).round()}%',
+        '${isTr ? 'Genel gelir' : 'Global income'} +${(reward.amount * 100).round()}%',
     };
   }
 
@@ -2662,12 +2668,12 @@ class GameController extends ChangeNotifier {
       OrderRewardType.recipeShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Tarif parçası' : 'Recipe shard',
+        isTr ? 'Müşteri kartı' : 'Customer card',
       ),
       OrderRewardType.staffCardShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Personel parçası' : 'Staff shard',
+        isTr ? 'Usta kartı' : 'Master card',
       ),
       OrderRewardType.decorShard => _collectionRewardLabel(
         reward.itemId,
@@ -2677,7 +2683,7 @@ class GameController extends ChangeNotifier {
       OrderRewardType.knifeSkinShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Bıçak görünümü parçası' : 'Knife skin shard',
+        isTr ? 'Özel an kartı' : 'Moment card',
       ),
     };
   }
@@ -3020,14 +3026,14 @@ class GameController extends ChangeNotifier {
   }
 
   BranchBoardSnapshot _computeBranchSnapshot({required DateTime nowUtc}) {
-    final rawBranchIncome = BranchCatalog.rawBranchIncomePerSecond(_state);
+    final totalContribution = BranchCatalog.totalIncomeContribution(_state);
     final effectiveBranchIncome = _engine.branchIncomePerSecond(
       _state,
       nowUtc: nowUtc,
     );
-    final incomeScale = rawBranchIncome <= 0
+    final incomeScale = totalContribution <= 0
         ? 0.0
-        : effectiveBranchIncome / rawBranchIncome;
+        : effectiveBranchIncome / totalContribution;
 
     final regions = BranchCatalog.regions
         .map((region) {
@@ -3100,14 +3106,14 @@ class GameController extends ChangeNotifier {
               ignoreCostRequirement: _freePurchasesEnabled,
             ),
             incomePerSecond:
-                BranchCatalog.rawBranchIncomeFor(
+                BranchCatalog.incomeContributionFor(
                   definition,
                   progress,
                   _state.collection2,
                 ) *
                 incomeScale,
             nextIncomePerSecond:
-                BranchCatalog.rawBranchIncomeFor(
+                BranchCatalog.incomeContributionFor(
                   definition,
                   nextProgress,
                   _state.collection2,
@@ -3139,11 +3145,11 @@ class GameController extends ChangeNotifier {
                   managerId: suggestedManagerId,
                 ),
             assignedManagerId: progress.assignedManagerId,
-            assignedManagerName: BranchCatalog.managerName(
+            assignedManagerName: _collection2ItemName(
               progress.assignedManagerId,
             ),
             suggestedManagerId: suggestedManagerId,
-            suggestedManagerName: BranchCatalog.managerName(suggestedManagerId),
+            suggestedManagerName: _collection2ItemName(suggestedManagerId),
           );
         })
         .toList(growable: false);
@@ -3328,7 +3334,7 @@ class GameController extends ChangeNotifier {
         'Prestige shop upgrades',
         'Highest shop level reached',
         'Branch unlocks, branch levels, branch milestones, region unlocks, managers, and total branch income earned',
-        'Achievements, collections, shards, skins, decor, recipes, staff cards, and set bonuses',
+        'Achievements, customer cards, master cards, decor cards, moment cards, and set bonuses',
         'Customer reputation level, unlocked customer types, and lifetime customer order stats',
         'Prestige multiplier',
         'Total lifetime stats',
@@ -3356,6 +3362,7 @@ class GameController extends ChangeNotifier {
   }
 
   ProgressionSnapshot _computeProgressionSnapshot() {
+    final strings = AppStrings.forLanguageCode(_state.localeCode);
     final achievements = AchievementCatalog.achievements
         .map((achievement) {
           final progress =
@@ -3396,43 +3403,43 @@ class GameController extends ChangeNotifier {
         )
         .toList(growable: false);
     final collection2 = _state.collection2;
-    final recipeCollections = Collection2Catalog.recipes
+    final customerCollections = Collection2Catalog.customerCards
         .map(
           (item) => Collection2ItemSnapshot(
             id: item.id,
-            kind: Collection2ItemKind.recipe,
-            name: item.name,
+            kind: Collection2ItemKind.customer,
+            name: strings.collection2ItemName(item.id, fallback: item.name),
             rarity: item.rarity,
-            currentShards: collection2.recipeShardCount(item.id),
+            currentShards: collection2.customerCardCount(item.id),
             requiredShards: item.requiredShards,
-            level: collection2.recipeLevel(item.id),
+            level: collection2.customerCardLevel(item.id),
             maxLevel: item.maxLevel,
-            unlocked: collection2.isRecipeUnlocked(item.id),
+            unlocked: collection2.isCustomerCardUnlocked(item.id),
             equipped: false,
-            bonusLabel: _recipeBonusLabel(
+            bonusLabel: _customerBonusLabel(
               item,
-              collection2.recipeLevel(item.id),
+              collection2.customerCardLevel(item.id),
             ),
             assetKey: item.assetKey,
           ),
         )
         .toList(growable: false);
-    final staffCollections = Collection2Catalog.staffCards
+    final masterCollections = Collection2Catalog.masterCards
         .map(
           (item) => Collection2ItemSnapshot(
             id: item.id,
-            kind: Collection2ItemKind.staff,
-            name: item.name,
+            kind: Collection2ItemKind.master,
+            name: strings.collection2ItemName(item.id, fallback: item.name),
             rarity: item.rarity,
-            currentShards: collection2.staffCardCount(item.id),
+            currentShards: collection2.masterCardCount(item.id),
             requiredShards: item.requiredCards,
-            level: collection2.staffCardLevel(item.id),
+            level: collection2.masterCardLevel(item.id),
             maxLevel: item.maxLevel,
-            unlocked: collection2.isStaffCardUnlocked(item.id),
+            unlocked: collection2.isMasterCardUnlocked(item.id),
             equipped: false,
             bonusLabel: _staffBonusLabel(
               item,
-              collection2.staffCardLevel(item.id),
+              collection2.masterCardLevel(item.id),
             ),
             assetKey: item.assetKey,
           ),
@@ -3443,7 +3450,7 @@ class GameController extends ChangeNotifier {
           (item) => Collection2ItemSnapshot(
             id: item.id,
             kind: Collection2ItemKind.decor,
-            name: item.name,
+            name: strings.collection2ItemName(item.id, fallback: item.name),
             rarity: item.rarity,
             currentShards: collection2.decorShardCount(item.id),
             requiredShards: item.requiredShards,
@@ -3456,20 +3463,20 @@ class GameController extends ChangeNotifier {
           ),
         )
         .toList(growable: false);
-    final knifeSkinCollections = Collection2Catalog.knifeSkins
+    final momentCollections = Collection2Catalog.momentCards
         .map(
           (item) => Collection2ItemSnapshot(
             id: item.id,
-            kind: Collection2ItemKind.knifeSkin,
-            name: item.name,
+            kind: Collection2ItemKind.moment,
+            name: strings.collection2ItemName(item.id, fallback: item.name),
             rarity: item.rarity,
-            currentShards: collection2.knifeSkinShardCount(item.id),
+            currentShards: collection2.momentCardCount(item.id),
             requiredShards: item.requiredShards,
-            level: collection2.isKnifeSkinUnlocked(item.id) ? 1 : 0,
+            level: collection2.isMomentCardUnlocked(item.id) ? 1 : 0,
             maxLevel: 1,
-            unlocked: collection2.isKnifeSkinUnlocked(item.id),
-            equipped: collection2.equippedKnifeSkinId == item.id,
-            bonusLabel: _knifeSkinBonusLabel(item),
+            unlocked: collection2.isMomentCardUnlocked(item.id),
+            equipped: false,
+            bonusLabel: _momentBonusLabel(item),
             assetKey: item.assetKey,
           ),
         )
@@ -3478,7 +3485,7 @@ class GameController extends ChangeNotifier {
         .map(
           (set) => CollectionSetSnapshot(
             id: set.id,
-            name: set.name,
+            name: strings.collection2ItemName(set.id, fallback: set.name),
             completed: Collection2Catalog.isSetComplete(collection2, set),
             claimed: collection2.claimedSetBonuses.contains(set.id),
             bonusLabel: _setBonusLabel(set),
@@ -3490,10 +3497,10 @@ class GameController extends ChangeNotifier {
     return ProgressionSnapshot(
       achievements: achievements,
       collections: collectionItems,
-      recipeCollections: recipeCollections,
-      staffCollections: staffCollections,
+      customerCollections: customerCollections,
+      masterCollections: masterCollections,
       decorCollections: decorCollections,
-      knifeSkinCollections: knifeSkinCollections,
+      momentCollections: momentCollections,
       collectionSets: collectionSets,
       chests: ChestInventorySnapshot(
         counts: Map<ChestType, int>.unmodifiable({
@@ -3544,12 +3551,12 @@ class GameController extends ChangeNotifier {
       GoalRewardType.recipeShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Tarif parçası' : 'Recipe shard',
+        isTr ? 'Müşteri kartı' : 'Customer card',
       ),
       GoalRewardType.staffCardShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Personel parçası' : 'Staff shard',
+        isTr ? 'Usta kartı' : 'Master card',
       ),
       GoalRewardType.decorShard => _collectionRewardLabel(
         reward.itemId,
@@ -3559,7 +3566,7 @@ class GameController extends ChangeNotifier {
       GoalRewardType.knifeSkinShard => _collectionRewardLabel(
         reward.itemId,
         reward.amount,
-        isTr ? 'Bıçak görünümü parçası' : 'Knife skin shard',
+        isTr ? 'Özel an kartı' : 'Moment card',
       ),
       GoalRewardType.prestigePoint =>
         '+${_formatAmount(reward.amount)} ${isTr ? 'prestij puani' : 'prestige point'}',
@@ -3582,26 +3589,33 @@ class GameController extends ChangeNotifier {
     if (itemId == null || itemId.isEmpty) {
       return null;
     }
-    return Collection2Catalog.recipeById[itemId]?.name ??
-        Collection2Catalog.staffCardById[itemId]?.name ??
+    final fallback =
+        Collection2Catalog.customerCardById[itemId]?.name ??
+        Collection2Catalog.masterCardById[itemId]?.name ??
         Collection2Catalog.decorById[itemId]?.name ??
-        Collection2Catalog.knifeSkinById[itemId]?.name;
+        Collection2Catalog.momentCardById[itemId]?.name;
+    if (fallback == null) {
+      return null;
+    }
+    return AppStrings.forLanguageCode(
+      _state.localeCode,
+    ).collection2ItemName(itemId, fallback: fallback);
   }
 
-  String _recipeBonusLabel(RecipeCollectible item, int level) {
+  String _customerBonusLabel(CustomerCard item, int level) {
     return _leveledBonusLabel(
       value: item.bonusValuePerLevel,
       level: level,
       target: switch (item.bonusType) {
-        RecipeBonusType.menuMultiplier => 'menu',
-        RecipeBonusType.tipValue => 'tip',
-        RecipeBonusType.customerReward => 'customer',
-        RecipeBonusType.globalIncome => 'global',
+        CustomerCardBonusType.menuMultiplier => 'menu',
+        CustomerCardBonusType.tipValue => 'tip',
+        CustomerCardBonusType.customerReward => 'customer',
+        CustomerCardBonusType.globalIncome => 'global',
       },
     );
   }
 
-  String _staffBonusLabel(StaffCard item, int level) {
+  String _staffBonusLabel(MasterCard item, int level) {
     return _leveledBonusLabel(
       value: item.bonusValuePerLevel,
       level: level,
@@ -3628,11 +3642,11 @@ class GameController extends ChangeNotifier {
     });
   }
 
-  String _knifeSkinBonusLabel(KnifeSkin item) {
+  String _momentBonusLabel(MomentCard item) {
     return _flatBonusLabel(item.bonusValue, switch (item.bonusType) {
-      KnifeSkinBonusType.tapIncome => 'tap',
-      KnifeSkinBonusType.globalIncome => 'global',
-      KnifeSkinBonusType.reputationGain => 'reputation',
+      MomentCardBonusType.tapIncome => 'tap',
+      MomentCardBonusType.globalIncome => 'global',
+      MomentCardBonusType.reputationGain => 'reputation',
     });
   }
 
@@ -3645,11 +3659,11 @@ class GameController extends ChangeNotifier {
   }
 
   String _setRequirementLabel(CollectionSetBonus set) {
-    final recipe = Collection2Catalog.recipeById[set.recipeId]?.name;
-    final staff = Collection2Catalog.staffCardById[set.staffCardId]?.name;
-    final decor = Collection2Catalog.decorById[set.decorId]?.name;
-    final skin = Collection2Catalog.knifeSkinById[set.knifeSkinId]?.name;
-    return [skin, staff, recipe, decor].whereType<String>().join(' + ');
+    final customer = _collection2ItemName(set.customerCardId);
+    final master = _collection2ItemName(set.masterCardId);
+    final decor = _collection2ItemName(set.decorId);
+    final moment = _collection2ItemName(set.momentCardId);
+    return [moment, master, customer, decor].whereType<String>().join(' + ');
   }
 
   String _leveledBonusLabel({
@@ -3690,8 +3704,8 @@ class GameController extends ChangeNotifier {
       ChestType.small => 'Small',
       ChestType.master => 'Master',
       ChestType.gold => 'Gold',
-      ChestType.recipe => 'Recipe',
-      ChestType.staff => 'Staff',
+      ChestType.recipe => 'Customer',
+      ChestType.staff => 'Chef',
       ChestType.decor => 'Decor',
       ChestType.prestige => 'Prestige',
     };

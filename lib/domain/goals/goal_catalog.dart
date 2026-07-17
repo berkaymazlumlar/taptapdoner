@@ -133,6 +133,11 @@ abstract final class GoalCatalog {
       rewards: [
         GoalReward(type: GoalRewardType.money, amount: 3000),
         GoalReward(type: GoalRewardType.staffCardShard, amount: 2),
+        GoalReward(
+          type: GoalRewardType.chest,
+          amount: 1,
+          chestType: ChestType.staff,
+        ),
       ],
     ),
   ];
@@ -277,6 +282,11 @@ abstract final class GoalCatalog {
       rewards: [
         GoalReward(type: GoalRewardType.reputation, amount: 80),
         GoalReward(type: GoalRewardType.staffCardShard, amount: 4),
+        GoalReward(
+          type: GoalRewardType.chest,
+          amount: 1,
+          chestType: ChestType.staff,
+        ),
       ],
     ),
     GoalDefinition(

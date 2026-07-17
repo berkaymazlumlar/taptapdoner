@@ -14,10 +14,16 @@ import 'package:taptapdoner/ui/theme/roasted_theme_tokens.dart';
 import 'package:taptapdoner/ui/widgets/value_formatters.dart';
 
 class GoalsPage extends StatelessWidget {
-  const GoalsPage({required this.controller, super.key, this.bottomInset = 0});
+  const GoalsPage({
+    required this.controller,
+    super.key,
+    this.bottomInset = 0,
+    this.onClose,
+  });
 
   final GameController controller;
   final double bottomInset;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +38,11 @@ class GoalsPage extends StatelessWidget {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
                 sliver: SliverToBoxAdapter(
-                  child: _GoalsHeader(snapshot: snapshot, strings: strings),
+                  child: _GoalsHeader(
+                    snapshot: snapshot,
+                    strings: strings,
+                    onClose: onClose,
+                  ),
                 ),
               ),
               SliverPadding(
@@ -54,10 +64,16 @@ class GoalsPage extends StatelessWidget {
 }
 
 class ChestPage extends StatelessWidget {
-  const ChestPage({required this.controller, super.key, this.bottomInset = 0});
+  const ChestPage({
+    required this.controller,
+    super.key,
+    this.bottomInset = 0,
+    this.onClose,
+  });
 
   final GameController controller;
   final double bottomInset;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +94,7 @@ class ChestPage extends StatelessWidget {
                     subtitle: strings.isTurkish
                         ? '${snapshot.chests.totalCount} sandık açılmaya hazır'
                         : '${snapshot.chests.totalCount} chests ready to open',
+                    onClose: onClose,
                   ),
                 ),
               ),
@@ -145,10 +162,15 @@ class CollectionPage extends StatelessWidget {
 }
 
 class _GoalsHeader extends StatelessWidget {
-  const _GoalsHeader({required this.snapshot, required this.strings});
+  const _GoalsHeader({
+    required this.snapshot,
+    required this.strings,
+    this.onClose,
+  });
 
   final ProgressionSnapshot snapshot;
   final AppStrings strings;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +198,14 @@ class _GoalsHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (onClose != null) ...[
+            const SizedBox(width: 8),
+            _OverlayCloseButton(
+              key: const ValueKey('achievements-header-close-button'),
+              onPressed: onClose!,
+              tooltip: strings.closeLabel,
+            ),
+          ],
         ],
       ),
     );
@@ -187,11 +217,13 @@ class _FeatureHeader extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.onClose,
   });
 
   final FaIconData icon;
   final String title;
   final String subtitle;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -226,8 +258,41 @@ class _FeatureHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (onClose != null) ...[
+            const SizedBox(width: 8),
+            _OverlayCloseButton(
+              key: const ValueKey('chests-header-close-button'),
+              onPressed: onClose!,
+              tooltip: AppStrings.of(context).closeLabel,
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _OverlayCloseButton extends StatelessWidget {
+  const _OverlayCloseButton({
+    required this.onPressed,
+    required this.tooltip,
+    super.key,
+  });
+
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        backgroundColor: DonerColors.panelDark,
+        foregroundColor: DonerColors.bodyText,
+        side: const BorderSide(color: DonerColors.borderSoft),
+      ),
+      icon: const FaIcon(DonerIcons.close, size: 17),
     );
   }
 }
@@ -252,10 +317,6 @@ class _ChestPanel extends StatelessWidget {
               onOpen: () => onOpen(type),
             ),
             if (type != ChestType.values.last) const SizedBox(height: 8),
-          ],
-          if (snapshot.lastChestReward != null) ...[
-            const SizedBox(height: 12),
-            _RewardReveal(reward: snapshot.lastChestReward!),
           ],
         ],
       ),
@@ -301,6 +362,7 @@ class _CollectionPanelState extends State<_CollectionPanel> {
   @override
   Widget build(BuildContext context) {
     final snapshot = widget.snapshot;
+    final isTurkish = AppStrings.of(context).isTurkish;
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -310,32 +372,32 @@ class _CollectionPanelState extends State<_CollectionPanel> {
             runSpacing: 6,
             children: [
               _CollectionTabButton(
-                label: 'Legacy',
+                label: isTurkish ? 'Eski' : 'Legacy',
                 selected: _selectedTab == 0,
                 onPressed: () => setState(() => _selectedTab = 0),
               ),
               _CollectionTabButton(
-                label: 'Recipes',
+                label: isTurkish ? 'Müşteriler' : 'Customers',
                 selected: _selectedTab == 1,
                 onPressed: () => setState(() => _selectedTab = 1),
               ),
               _CollectionTabButton(
-                label: 'Staff',
+                label: isTurkish ? 'Ustalar' : 'Masters',
                 selected: _selectedTab == 2,
                 onPressed: () => setState(() => _selectedTab = 2),
               ),
               _CollectionTabButton(
-                label: 'Decor',
+                label: isTurkish ? 'Dekorlar' : 'Decor',
                 selected: _selectedTab == 3,
                 onPressed: () => setState(() => _selectedTab = 3),
               ),
               _CollectionTabButton(
-                label: 'Skins',
+                label: isTurkish ? 'Özel Anlar' : 'Moments',
                 selected: _selectedTab == 4,
                 onPressed: () => setState(() => _selectedTab = 4),
               ),
               _CollectionTabButton(
-                label: 'Sets',
+                label: isTurkish ? 'Setler' : 'Sets',
                 selected: _selectedTab == 5,
                 onPressed: () => setState(() => _selectedTab = 5),
               ),
@@ -357,12 +419,12 @@ class _CollectionPanelState extends State<_CollectionPanel> {
         ]);
       case 1:
         return _spacedRows([
-          for (final item in snapshot.recipeCollections)
+          for (final item in snapshot.customerCollections)
             _Collection2Row(item: item),
         ]);
       case 2:
         return _spacedRows([
-          for (final item in snapshot.staffCollections)
+          for (final item in snapshot.masterCollections)
             _Collection2Row(item: item, showDropSources: true),
         ]);
       case 3:
@@ -372,7 +434,7 @@ class _CollectionPanelState extends State<_CollectionPanel> {
         ]);
       case 4:
         return _spacedRows([
-          for (final item in snapshot.knifeSkinCollections)
+          for (final item in snapshot.momentCollections)
             _Collection2Row(item: item),
         ]);
       default:
@@ -754,7 +816,7 @@ class _ChestRouletteBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rewards = _rouletteRewards();
+    final rewards = _rouletteRewards(context);
     final sequenceWidth = _itemWidth * _itemCount + _itemGap * (_itemCount - 1);
     return SizedBox(
       key: ValueKey('goals-chest-roulette-${chestTypeKey(type)}'),
@@ -867,14 +929,14 @@ class _ChestRouletteBar extends StatelessWidget {
     );
   }
 
-  List<_ChestRouletteReward> _rouletteRewards() {
-    final base = ChestDropCatalog.tableFor(
-      type,
-    ).drops.map(_rouletteRewardFromDrop).toList(growable: false);
+  List<_ChestRouletteReward> _rouletteRewards(BuildContext context) {
+    final base = ChestDropCatalog.tableFor(type).drops
+        .map((drop) => _rouletteRewardFromDrop(context, drop))
+        .toList(growable: false);
     final fallback = base.isEmpty
-        ? const _ChestRouletteReward(
+        ? _ChestRouletteReward(
             rewardType: ChestRewardType.money,
-            label: 'Cash',
+            label: AppStrings.of(context).cashLabel,
             rarity: Rarity.common,
           )
         : base.first;
@@ -931,8 +993,8 @@ class _ChestContentsDetail extends StatelessWidget {
               const SizedBox(height: 9),
               Text(
                 strings.isTurkish
-                    ? 'Kaynak: Günlük 50 itibar ve haftalık 50 müşteri hedefleri.'
-                    : 'Source: Daily 50 reputation and weekly 50 customers goals.',
+                    ? 'Kaynak: Günlük 50 itibar, günlük 3 şube seviyesi, haftalık 50 müşteri ve haftalık şube kilometre taşı hedefleri.'
+                    : 'Source: Daily 50 reputation, daily 3 branch levels, weekly 50 customers, and weekly branch milestone goals.',
                 key: const ValueKey('staff-chest-goal-source'),
                 style: _metaStyle(
                   context,
@@ -1377,31 +1439,6 @@ class _CollectionSetRow extends StatelessWidget {
   }
 }
 
-class _RewardReveal extends StatelessWidget {
-  const _RewardReveal({required this.reward});
-
-  final LastChestRewardSnapshot reward;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      key: const ValueKey('chest-reward-reveal'),
-      decoration: BoxDecoration(
-        color: DonerColors.tealPrimary.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: DonerColors.tealBright),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Text(
-          '${_chestLabel(reward.chestType)}: ${reward.label}',
-          style: _bodyStyle(context),
-        ),
-      ),
-    );
-  }
-}
-
 class _GoalsActionButton extends StatelessWidget {
   const _GoalsActionButton({
     required this.buttonKey,
@@ -1492,10 +1529,13 @@ TextStyle _metaStyle(BuildContext context) {
   );
 }
 
-_ChestRouletteReward _rouletteRewardFromDrop(WeightedDrop drop) {
+_ChestRouletteReward _rouletteRewardFromDrop(
+  BuildContext context,
+  WeightedDrop drop,
+) {
   return _ChestRouletteReward(
     rewardType: drop.rewardType,
-    label: _rouletteDropLabel(drop),
+    label: _rouletteDropLabel(context, drop),
     rarity: drop.rarity,
   );
 }
@@ -1511,45 +1551,34 @@ _ChestRouletteReward _rouletteRewardFromSnapshot(
   );
 }
 
-String _rouletteDropLabel(WeightedDrop drop) {
+String _rouletteDropLabel(BuildContext context, WeightedDrop drop) {
+  final strings = AppStrings.of(context);
+  final amount = formatNumberWithUnits(drop.amount);
+  final itemName = _collection2ItemName(context, drop.itemId);
   return switch (drop.rewardType) {
-    ChestRewardType.money => 'Cash',
-    ChestRewardType.reputation => 'Rep +${formatNumberWithUnits(drop.amount)}',
-    ChestRewardType.temporaryIncomeBoost => 'Income x${drop.amount}',
+    ChestRewardType.money => strings.cashLabel,
+    ChestRewardType.reputation => '${strings.reputationLabel} +$amount',
+    ChestRewardType.temporaryIncomeBoost =>
+      strings.isTurkish ? 'Gelir x${drop.amount}' : 'Income x${drop.amount}',
     ChestRewardType.cosmeticToken =>
-      'Token x${formatNumberWithUnits(drop.amount)}',
-    ChestRewardType.recipeShard =>
-      'Recipe x${formatNumberWithUnits(drop.amount)}',
-    ChestRewardType.staffCardShard =>
-      'Staff x${formatNumberWithUnits(drop.amount)}',
-    ChestRewardType.decorShard =>
-      'Decor x${formatNumberWithUnits(drop.amount)}',
-    ChestRewardType.knifeSkinShard =>
-      'Skin x${formatNumberWithUnits(drop.amount)}',
+      '${strings.isTurkish ? 'Jeton' : 'Token'} x$amount',
+    ChestRewardType.recipeShard ||
+    ChestRewardType.staffCardShard ||
+    ChestRewardType.decorShard ||
+    ChestRewardType.knifeSkinShard => '$itemName x$amount',
     ChestRewardType.prestigeShard =>
-      'Prestige x${formatNumberWithUnits(drop.amount)}',
-    ChestRewardType.permanentTapBonus => 'Tap +${drop.amount}%',
-    ChestRewardType.permanentPassiveBonus => 'Passive +${drop.amount}%',
-    ChestRewardType.permanentGlobalBonus => 'Global +${drop.amount}%',
+      '${strings.isTurkish ? 'Prestij' : 'Prestige'} x$amount',
+    ChestRewardType.permanentTapBonus =>
+      '${strings.isTurkish ? 'Dokunma' : 'Tap'} +${drop.amount}%',
+    ChestRewardType.permanentPassiveBonus =>
+      '${strings.isTurkish ? 'Pasif' : 'Passive'} +${drop.amount}%',
+    ChestRewardType.permanentGlobalBonus =>
+      '${strings.isTurkish ? 'Genel' : 'Global'} +${drop.amount}%',
   };
 }
 
 String _rouletteSnapshotLabel(LastChestRewardSnapshot reward) {
-  return switch (reward.rewardType) {
-    ChestRewardType.money => '+${formatNumberWithUnits(reward.amount)} cash',
-    ChestRewardType.reputation =>
-      '+${formatNumberWithUnits(reward.amount)} rep',
-    ChestRewardType.temporaryIncomeBoost ||
-    ChestRewardType.cosmeticToken ||
-    ChestRewardType.recipeShard ||
-    ChestRewardType.staffCardShard ||
-    ChestRewardType.decorShard ||
-    ChestRewardType.knifeSkinShard ||
-    ChestRewardType.prestigeShard ||
-    ChestRewardType.permanentTapBonus ||
-    ChestRewardType.permanentPassiveBonus ||
-    ChestRewardType.permanentGlobalBonus => reward.label,
-  };
+  return reward.label;
 }
 
 Rarity _rouletteSnapshotRarity(
@@ -1638,8 +1667,8 @@ String _chestLabel(ChestType type) {
     ChestType.small => 'Small Chest',
     ChestType.master => 'Master Chest',
     ChestType.gold => 'Gold Chest',
-    ChestType.recipe => 'Recipe Chest',
-    ChestType.staff => 'Staff Chest',
+    ChestType.recipe => 'Customer Chest',
+    ChestType.staff => 'Chef Chest',
     ChestType.decor => 'Decor Chest',
     ChestType.prestige => 'Prestige Chest',
   };
@@ -1653,8 +1682,8 @@ String _localizedChestLabel(BuildContext context, ChestType type) {
     ChestType.small => 'Küçük Sandık',
     ChestType.master => 'Usta Sandığı',
     ChestType.gold => 'Altın Sandık',
-    ChestType.recipe => 'Tarif Sandığı',
-    ChestType.staff => 'Personel Sandığı',
+    ChestType.recipe => 'Müşteri Sandığı',
+    ChestType.staff => 'Usta Sandığı',
     ChestType.decor => 'Dekor Sandığı',
     ChestType.prestige => 'Prestij Sandığı',
   };
@@ -1693,7 +1722,7 @@ String _staffDropSourceLabel(BuildContext context, String staffId) {
 
 String _chestDropDetailLabel(BuildContext context, WeightedDrop drop) {
   final strings = AppStrings.of(context);
-  final itemName = _collection2ItemName(drop.itemId);
+  final itemName = _collection2ItemName(context, drop.itemId);
   final amount = formatNumberWithUnits(drop.amount);
   return switch (drop.rewardType) {
     ChestRewardType.money =>
@@ -1708,20 +1737,20 @@ String _chestDropDetailLabel(BuildContext context, WeightedDrop drop) {
       strings.isTurkish ? '$amount kozmetik jetonu' : '$amount cosmetic token',
     ChestRewardType.recipeShard =>
       strings.isTurkish
-          ? '$itemName • $amount tarif parçası'
-          : '$itemName • $amount recipe shards',
+          ? '$itemName • $amount müşteri kartı'
+          : '$itemName • $amount customer cards',
     ChestRewardType.staffCardShard =>
       strings.isTurkish
-          ? '$itemName • $amount personel kartı'
-          : '$itemName • $amount staff cards',
+          ? '$itemName • $amount usta kartı'
+          : '$itemName • $amount master cards',
     ChestRewardType.decorShard =>
       strings.isTurkish
           ? '$itemName • $amount dekor parçası'
           : '$itemName • $amount decor shards',
     ChestRewardType.knifeSkinShard =>
       strings.isTurkish
-          ? '$itemName • $amount bıçak görünümü parçası'
-          : '$itemName • $amount knife skin shards',
+          ? '$itemName • $amount özel an kartı'
+          : '$itemName • $amount moment cards',
     ChestRewardType.prestigeShard =>
       strings.isTurkish ? '$amount prestij parçası' : '$amount prestige shards',
     ChestRewardType.permanentTapBonus =>
@@ -1739,23 +1768,16 @@ String _chestDropDetailLabel(BuildContext context, WeightedDrop drop) {
   };
 }
 
-String _collection2ItemName(String? itemId) {
+String _collection2ItemName(BuildContext context, String? itemId) {
   if (itemId == null) {
     return '—';
   }
-  for (final item in Collection2Catalog.recipes) {
-    if (item.id == itemId) return item.name;
-  }
-  for (final item in Collection2Catalog.staffCards) {
-    if (item.id == itemId) return item.name;
-  }
-  for (final item in Collection2Catalog.decorItems) {
-    if (item.id == itemId) return item.name;
-  }
-  for (final item in Collection2Catalog.knifeSkins) {
-    if (item.id == itemId) return item.name;
-  }
-  return itemId;
+  final fallback =
+      Collection2Catalog.customerCardById[itemId]?.name ??
+      Collection2Catalog.masterCardById[itemId]?.name ??
+      Collection2Catalog.decorById[itemId]?.name ??
+      Collection2Catalog.momentCardById[itemId]?.name;
+  return AppStrings.of(context).collection2ItemName(itemId, fallback: fallback);
 }
 
 String _formatProbability(double probability) {
@@ -1767,10 +1789,10 @@ String _formatProbability(double probability) {
 
 String _kindLabel(Collection2ItemKind kind) {
   return switch (kind) {
-    Collection2ItemKind.recipe => 'recipe',
-    Collection2ItemKind.staff => 'staff',
+    Collection2ItemKind.customer => 'customer',
+    Collection2ItemKind.master => 'master',
     Collection2ItemKind.decor => 'decor',
-    Collection2ItemKind.knifeSkin => 'skin',
+    Collection2ItemKind.moment => 'moment',
     Collection2ItemKind.setBonus => 'set',
   };
 }

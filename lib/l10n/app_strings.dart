@@ -302,6 +302,10 @@ class AppStrings {
 
   String questReward(String questId) => _value('quest.$questId.reward');
 
+  String collection2ItemName(String itemId, {String? fallback}) {
+    return _maybeValue('collection2.$itemId.name') ?? fallback ?? itemId;
+  }
+
   String _template(String key, Map<String, String> values) {
     var text = _value(key);
     for (final entry in values.entries) {
@@ -696,6 +700,35 @@ const Map<String, String> _en = {
   'upgrade.offline.item.auto_branch_network': 'Automatic Branch Network',
   'upgrade.offline.item.global_doner_network': 'Global Doner Network',
   'upgrade.offline.item.infinite_safe_system': 'Infinite Safe System',
+  'collection2.customer_student_regular.name': 'Student Regular',
+  'collection2.customer_night_worker.name': 'Night Shift Worker',
+  'collection2.customer_taxi_driver.name': 'Taxi Driver',
+  'collection2.customer_food_blogger.name': 'Food Blogger',
+  'collection2.customer_gourmet_critic.name': 'Gourmet Critic',
+  'collection2.customer_cosmic_traveler.name': 'Cosmic Traveler',
+  'collection2.staff_apprentice.name': 'Apprentice Ali',
+  'collection2.staff_journeyman.name': 'Journeyman Zeynep',
+  'collection2.staff_cashier.name': 'Cashier Ece',
+  'collection2.staff_sauce_master.name': 'Sauce Master Leyla',
+  'collection2.staff_doner_master.name': 'Doner Master Kemal',
+  'collection2.staff_courier.name': 'Courier Mert',
+  'collection2.staff_robot_master.name': 'Robot Master RX-01',
+  'collection2.staff_influencer_chef.name': 'Influencer Chef Duru',
+  'collection2.decor_new_sign.name': 'New Sign',
+  'collection2.decor_spice_shelf.name': 'Spice Shelf',
+  'collection2.decor_red_neon.name': 'Red Neon',
+  'collection2.decor_modern_menu_board.name': 'Modern Menu Board',
+  'collection2.decor_gold_counter.name': 'Gold Counter',
+  'collection2.decor_vip_table.name': 'VIP Table',
+  'collection2.decor_mall_stand.name': 'Mall Stand',
+  'collection2.decor_galactic_sign.name': 'Galactic Sign',
+  'collection2.decor_infinite_doner_statue.name': 'Infinite Doner Statue',
+  'collection2.moment_first_shift.name': 'The First Shift',
+  'collection2.moment_neon_rush.name': 'Neon Rush',
+  'collection2.moment_golden_service.name': 'The Golden Service',
+  'collection2.moment_cosmic_opening.name': 'Cosmic Grand Opening',
+  'collection2.street_set.name': 'Street Set',
+  'collection2.master_set.name': 'Master Set',
 };
 
 const Map<String, String> _tr = {
@@ -1020,4 +1053,33 @@ const Map<String, String> _tr = {
   'upgrade.offline.item.auto_branch_network': 'Otomatik Şube Ağı',
   'upgrade.offline.item.global_doner_network': 'Genel Döner Ağı',
   'upgrade.offline.item.infinite_safe_system': 'Sonsuz Kasa Sistemi',
+  'collection2.customer_student_regular.name': 'Öğrenci Müdavim',
+  'collection2.customer_night_worker.name': 'Gece Vardiyası Çalışanı',
+  'collection2.customer_taxi_driver.name': 'Taksici',
+  'collection2.customer_food_blogger.name': 'Yemek Blogcusu',
+  'collection2.customer_gourmet_critic.name': 'Gurme Eleştirmen',
+  'collection2.customer_cosmic_traveler.name': 'Kozmik Gezgin',
+  'collection2.staff_apprentice.name': 'Çırak Ali',
+  'collection2.staff_journeyman.name': 'Kalfa Zeynep',
+  'collection2.staff_cashier.name': 'Kasiyer Ece',
+  'collection2.staff_sauce_master.name': 'Sos Ustası Leyla',
+  'collection2.staff_doner_master.name': 'Döner Ustası Kemal',
+  'collection2.staff_courier.name': 'Kurye Mert',
+  'collection2.staff_robot_master.name': 'Robot Usta RX-01',
+  'collection2.staff_influencer_chef.name': 'Fenomen Şef Duru',
+  'collection2.decor_new_sign.name': 'Yeni Tabela',
+  'collection2.decor_spice_shelf.name': 'Baharat Rafı',
+  'collection2.decor_red_neon.name': 'Kırmızı Neon',
+  'collection2.decor_modern_menu_board.name': 'Modern Menü Panosu',
+  'collection2.decor_gold_counter.name': 'Altın Tezgâh',
+  'collection2.decor_vip_table.name': 'VIP Masa',
+  'collection2.decor_mall_stand.name': 'AVM Standı',
+  'collection2.decor_galactic_sign.name': 'Galaktik Tabela',
+  'collection2.decor_infinite_doner_statue.name': 'Sonsuz Döner Heykeli',
+  'collection2.moment_first_shift.name': 'İlk Vardiya',
+  'collection2.moment_neon_rush.name': 'Neon Yoğunluğu',
+  'collection2.moment_golden_service.name': 'Altın Servis',
+  'collection2.moment_cosmic_opening.name': 'Kozmik Büyük Açılış',
+  'collection2.street_set.name': 'Sokak Seti',
+  'collection2.master_set.name': 'Usta Seti',
 };

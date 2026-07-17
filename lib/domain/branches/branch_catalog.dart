@@ -4,6 +4,7 @@ import 'package:taptapdoner/domain/branches/branch_models.dart';
 import 'package:taptapdoner/domain/economy/number_units.dart';
 import 'package:taptapdoner/domain/progression/collection2_catalog.dart';
 import 'package:taptapdoner/domain/progression/collection2_models.dart';
+import 'package:taptapdoner/domain/progression/faz5_models.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 
 class BranchRequirementStatus {
@@ -20,6 +21,14 @@ abstract final class BranchCatalog {
   static const maxBranchLevel = 50;
   static const branchMilestoneIncomeBonus = 0.05;
   static const milestoneLevels = <int>[10, 20, 30, 40, 50];
+  static const _startingIncomeContributionShare = 0.20;
+  static const _maxIncomeContributionByRegion = <String, double>{
+    'local': 0.04,
+    'istanbul': 0.06,
+    'turkiye': 0.08,
+    'global': 0.10,
+    'space': 0.12,
+  };
 
   static const regions = <BranchRegionDefinition>[
     BranchRegionDefinition(
@@ -673,6 +682,56 @@ abstract final class BranchCatalog {
     return total;
   }
 
+  /// Returns the branch's share of passive income before branch bonuses.
+  ///
+  /// Branch definitions still use their exponential level curves, but the
+  /// curve is normalized so every region stays relevant as the core economy
+  /// moves through much larger number tiers.
+  static double incomeContributionFor(
+    BranchDefinition definition,
+    BranchProgress progress,
+    Collection2State collection2,
+  ) {
+    if (!progress.isUnlocked || progress.level <= 0) {
+      return 0;
+    }
+    final level = math.min(progress.level, definition.maxLevel);
+    final maxGrowth = math.pow(
+      definition.incomeMultiplierPerLevel,
+      definition.maxLevel - 1,
+    );
+    final currentGrowth = math.pow(
+      definition.incomeMultiplierPerLevel,
+      level - 1,
+    );
+    final growthProgress = maxGrowth <= 1
+        ? level / definition.maxLevel
+        : ((currentGrowth - 1) / (maxGrowth - 1)).clamp(0.0, 1.0);
+    final levelScale =
+        _startingIncomeContributionShare +
+        ((1 - _startingIncomeContributionShare) * growthProgress);
+    final regionMaximum =
+        _maxIncomeContributionByRegion[definition.regionId] ??
+        _maxIncomeContributionByRegion['local']!;
+    final milestoneMultiplier =
+        1 + (reachedMilestoneCount(level) * branchMilestoneIncomeBonus);
+    final managerMultiplier =
+        1 + managerIncomeBonus(collection2, progress.assignedManagerId);
+    return regionMaximum * levelScale * milestoneMultiplier * managerMultiplier;
+  }
+
+  static double totalIncomeContribution(GameState state) {
+    var total = 0.0;
+    for (final definition in branches) {
+      total += incomeContributionFor(
+        definition,
+        state.branches.progressFor(definition.id),
+        state.collection2,
+      );
+    }
+    return total;
+  }
+
   static int reachedMilestoneCount(int level) {
     return milestoneLevels.where((milestone) => level >= milestone).length;
   }
@@ -695,8 +754,8 @@ abstract final class BranchCatalog {
         assigned.add(managerId);
       }
     }
-    return Collection2Catalog.staffCards
-        .where((staff) => state.collection2.isStaffCardUnlocked(staff.id))
+    return Collection2Catalog.masterCards
+        .where((staff) => state.collection2.isMasterCardUnlocked(staff.id))
         .map((staff) => staff.id)
         .where((staffId) => !assigned.contains(staffId))
         .toList(growable: false);
@@ -711,7 +770,7 @@ abstract final class BranchCatalog {
     if (!isManagerSlotUnlocked(progress)) {
       return false;
     }
-    if (!state.collection2.isStaffCardUnlocked(managerId)) {
+    if (!state.collection2.isMasterCardUnlocked(managerId)) {
       return false;
     }
     return availableManagerIds(
@@ -732,7 +791,7 @@ abstract final class BranchCatalog {
     if (managerId == null || managerId.isEmpty) {
       return null;
     }
-    return Collection2Catalog.staffCardById[managerId]?.name;
+    return Collection2Catalog.masterCardById[managerId]?.name;
   }
 
   static double managerIncomeBonus(
@@ -742,23 +801,21 @@ abstract final class BranchCatalog {
     if (managerId == null || managerId.isEmpty) {
       return 0;
     }
-    final definition = Collection2Catalog.staffCardById[managerId];
+    final definition = Collection2Catalog.masterCardById[managerId];
     if (definition == null) {
       return 0;
     }
-    final level = collection2.staffCardLevel(managerId);
+    final level = collection2.masterCardLevel(managerId);
     if (level <= 0) {
       return 0;
     }
-    final leveled = definition.bonusValuePerLevel * level;
-    return switch (definition.bonusType) {
-      StaffCardBonusType.passiveIncome => 0.06 + leveled,
-      StaffCardBonusType.offlineIncome => 0.04 + leveled,
-      StaffCardBonusType.autoTapPower => 0.05 + leveled,
-      StaffCardBonusType.customerReward => 0.03 + leveled,
-      StaffCardBonusType.reputationGain => 0.03 + leveled,
-      StaffCardBonusType.tipChance ||
-      StaffCardBonusType.customerOrderDuration => 0.02 + leveled,
+    final rarityBase = switch (definition.rarity) {
+      Rarity.common => 0.10,
+      Rarity.rare => 0.12,
+      Rarity.epic => 0.15,
+      Rarity.legendary => 0.20,
+      Rarity.mythic => 0.25,
     };
+    return rarityBase + (definition.bonusValuePerLevel * level);
   }
 }

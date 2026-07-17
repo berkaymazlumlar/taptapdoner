@@ -38,6 +38,7 @@ class GameShellOverlay extends StatefulWidget {
 class _GameShellOverlayState extends State<GameShellOverlay> {
   GameBottomNavTab _activeTab = GameBottomNavTab.kitchen;
   bool _settingsVisible = false;
+  _ProgressionOverlayPage? _progressionOverlay;
 
   void _selectTab(GameBottomNavTab tab) {
     if (!mounted || _activeTab == tab) {
@@ -51,6 +52,7 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
     setState(() {
       _activeTab = tab;
       _settingsVisible = false;
+      _progressionOverlay = null;
     });
   }
 
@@ -79,12 +81,27 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
   void _openSettings() {
     setState(() {
       _settingsVisible = true;
+      _progressionOverlay = null;
     });
   }
 
   void _closeSettings() {
     setState(() {
       _settingsVisible = false;
+    });
+  }
+
+  void _openProgressionOverlay(_ProgressionOverlayPage page) {
+    widget.controller.prepareGoalsView();
+    setState(() {
+      _settingsVisible = false;
+      _progressionOverlay = page;
+    });
+  }
+
+  void _closeProgressionOverlay() {
+    setState(() {
+      _progressionOverlay = null;
     });
   }
 
@@ -110,8 +127,12 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
                       enabled: _activeTab == GameBottomNavTab.kitchen,
                       child: _KitchenTabPage(
                         controller: widget.controller,
-                        onOpenGoals: () => _selectTab(GameBottomNavTab.goals),
-                        onOpenChests: () => _selectTab(GameBottomNavTab.chests),
+                        onOpenGoals: () => _openProgressionOverlay(
+                          _ProgressionOverlayPage.achievements,
+                        ),
+                        onOpenChests: () => _openProgressionOverlay(
+                          _ProgressionOverlayPage.chests,
+                        ),
                         onOpenSettings: _openSettings,
                         bottomInset: bottomNavInset,
                         active: _activeTab == GameBottomNavTab.kitchen,
@@ -123,7 +144,13 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
                 ],
               ),
             ),
-            Positioned(left: 0, right: 0, bottom: 0, child: _buildBottomNav()),
+            if (_settingsVisible == false && _progressionOverlay == null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildBottomNav(),
+              ),
             if (kDebugMode)
               Positioned(
                 right: 12,
@@ -139,10 +166,18 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
                 controller: widget.controller,
                 onClose: _closeSettings,
               ),
+            if (_progressionOverlay case final page?)
+              _ProgressionOverlay(
+                controller: widget.controller,
+                page: page,
+                onClose: _closeProgressionOverlay,
+              ),
             ValueListenableBuilder<RandomEventSnapshot?>(
               valueListenable: widget.controller.randomEventSnapshotListenable,
               builder: (context, snapshot, _) {
-                if (snapshot == null || _settingsVisible) {
+                if (snapshot == null ||
+                    _settingsVisible ||
+                    _progressionOverlay != null) {
                   return const SizedBox.shrink();
                 }
                 return RandomEventOverlay(
@@ -231,6 +266,38 @@ class _GameShellOverlayState extends State<GameShellOverlay> {
       onOpenBranches: () => _selectTab(GameBottomNavTab.branches),
       onOpenCollection: () => _selectTab(GameBottomNavTab.collection),
       onOpenPrestige: () => _selectTab(GameBottomNavTab.prestige),
+    );
+  }
+}
+
+enum _ProgressionOverlayPage { achievements, chests }
+
+class _ProgressionOverlay extends StatelessWidget {
+  const _ProgressionOverlay({
+    required this.controller,
+    required this.page,
+    required this.onClose,
+  });
+
+  final GameController controller;
+  final _ProgressionOverlayPage page;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      key: ValueKey('${page.name}-overlay-root'),
+      decoration: const BoxDecoration(gradient: DonerGradients.sheet),
+      child: switch (page) {
+        _ProgressionOverlayPage.achievements => GoalsPage(
+          controller: controller,
+          onClose: onClose,
+        ),
+        _ProgressionOverlayPage.chests => ChestPage(
+          controller: controller,
+          onClose: onClose,
+        ),
+      },
     );
   }
 }

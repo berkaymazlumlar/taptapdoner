@@ -2,9 +2,14 @@ import 'dart:math' as math;
 
 import 'package:taptapdoner/domain/progression/faz5_models.dart';
 
-enum Collection2ItemKind { recipe, staff, decor, knifeSkin, setBonus }
+enum Collection2ItemKind { customer, master, decor, moment, setBonus }
 
-enum RecipeBonusType { menuMultiplier, tipValue, customerReward, globalIncome }
+enum CustomerCardBonusType {
+  menuMultiplier,
+  tipValue,
+  customerReward,
+  globalIncome,
+}
 
 enum StaffCardBonusType {
   passiveIncome,
@@ -25,12 +30,12 @@ enum DecorBonusType {
   shopMultiplier,
 }
 
-enum KnifeSkinBonusType { tapIncome, globalIncome, reputationGain }
+enum MomentCardBonusType { tapIncome, globalIncome, reputationGain }
 
 enum CollectionSetBonusType { tapIncome, passiveIncome, globalIncome }
 
-class RecipeCollectible {
-  const RecipeCollectible({
+class CustomerCard {
+  const CustomerCard({
     required this.id,
     required this.name,
     required this.rarity,
@@ -47,13 +52,13 @@ class RecipeCollectible {
   final Rarity rarity;
   final int requiredShards;
   final int maxLevel;
-  final RecipeBonusType bonusType;
+  final CustomerCardBonusType bonusType;
   final double bonusValuePerLevel;
   final String assetKey;
 }
 
-class StaffCard {
-  const StaffCard({
+class MasterCard {
+  const MasterCard({
     required this.id,
     required this.name,
     required this.rarity,
@@ -95,8 +100,8 @@ class DecorItem {
   final String assetKey;
 }
 
-class KnifeSkin {
-  const KnifeSkin({
+class MomentCard {
+  const MomentCard({
     required this.id,
     required this.name,
     required this.rarity,
@@ -110,7 +115,7 @@ class KnifeSkin {
   final String name;
   final Rarity rarity;
   final int requiredShards;
-  final KnifeSkinBonusType bonusType;
+  final MomentCardBonusType bonusType;
   final double bonusValue;
   final String assetKey;
 }
@@ -119,20 +124,20 @@ class CollectionSetBonus {
   const CollectionSetBonus({
     required this.id,
     required this.name,
-    required this.recipeId,
-    required this.staffCardId,
+    required this.customerCardId,
+    required this.masterCardId,
     required this.decorId,
-    required this.knifeSkinId,
+    required this.momentCardId,
     required this.bonusType,
     required this.bonusValue,
   });
 
   final String id;
   final String name;
-  final String recipeId;
-  final String staffCardId;
+  final String customerCardId;
+  final String masterCardId;
   final String decorId;
-  final String knifeSkinId;
+  final String momentCardId;
   final CollectionSetBonusType bonusType;
   final double bonusValue;
 }
@@ -176,89 +181,83 @@ class Collection2BonusTotals {
 
 class Collection2State {
   const Collection2State({
-    this.recipeShards = const <String, int>{},
-    this.recipeLevels = const <String, int>{},
-    this.staffCards = const <String, int>{},
-    this.staffCardLevels = const <String, int>{},
+    this.customerCardShards = const <String, int>{},
+    this.customerCardLevels = const <String, int>{},
+    this.masterCards = const <String, int>{},
+    this.masterCardLevels = const <String, int>{},
     this.decorShards = const <String, int>{},
     this.unlockedDecorIds = const <String>{},
     this.equippedDecorIds = const <String>{},
-    this.knifeSkinShards = const <String, int>{},
-    this.unlockedKnifeSkinIds = const <String>{},
-    this.equippedKnifeSkinId,
+    this.momentCardShards = const <String, int>{},
+    this.unlockedMomentCardIds = const <String>{},
     this.claimedSetBonuses = const <String>{},
     this.prestigeShards = 0,
   });
 
-  final Map<String, int> recipeShards;
-  final Map<String, int> recipeLevels;
-  final Map<String, int> staffCards;
-  final Map<String, int> staffCardLevels;
+  final Map<String, int> customerCardShards;
+  final Map<String, int> customerCardLevels;
+  final Map<String, int> masterCards;
+  final Map<String, int> masterCardLevels;
   final Map<String, int> decorShards;
   final Set<String> unlockedDecorIds;
   final Set<String> equippedDecorIds;
-  final Map<String, int> knifeSkinShards;
-  final Set<String> unlockedKnifeSkinIds;
-  final String? equippedKnifeSkinId;
+  final Map<String, int> momentCardShards;
+  final Set<String> unlockedMomentCardIds;
   final Set<String> claimedSetBonuses;
   final int prestigeShards;
 
-  int recipeShardCount(String id) => math.max(0, recipeShards[id] ?? 0);
+  int customerCardCount(String id) => math.max(0, customerCardShards[id] ?? 0);
 
-  int recipeLevel(String id) => math.max(0, recipeLevels[id] ?? 0);
+  int customerCardLevel(String id) => math.max(0, customerCardLevels[id] ?? 0);
 
-  int staffCardCount(String id) => math.max(0, staffCards[id] ?? 0);
+  int masterCardCount(String id) => math.max(0, masterCards[id] ?? 0);
 
-  int staffCardLevel(String id) => math.max(0, staffCardLevels[id] ?? 0);
+  int masterCardLevel(String id) => math.max(0, masterCardLevels[id] ?? 0);
 
   int decorShardCount(String id) => math.max(0, decorShards[id] ?? 0);
 
-  int knifeSkinShardCount(String id) => math.max(0, knifeSkinShards[id] ?? 0);
+  int momentCardCount(String id) => math.max(0, momentCardShards[id] ?? 0);
 
-  bool isRecipeUnlocked(String id) => recipeLevel(id) > 0;
+  bool isCustomerCardUnlocked(String id) => customerCardLevel(id) > 0;
 
-  bool isStaffCardUnlocked(String id) => staffCardLevel(id) > 0;
+  bool isMasterCardUnlocked(String id) => masterCardLevel(id) > 0;
 
   bool isDecorUnlocked(String id) => unlockedDecorIds.contains(id);
 
-  bool isKnifeSkinUnlocked(String id) => unlockedKnifeSkinIds.contains(id);
+  bool isMomentCardUnlocked(String id) => unlockedMomentCardIds.contains(id);
 
   int get unlockedContentCount {
-    return recipeLevels.values.where((level) => level > 0).length +
-        staffCardLevels.values.where((level) => level > 0).length +
+    return customerCardLevels.values.where((level) => level > 0).length +
+        masterCardLevels.values.where((level) => level > 0).length +
         unlockedDecorIds.length +
-        unlockedKnifeSkinIds.length +
+        unlockedMomentCardIds.length +
         claimedSetBonuses.length;
   }
 
   Collection2State copyWith({
-    Map<String, int>? recipeShards,
-    Map<String, int>? recipeLevels,
-    Map<String, int>? staffCards,
-    Map<String, int>? staffCardLevels,
+    Map<String, int>? customerCardShards,
+    Map<String, int>? customerCardLevels,
+    Map<String, int>? masterCards,
+    Map<String, int>? masterCardLevels,
     Map<String, int>? decorShards,
     Set<String>? unlockedDecorIds,
     Set<String>? equippedDecorIds,
-    Map<String, int>? knifeSkinShards,
-    Set<String>? unlockedKnifeSkinIds,
-    String? equippedKnifeSkinId,
-    bool clearEquippedKnifeSkinId = false,
+    Map<String, int>? momentCardShards,
+    Set<String>? unlockedMomentCardIds,
     Set<String>? claimedSetBonuses,
     int? prestigeShards,
   }) {
     return Collection2State(
-      recipeShards: recipeShards ?? this.recipeShards,
-      recipeLevels: recipeLevels ?? this.recipeLevels,
-      staffCards: staffCards ?? this.staffCards,
-      staffCardLevels: staffCardLevels ?? this.staffCardLevels,
+      customerCardShards: customerCardShards ?? this.customerCardShards,
+      customerCardLevels: customerCardLevels ?? this.customerCardLevels,
+      masterCards: masterCards ?? this.masterCards,
+      masterCardLevels: masterCardLevels ?? this.masterCardLevels,
       decorShards: decorShards ?? this.decorShards,
       unlockedDecorIds: unlockedDecorIds ?? this.unlockedDecorIds,
       equippedDecorIds: equippedDecorIds ?? this.equippedDecorIds,
-      knifeSkinShards: knifeSkinShards ?? this.knifeSkinShards,
-      unlockedKnifeSkinIds: unlockedKnifeSkinIds ?? this.unlockedKnifeSkinIds,
-      equippedKnifeSkinId: clearEquippedKnifeSkinId
-          ? null
-          : (equippedKnifeSkinId ?? this.equippedKnifeSkinId),
+      momentCardShards: momentCardShards ?? this.momentCardShards,
+      unlockedMomentCardIds:
+          unlockedMomentCardIds ?? this.unlockedMomentCardIds,
       claimedSetBonuses: claimedSetBonuses ?? this.claimedSetBonuses,
       prestigeShards: math.max(0, prestigeShards ?? this.prestigeShards),
     );
@@ -266,33 +265,45 @@ class Collection2State {
 
   Map<String, dynamic> toJson() {
     return {
-      'recipeShards': recipeShards,
-      'recipeLevels': recipeLevels,
-      'staffCards': staffCards,
-      'staffCardLevels': staffCardLevels,
+      'customerCardShards': customerCardShards,
+      'customerCardLevels': customerCardLevels,
+      'masterCards': masterCards,
+      'masterCardLevels': masterCardLevels,
       'decorShards': decorShards,
       'unlockedDecorIds': _sortedStrings(unlockedDecorIds),
       'equippedDecorIds': _sortedStrings(equippedDecorIds),
-      'knifeSkinShards': knifeSkinShards,
-      'unlockedKnifeSkinIds': _sortedStrings(unlockedKnifeSkinIds),
-      'equippedKnifeSkinId': equippedKnifeSkinId,
+      'momentCardShards': momentCardShards,
+      'unlockedMomentCardIds': _sortedStrings(unlockedMomentCardIds),
       'claimedSetBonuses': _sortedStrings(claimedSetBonuses),
       'prestigeShards': prestigeShards,
     };
   }
 
   factory Collection2State.fromJson(Map<String, dynamic>? json) {
+    final customerShards = _intMap(
+      json?['customerCardShards'] ?? json?['recipeShards'],
+    );
+    final customerLevels = _intMap(
+      json?['customerCardLevels'] ?? json?['recipeLevels'],
+    );
+    final momentShards = _intMap(
+      json?['momentCardShards'] ?? json?['knifeSkinShards'],
+    );
+    final unlockedMoments = _stringSet(
+      json?['unlockedMomentCardIds'] ?? json?['unlockedKnifeSkinIds'],
+    );
     return Collection2State(
-      recipeShards: _intMap(json?['recipeShards']),
-      recipeLevels: _intMap(json?['recipeLevels']),
-      staffCards: _intMap(json?['staffCards']),
-      staffCardLevels: _intMap(json?['staffCardLevels']),
+      customerCardShards: _migrateCardMap(customerShards, _legacyCustomerIds),
+      customerCardLevels: _migrateCardMap(customerLevels, _legacyCustomerIds),
+      masterCards: _intMap(json?['masterCards'] ?? json?['staffCards']),
+      masterCardLevels: _intMap(
+        json?['masterCardLevels'] ?? json?['staffCardLevels'],
+      ),
       decorShards: _intMap(json?['decorShards']),
       unlockedDecorIds: _stringSet(json?['unlockedDecorIds']),
       equippedDecorIds: _stringSet(json?['equippedDecorIds']),
-      knifeSkinShards: _intMap(json?['knifeSkinShards']),
-      unlockedKnifeSkinIds: _stringSet(json?['unlockedKnifeSkinIds']),
-      equippedKnifeSkinId: _nullableString(json?['equippedKnifeSkinId']),
+      momentCardShards: _migrateCardMap(momentShards, _legacyMomentIds),
+      unlockedMomentCardIds: _migrateCardSet(unlockedMoments, _legacyMomentIds),
       claimedSetBonuses: _stringSet(json?['claimedSetBonuses']),
       prestigeShards: math.max(0, _intValue(json?['prestigeShards'])),
     );
@@ -301,32 +312,30 @@ class Collection2State {
   @override
   bool operator ==(Object other) {
     return other is Collection2State &&
-        _mapEquals(recipeShards, other.recipeShards) &&
-        _mapEquals(recipeLevels, other.recipeLevels) &&
-        _mapEquals(staffCards, other.staffCards) &&
-        _mapEquals(staffCardLevels, other.staffCardLevels) &&
+        _mapEquals(customerCardShards, other.customerCardShards) &&
+        _mapEquals(customerCardLevels, other.customerCardLevels) &&
+        _mapEquals(masterCards, other.masterCards) &&
+        _mapEquals(masterCardLevels, other.masterCardLevels) &&
         _mapEquals(decorShards, other.decorShards) &&
         _setEquals(unlockedDecorIds, other.unlockedDecorIds) &&
         _setEquals(equippedDecorIds, other.equippedDecorIds) &&
-        _mapEquals(knifeSkinShards, other.knifeSkinShards) &&
-        _setEquals(unlockedKnifeSkinIds, other.unlockedKnifeSkinIds) &&
-        equippedKnifeSkinId == other.equippedKnifeSkinId &&
+        _mapEquals(momentCardShards, other.momentCardShards) &&
+        _setEquals(unlockedMomentCardIds, other.unlockedMomentCardIds) &&
         _setEquals(claimedSetBonuses, other.claimedSetBonuses) &&
         prestigeShards == other.prestigeShards;
   }
 
   @override
   int get hashCode => Object.hash(
-    Object.hashAll(recipeShards.entries),
-    Object.hashAll(recipeLevels.entries),
-    Object.hashAll(staffCards.entries),
-    Object.hashAll(staffCardLevels.entries),
+    Object.hashAll(customerCardShards.entries),
+    Object.hashAll(customerCardLevels.entries),
+    Object.hashAll(masterCards.entries),
+    Object.hashAll(masterCardLevels.entries),
     Object.hashAll(decorShards.entries),
     Object.hashAll(unlockedDecorIds),
     Object.hashAll(equippedDecorIds),
-    Object.hashAll(knifeSkinShards.entries),
-    Object.hashAll(unlockedKnifeSkinIds),
-    equippedKnifeSkinId,
+    Object.hashAll(momentCardShards.entries),
+    Object.hashAll(unlockedMomentCardIds),
     Object.hashAll(claimedSetBonuses),
     prestigeShards,
   );
@@ -381,11 +390,39 @@ class ChestDropTable {
   }
 }
 
-String? _nullableString(Object? value) {
-  if (value is String && value.isNotEmpty) {
-    return value;
+const _legacyCustomerIds = <String, String>{
+  'recipe_chicken_doner': 'customer_student_regular',
+  'recipe_beef_doner': 'customer_night_worker',
+  'recipe_hatay_style': 'customer_taxi_driver',
+  'recipe_sauced_doner': 'customer_food_blogger',
+  'recipe_gourmet_doner': 'customer_gourmet_critic',
+  'recipe_cosmic_doner': 'customer_cosmic_traveler',
+};
+
+const _legacyMomentIds = <String, String>{
+  'knife_skin_rusty': 'moment_first_shift',
+  'knife_skin_electric': 'moment_neon_rush',
+  'knife_skin_gold': 'moment_golden_service',
+  'knife_skin_cosmic': 'moment_cosmic_opening',
+};
+
+Map<String, int> _migrateCardMap(
+  Map<String, int> source,
+  Map<String, String> legacyIds,
+) {
+  if (source.isEmpty) {
+    return source;
   }
-  return null;
+  final migrated = <String, int>{};
+  for (final entry in source.entries) {
+    final id = legacyIds[entry.key] ?? entry.key;
+    migrated[id] = math.max(migrated[id] ?? 0, entry.value);
+  }
+  return Map<String, int>.unmodifiable(migrated);
+}
+
+Set<String> _migrateCardSet(Set<String> source, Map<String, String> legacyIds) {
+  return Set<String>.unmodifiable(source.map((id) => legacyIds[id] ?? id));
 }
 
 int _intValue(Object? value, {int fallback = 0}) {

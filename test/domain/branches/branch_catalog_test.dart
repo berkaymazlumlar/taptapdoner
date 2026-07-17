@@ -62,8 +62,8 @@ void main() {
     final nowUtc = DateTime.utc(2026, 7, 16);
     final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
       collection2: const Collection2State(
-        staffCards: {'staff_apprentice': 0},
-        staffCardLevels: {'staff_apprentice': 1},
+        masterCards: {'staff_apprentice': 0},
+        masterCardLevels: {'staff_apprentice': 1},
       ),
       branches: const BranchSystemState(
         branchProgress: {
@@ -107,8 +107,8 @@ void main() {
   test('assigned manager increases only that branch income', () {
     final definition = BranchCatalog.byId['main_branch']!;
     const collection2 = Collection2State(
-      staffCards: {'staff_apprentice': 0},
-      staffCardLevels: {'staff_apprentice': 1},
+      masterCards: {'staff_apprentice': 0},
+      masterCardLevels: {'staff_apprentice': 1},
     );
     const withoutManager = BranchProgress(
       branchId: 'main_branch',
@@ -133,6 +133,51 @@ void main() {
       collection2,
     );
 
-    expect(managed, closeTo(base * 1.07, 0.000001));
+    expect(managed, closeTo(base * 1.11, 0.000001));
+    expect(
+      BranchCatalog.incomeContributionFor(definition, withManager, collection2),
+      closeTo(
+        BranchCatalog.incomeContributionFor(
+              definition,
+              withoutManager,
+              collection2,
+            ) *
+            1.11,
+        0.000001,
+      ),
+    );
+  });
+
+  test('maxed branches contribute a meaningful share by region', () {
+    const collection2 = Collection2State();
+
+    double maxedContribution(String branchId) {
+      final definition = BranchCatalog.byId[branchId]!;
+      return BranchCatalog.incomeContributionFor(
+        definition,
+        BranchProgress(
+          branchId: branchId,
+          isUnlocked: true,
+          level: definition.maxLevel,
+        ),
+        collection2,
+      );
+    }
+
+    expect(maxedContribution('airport_branch'), closeTo(0.075, 0.000001));
+    expect(
+      BranchCatalog.branchesForRegion('local').fold<double>(
+        0,
+        (total, branch) => total + maxedContribution(branch.id),
+      ),
+      closeTo(0.15, 0.000001),
+    );
+    expect(
+      BranchCatalog.branchesForRegion('istanbul').fold<double>(
+        0,
+        (total, branch) => total + maxedContribution(branch.id),
+      ),
+      closeTo(0.375, 0.000001),
+    );
   });
 }

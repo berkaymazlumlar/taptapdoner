@@ -56,73 +56,73 @@ class _UnlockableApplyResult {
 abstract final class Collection2Catalog {
   static const prestigeShardsPerPoint = 10;
 
-  static const recipes = <RecipeCollectible>[
-    RecipeCollectible(
-      id: 'recipe_chicken_doner',
-      name: 'Chicken Doner Recipe',
+  static const customerCards = <CustomerCard>[
+    CustomerCard(
+      id: 'customer_student_regular',
+      name: 'Student Regular',
       rarity: Rarity.common,
       requiredShards: 10,
       maxLevel: 5,
-      bonusType: RecipeBonusType.menuMultiplier,
+      bonusType: CustomerCardBonusType.menuMultiplier,
       bonusValuePerLevel: 0.01,
-      assetKey: 'placeholder_recipe_chicken_doner',
+      assetKey: 'placeholder_customer_student_regular',
     ),
-    RecipeCollectible(
-      id: 'recipe_beef_doner',
-      name: 'Beef Doner Recipe',
+    CustomerCard(
+      id: 'customer_night_worker',
+      name: 'Night Shift Worker',
       rarity: Rarity.common,
       requiredShards: 10,
       maxLevel: 5,
-      bonusType: RecipeBonusType.menuMultiplier,
+      bonusType: CustomerCardBonusType.menuMultiplier,
       bonusValuePerLevel: 0.015,
-      assetKey: 'placeholder_recipe_beef_doner',
+      assetKey: 'placeholder_customer_night_worker',
     ),
-    RecipeCollectible(
-      id: 'recipe_hatay_style',
-      name: 'Hatay Style Recipe',
+    CustomerCard(
+      id: 'customer_taxi_driver',
+      name: 'Taxi Driver',
       rarity: Rarity.rare,
       requiredShards: 20,
       maxLevel: 5,
-      bonusType: RecipeBonusType.tipValue,
+      bonusType: CustomerCardBonusType.tipValue,
       bonusValuePerLevel: 0.02,
-      assetKey: 'placeholder_recipe_hatay_style',
+      assetKey: 'placeholder_customer_taxi_driver',
     ),
-    RecipeCollectible(
-      id: 'recipe_sauced_doner',
-      name: 'Sauced Doner Recipe',
+    CustomerCard(
+      id: 'customer_food_blogger',
+      name: 'Food Blogger',
       rarity: Rarity.rare,
       requiredShards: 20,
       maxLevel: 5,
-      bonusType: RecipeBonusType.customerReward,
+      bonusType: CustomerCardBonusType.customerReward,
       bonusValuePerLevel: 0.02,
-      assetKey: 'placeholder_recipe_sauced_doner',
+      assetKey: 'placeholder_customer_food_blogger',
     ),
-    RecipeCollectible(
-      id: 'recipe_gourmet_doner',
-      name: 'Gourmet Doner Recipe',
+    CustomerCard(
+      id: 'customer_gourmet_critic',
+      name: 'Gourmet Critic',
       rarity: Rarity.epic,
       requiredShards: 35,
       maxLevel: 5,
-      bonusType: RecipeBonusType.globalIncome,
+      bonusType: CustomerCardBonusType.globalIncome,
       bonusValuePerLevel: 0.01,
-      assetKey: 'placeholder_recipe_gourmet_doner',
+      assetKey: 'placeholder_customer_gourmet_critic',
     ),
-    RecipeCollectible(
-      id: 'recipe_cosmic_doner',
-      name: 'Cosmic Doner Recipe',
+    CustomerCard(
+      id: 'customer_cosmic_traveler',
+      name: 'Cosmic Traveler',
       rarity: Rarity.mythic,
       requiredShards: 100,
       maxLevel: 5,
-      bonusType: RecipeBonusType.globalIncome,
+      bonusType: CustomerCardBonusType.globalIncome,
       bonusValuePerLevel: 0.02,
-      assetKey: 'placeholder_recipe_cosmic_doner',
+      assetKey: 'placeholder_customer_cosmic_traveler',
     ),
   ];
 
-  static const staffCards = <StaffCard>[
-    StaffCard(
+  static const masterCards = <MasterCard>[
+    MasterCard(
       id: 'staff_apprentice',
-      name: 'Apprentice Card',
+      name: 'Apprentice Ali',
       rarity: Rarity.common,
       requiredCards: 10,
       maxLevel: 5,
@@ -130,9 +130,9 @@ abstract final class Collection2Catalog {
       bonusValuePerLevel: 0.01,
       assetKey: 'placeholder_staff_apprentice',
     ),
-    StaffCard(
+    MasterCard(
       id: 'staff_journeyman',
-      name: 'Journeyman Card',
+      name: 'Journeyman Zeynep',
       rarity: Rarity.common,
       requiredCards: 10,
       maxLevel: 5,
@@ -140,9 +140,9 @@ abstract final class Collection2Catalog {
       bonusValuePerLevel: 0.015,
       assetKey: 'placeholder_staff_journeyman',
     ),
-    StaffCard(
+    MasterCard(
       id: 'staff_cashier',
-      name: 'Cashier Card',
+      name: 'Cashier Ece',
       rarity: Rarity.rare,
       requiredCards: 20,
       maxLevel: 5,
@@ -150,9 +150,9 @@ abstract final class Collection2Catalog {
       bonusValuePerLevel: 0.005,
       assetKey: 'placeholder_staff_cashier',
     ),
-    StaffCard(
+    MasterCard(
       id: 'staff_sauce_master',
-      name: 'Sauce Master Card',
+      name: 'Sauce Master Leyla',
       rarity: Rarity.rare,
       requiredCards: 20,
       maxLevel: 5,
@@ -160,9 +160,9 @@ abstract final class Collection2Catalog {
       bonusValuePerLevel: 0.02,
       assetKey: 'placeholder_staff_sauce_master',
     ),
-    StaffCard(
+    MasterCard(
       id: 'staff_doner_master',
-      name: 'Doner Master Card',
+      name: 'Doner Master Kemal',
       rarity: Rarity.epic,
       requiredCards: 35,
       maxLevel: 5,
@@ -170,9 +170,9 @@ abstract final class Collection2Catalog {
       bonusValuePerLevel: 0.02,
       assetKey: 'placeholder_staff_doner_master',
     ),
-    StaffCard(
+    MasterCard(
       id: 'staff_courier',
-      name: 'Courier Card',
+      name: 'Courier Mert',
       rarity: Rarity.epic,
       requiredCards: 35,
       maxLevel: 5,
@@ -180,9 +180,9 @@ abstract final class Collection2Catalog {
       bonusValuePerLevel: 0.02,
       assetKey: 'placeholder_staff_courier',
     ),
-    StaffCard(
+    MasterCard(
       id: 'staff_robot_master',
-      name: 'Robot Master Card',
+      name: 'Robot Master RX-01',
       rarity: Rarity.legendary,
       requiredCards: 50,
       maxLevel: 5,
@@ -190,9 +190,9 @@ abstract final class Collection2Catalog {
       bonusValuePerLevel: 0.03,
       assetKey: 'placeholder_staff_robot_master',
     ),
-    StaffCard(
+    MasterCard(
       id: 'staff_influencer_chef',
-      name: 'Influencer Chef Card',
+      name: 'Influencer Chef Duru',
       rarity: Rarity.mythic,
       requiredCards: 100,
       maxLevel: 5,
@@ -286,42 +286,42 @@ abstract final class Collection2Catalog {
     ),
   ];
 
-  static const knifeSkins = <KnifeSkin>[
-    KnifeSkin(
-      id: 'knife_skin_rusty',
-      name: 'Rusty Knife Skin',
+  static const momentCards = <MomentCard>[
+    MomentCard(
+      id: 'moment_first_shift',
+      name: 'The First Shift',
       rarity: Rarity.common,
       requiredShards: 10,
-      bonusType: KnifeSkinBonusType.tapIncome,
+      bonusType: MomentCardBonusType.tapIncome,
       bonusValue: 0.01,
-      assetKey: 'placeholder_knife_skin_rusty',
+      assetKey: 'placeholder_moment_first_shift',
     ),
-    KnifeSkin(
-      id: 'knife_skin_electric',
-      name: 'Electric Knife Skin',
+    MomentCard(
+      id: 'moment_neon_rush',
+      name: 'Neon Rush',
       rarity: Rarity.epic,
       requiredShards: 35,
-      bonusType: KnifeSkinBonusType.tapIncome,
+      bonusType: MomentCardBonusType.tapIncome,
       bonusValue: 0.03,
-      assetKey: 'placeholder_knife_skin_electric',
+      assetKey: 'placeholder_moment_neon_rush',
     ),
-    KnifeSkin(
-      id: 'knife_skin_gold',
-      name: 'Gold Knife Skin',
+    MomentCard(
+      id: 'moment_golden_service',
+      name: 'The Golden Service',
       rarity: Rarity.legendary,
       requiredShards: 50,
-      bonusType: KnifeSkinBonusType.globalIncome,
+      bonusType: MomentCardBonusType.globalIncome,
       bonusValue: 0.04,
-      assetKey: 'placeholder_knife_skin_gold',
+      assetKey: 'placeholder_moment_golden_service',
     ),
-    KnifeSkin(
-      id: 'knife_skin_cosmic',
-      name: 'Cosmic Knife Skin',
+    MomentCard(
+      id: 'moment_cosmic_opening',
+      name: 'Cosmic Grand Opening',
       rarity: Rarity.mythic,
       requiredShards: 100,
-      bonusType: KnifeSkinBonusType.reputationGain,
+      bonusType: MomentCardBonusType.reputationGain,
       bonusValue: 0.05,
-      assetKey: 'placeholder_knife_skin_cosmic',
+      assetKey: 'placeholder_moment_cosmic_opening',
     ),
   ];
 
@@ -329,39 +329,39 @@ abstract final class Collection2Catalog {
     CollectionSetBonus(
       id: 'street_set',
       name: 'Street Set',
-      recipeId: 'recipe_chicken_doner',
-      staffCardId: 'staff_apprentice',
+      customerCardId: 'customer_student_regular',
+      masterCardId: 'staff_apprentice',
       decorId: 'decor_new_sign',
-      knifeSkinId: 'knife_skin_rusty',
+      momentCardId: 'moment_first_shift',
       bonusType: CollectionSetBonusType.tapIncome,
       bonusValue: 0.05,
     ),
     CollectionSetBonus(
       id: 'master_set',
       name: 'Master Set',
-      recipeId: 'recipe_gourmet_doner',
-      staffCardId: 'staff_doner_master',
+      customerCardId: 'customer_gourmet_critic',
+      masterCardId: 'staff_doner_master',
       decorId: 'decor_modern_menu_board',
-      knifeSkinId: 'knife_skin_electric',
+      momentCardId: 'moment_neon_rush',
       bonusType: CollectionSetBonusType.passiveIncome,
       bonusValue: 0.10,
     ),
   ];
 
-  static final recipeById = Map<String, RecipeCollectible>.unmodifiable({
-    for (final item in recipes) item.id: item,
+  static final customerCardById = Map<String, CustomerCard>.unmodifiable({
+    for (final item in customerCards) item.id: item,
   });
 
-  static final staffCardById = Map<String, StaffCard>.unmodifiable({
-    for (final item in staffCards) item.id: item,
+  static final masterCardById = Map<String, MasterCard>.unmodifiable({
+    for (final item in masterCards) item.id: item,
   });
 
   static final decorById = Map<String, DecorItem>.unmodifiable({
     for (final item in decorItems) item.id: item,
   });
 
-  static final knifeSkinById = Map<String, KnifeSkin>.unmodifiable({
-    for (final item in knifeSkins) item.id: item,
+  static final momentCardById = Map<String, MomentCard>.unmodifiable({
+    for (final item in momentCards) item.id: item,
   });
 
   static final setBonusById = Map<String, CollectionSetBonus>.unmodifiable({
@@ -379,12 +379,12 @@ abstract final class Collection2Catalog {
     return switch (rewardType) {
       ChestRewardType.recipeShard => addRecipeShards(
         state,
-        itemId ?? pickRecipeId(rarity: rarity, random: random),
+        itemId ?? pickCustomerCardId(rarity: rarity, random: random),
         amount,
       ),
       ChestRewardType.staffCardShard => addStaffCards(
         state,
-        itemId ?? pickStaffCardId(rarity: rarity, random: random),
+        itemId ?? pickMasterCardId(rarity: rarity, random: random),
         amount,
       ),
       ChestRewardType.decorShard => addDecorShards(
@@ -394,7 +394,7 @@ abstract final class Collection2Catalog {
       ),
       ChestRewardType.knifeSkinShard => addKnifeSkinShards(
         state,
-        itemId ?? pickKnifeSkinId(rarity: rarity, random: random),
+        itemId ?? pickMomentCardId(rarity: rarity, random: random),
         amount,
       ),
       ChestRewardType.prestigeShard => addPrestigeShards(state, amount),
@@ -407,21 +407,21 @@ abstract final class Collection2Catalog {
     String itemId,
     int amount,
   ) {
-    final definition = recipeById[itemId];
+    final definition = customerCardById[itemId];
     if (definition == null || amount <= 0) {
       return Collection2ApplyResult(state: state);
     }
     final result = _applyUpgradeable(
-      shards: state.recipeShards,
-      levels: state.recipeLevels,
+      shards: state.customerCardShards,
+      levels: state.customerCardLevels,
       itemId: itemId,
       amount: amount,
       requiredShards: definition.requiredShards,
       maxLevel: definition.maxLevel,
     );
     final nextState = state.copyWith(
-      recipeShards: result.shards,
-      recipeLevels: result.levels,
+      customerCardShards: result.shards,
+      customerCardLevels: result.levels,
     );
     return _withSetRefresh(
       nextState,
@@ -439,21 +439,21 @@ abstract final class Collection2Catalog {
     String itemId,
     int amount,
   ) {
-    final definition = staffCardById[itemId];
+    final definition = masterCardById[itemId];
     if (definition == null || amount <= 0) {
       return Collection2ApplyResult(state: state);
     }
     final result = _applyUpgradeable(
-      shards: state.staffCards,
-      levels: state.staffCardLevels,
+      shards: state.masterCards,
+      levels: state.masterCardLevels,
       itemId: itemId,
       amount: amount,
       requiredShards: definition.requiredCards,
       maxLevel: definition.maxLevel,
     );
     final nextState = state.copyWith(
-      staffCards: result.shards,
-      staffCardLevels: result.levels,
+      masterCards: result.shards,
+      masterCardLevels: result.levels,
     );
     return _withSetRefresh(
       nextState,
@@ -503,26 +503,21 @@ abstract final class Collection2Catalog {
     String itemId,
     int amount,
   ) {
-    final definition = knifeSkinById[itemId];
+    final definition = momentCardById[itemId];
     if (definition == null || amount <= 0) {
       return Collection2ApplyResult(state: state);
     }
     final result = _applyUnlockable(
-      shards: state.knifeSkinShards,
-      unlockedIds: state.unlockedKnifeSkinIds,
-      equippedIds: state.equippedKnifeSkinId == null
-          ? const <String>{}
-          : <String>{state.equippedKnifeSkinId!},
+      shards: state.momentCardShards,
+      unlockedIds: state.unlockedMomentCardIds,
+      equippedIds: const <String>{},
       itemId: itemId,
       amount: amount,
       requiredShards: definition.requiredShards,
     );
     final nextState = state.copyWith(
-      knifeSkinShards: result.shards,
-      unlockedKnifeSkinIds: result.unlockedIds,
-      equippedKnifeSkinId: result.equippedIds.isEmpty
-          ? state.equippedKnifeSkinId
-          : result.equippedIds.first,
+      momentCardShards: result.shards,
+      unlockedMomentCardIds: result.unlockedIds,
     );
     return _withSetRefresh(
       nextState,
@@ -553,10 +548,10 @@ abstract final class Collection2Catalog {
   }
 
   static bool isSetComplete(Collection2State state, CollectionSetBonus set) {
-    return state.isRecipeUnlocked(set.recipeId) &&
-        state.isStaffCardUnlocked(set.staffCardId) &&
+    return state.isCustomerCardUnlocked(set.customerCardId) &&
+        state.isMasterCardUnlocked(set.masterCardId) &&
         state.isDecorUnlocked(set.decorId) &&
-        state.isKnifeSkinUnlocked(set.knifeSkinId);
+        state.isMomentCardUnlocked(set.momentCardId);
   }
 
   static Collection2BonusTotals bonusTotalsFor(Collection2State state) {
@@ -574,26 +569,26 @@ abstract final class Collection2Catalog {
     var chestReward = 0.0;
     var shop = 0.0;
 
-    for (final definition in recipes) {
-      final level = state.recipeLevel(definition.id);
+    for (final definition in customerCards) {
+      final level = state.customerCardLevel(definition.id);
       if (level <= 0) {
         continue;
       }
       final amount = definition.bonusValuePerLevel * level;
       switch (definition.bonusType) {
-        case RecipeBonusType.menuMultiplier:
+        case CustomerCardBonusType.menuMultiplier:
           menu += amount;
-        case RecipeBonusType.tipValue:
+        case CustomerCardBonusType.tipValue:
           tipValue += amount;
-        case RecipeBonusType.customerReward:
+        case CustomerCardBonusType.customerReward:
           customerReward += amount;
-        case RecipeBonusType.globalIncome:
+        case CustomerCardBonusType.globalIncome:
           global += amount;
       }
     }
 
-    for (final definition in staffCards) {
-      final level = state.staffCardLevel(definition.id);
+    for (final definition in masterCards) {
+      final level = state.masterCardLevel(definition.id);
       if (level <= 0) {
         continue;
       }
@@ -636,16 +631,16 @@ abstract final class Collection2Catalog {
       }
     }
 
-    for (final definition in knifeSkins) {
-      if (!state.isKnifeSkinUnlocked(definition.id)) {
+    for (final definition in momentCards) {
+      if (!state.isMomentCardUnlocked(definition.id)) {
         continue;
       }
       switch (definition.bonusType) {
-        case KnifeSkinBonusType.tapIncome:
+        case MomentCardBonusType.tapIncome:
           tap += definition.bonusValue;
-        case KnifeSkinBonusType.globalIncome:
+        case MomentCardBonusType.globalIncome:
           global += definition.bonusValue;
-        case KnifeSkinBonusType.reputationGain:
+        case MomentCardBonusType.reputationGain:
           reputation += definition.bonusValue;
       }
     }
@@ -682,20 +677,20 @@ abstract final class Collection2Catalog {
     );
   }
 
-  static String pickRecipeId({Rarity? rarity, math.Random? random}) {
-    return _pickByRarity(recipes, rarity, random).id;
+  static String pickCustomerCardId({Rarity? rarity, math.Random? random}) {
+    return _pickByRarity(customerCards, rarity, random).id;
   }
 
-  static String pickStaffCardId({Rarity? rarity, math.Random? random}) {
-    return _pickByRarity(staffCards, rarity, random).id;
+  static String pickMasterCardId({Rarity? rarity, math.Random? random}) {
+    return _pickByRarity(masterCards, rarity, random).id;
   }
 
   static String pickDecorId({Rarity? rarity, math.Random? random}) {
     return _pickByRarity(decorItems, rarity, random).id;
   }
 
-  static String pickKnifeSkinId({Rarity? rarity, math.Random? random}) {
-    return _pickByRarity(knifeSkins, rarity, random).id;
+  static String pickMomentCardId({Rarity? rarity, math.Random? random}) {
+    return _pickByRarity(momentCards, rarity, random).id;
   }
 
   static _UpgradeableApplyResult _applyUpgradeable({
@@ -849,10 +844,10 @@ abstract final class Collection2Catalog {
   ) {
     Rarity itemRarity(T item) {
       return switch (item) {
-        RecipeCollectible(:final rarity) => rarity,
-        StaffCard(:final rarity) => rarity,
+        CustomerCard(:final rarity) => rarity,
+        MasterCard(:final rarity) => rarity,
         DecorItem(:final rarity) => rarity,
-        KnifeSkin(:final rarity) => rarity,
+        MomentCard(:final rarity) => rarity,
         _ => Rarity.common,
       };
     }

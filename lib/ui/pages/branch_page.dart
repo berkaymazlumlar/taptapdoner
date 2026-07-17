@@ -451,8 +451,8 @@ class _UnlockedBranchBody extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             strings.isTurkish
-                ? 'Açılmış personel kartın yok. Personel Sandığı kazanmak için görevleri tamamla.'
-                : 'You have no unlocked staff cards. Complete goals to earn Staff Chests.',
+                ? 'Açılmış usta kartın yok. Usta Sandığı kazanmak için görevleri tamamla.'
+                : 'You have no unlocked master cards. Complete goals to earn Chef Chests.',
             key: const ValueKey('branch-manager-empty-help'),
             style: _metaStyle(context),
           ),
@@ -503,8 +503,8 @@ class _ManagerPickerSheet extends StatelessWidget {
     final strings = AppStrings.of(context);
     final state = controller.state;
     final collection = state.collection2;
-    final unlockedStaff = Collection2Catalog.staffCards
-        .where((staff) => collection.isStaffCardUnlocked(staff.id))
+    final unlockedStaff = Collection2Catalog.masterCards
+        .where((staff) => collection.isMasterCardUnlocked(staff.id))
         .toList(growable: false);
     final assignedBranchByManager = <String, String>{};
     for (final progress in state.branches.branchProgress.values) {
@@ -569,10 +569,11 @@ class _ManagerPickerSheet extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    tooltip: strings.isTurkish ? 'Kapat' : 'Close',
+                    key: const ValueKey('manager-sheet-close-button'),
+                    tooltip: strings.closeLabel,
                     onPressed: () => Navigator.of(context).pop(),
                     color: DonerColors.bodyText,
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const FaIcon(DonerIcons.close, size: 17),
                   ),
                 ],
               ),
@@ -587,8 +588,8 @@ class _ManagerPickerSheet extends StatelessWidget {
                   padding: const EdgeInsets.all(10),
                   child: Text(
                     strings.isTurkish
-                        ? 'Mevcut şube geliri: ${formatCompactCurrencyRate(context, branch.incomePerSecond)}\nBir personel seçerek yeni geliri ve farkı karşılaştır.'
-                        : 'Current branch income: ${formatCompactCurrencyRate(context, branch.incomePerSecond)}\nChoose a staff member to compare the new income and difference.',
+                        ? 'Mevcut şube geliri: ${formatCompactCurrencyRate(context, branch.incomePerSecond)}\nBir usta seçerek yeni geliri ve farkı karşılaştır.'
+                        : 'Current branch income: ${formatCompactCurrencyRate(context, branch.incomePerSecond)}\nChoose a master to compare the new income and difference.',
                     key: const ValueKey('manager-income-comparison'),
                     style: _metaStyle(context),
                   ),
@@ -603,7 +604,7 @@ class _ManagerPickerSheet extends StatelessWidget {
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final staff = unlockedStaff[index];
-                          final level = collection.staffCardLevel(staff.id);
+                          final level = collection.masterCardLevel(staff.id);
                           final bonus = BranchCatalog.managerIncomeBonus(
                             collection,
                             staff.id,
@@ -687,16 +688,16 @@ class _EmptyManagerState extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 strings.isTurkish
-                    ? 'Henüz açılmış personel kartın yok.'
-                    : 'You do not have an unlocked staff card yet.',
+                    ? 'Henüz açılmış usta kartın yok.'
+                    : 'You do not have an unlocked master card yet.',
                 textAlign: TextAlign.center,
                 style: _bodyStyle(context),
               ),
               const SizedBox(height: 6),
               Text(
                 strings.isTurkish
-                    ? 'Görevleri tamamla, Personel Sandığı kazan ve kart parçalarını biriktir.'
-                    : 'Complete goals, earn Staff Chests, and collect card shards.',
+                    ? 'Görevleri tamamla, Usta Sandığı kazan ve kartları biriktir.'
+                    : 'Complete goals, earn Chef Chests, and collect cards.',
                 textAlign: TextAlign.center,
                 style: _metaStyle(context),
               ),
@@ -720,7 +721,7 @@ class _ManagerOptionCard extends StatelessWidget {
     required this.onSelected,
   });
 
-  final StaffCard staff;
+  final MasterCard staff;
   final int level;
   final double bonus;
   final double projectedIncome;
@@ -784,7 +785,10 @@ class _ManagerOptionCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        staff.name,
+                        strings.collection2ItemName(
+                          staff.id,
+                          fallback: staff.name,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: _bodyStyle(context),

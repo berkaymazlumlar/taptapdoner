@@ -128,17 +128,46 @@ class RandomEventService {
   }
 
   bool _isUnlockConditionMet(String condition, GameState state) {
+    if (condition.contains(' or ')) {
+      return condition
+          .split(' or ')
+          .any((part) => _isUnlockConditionMet(part.trim(), state));
+    }
+
     switch (condition) {
       case 'default':
         return true;
+      case 'knife unlocked':
+        return state.upgrade(UpgradeId.knife).purchased;
       case 'staff unlocked':
         return state.upgrade(UpgradeId.staff).purchased;
       case 'menu unlocked':
         return state.upgrade(UpgradeId.menu).purchased;
       case 'oven unlocked':
         return state.upgrade(UpgradeId.oven).purchased;
+      case 'turbo unlocked':
+        return state.upgrade(UpgradeId.oven).purchased;
+      case 'delivery unlocked':
+        return state.upgrade(UpgradeId.offline).purchased ||
+            state.upgrade(UpgradeId.staff).purchased;
       case 'knife item tier >= 2':
         return state.upgrade(UpgradeId.knife).itemIndex >= 1;
+    }
+
+    final itemTierMatch = RegExp(
+      r'^(knife|staff|menu|oven|offline) item tier >= (\d+)$',
+    ).firstMatch(condition);
+    if (itemTierMatch != null) {
+      final upgradeId = switch (itemTierMatch.group(1)!) {
+        'knife' => UpgradeId.knife,
+        'staff' => UpgradeId.staff,
+        'menu' => UpgradeId.menu,
+        'oven' => UpgradeId.oven,
+        'offline' => UpgradeId.offline,
+        _ => UpgradeId.knife,
+      };
+      final tier = int.tryParse(itemTierMatch.group(2)!) ?? 1;
+      return state.upgrade(upgradeId).itemIndex >= tier - 1;
     }
 
     if (condition.startsWith('prestige >=')) {

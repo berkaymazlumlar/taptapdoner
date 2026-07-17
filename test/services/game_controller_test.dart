@@ -38,11 +38,11 @@ void main() {
     nowUtc = nowUtc.add(const Duration(hours: 1));
     await controller.reconcileBackground();
 
-    expect(controller.state.pendingOfflineCash, 720);
+    expect(controller.state.pendingOfflineCash, 652);
     expect(controller.state.lastActiveAtUtc, nowUtc);
 
     await controller.reconcileBackground();
-    expect(controller.state.pendingOfflineCash, 720);
+    expect(controller.state.pendingOfflineCash, 652);
   });
 
   test('save operations are serialized so newer checkpoints win', () async {
@@ -420,19 +420,22 @@ void main() {
     },
   );
 
-  test('chest drop tables only contain currently actionable rewards', () {
+  test('chest drop tables contain actionable moment card rewards', () {
+    final momentIds = <String>{};
     for (final type in ChestType.values) {
       final table = ChestDropCatalog.tableFor(type);
-      expect(
-        table.drops.map((drop) => drop.rewardType),
-        isNot(contains(ChestRewardType.knifeSkinShard)),
-        reason: '${chestTypeKey(type)} chest should not drop inactive skins.',
-      );
+      for (final drop in table.drops.where(
+        (drop) => drop.rewardType == ChestRewardType.knifeSkinShard,
+      )) {
+        expect(Collection2Catalog.momentCardById, contains(drop.itemId));
+        momentIds.add(drop.itemId!);
+      }
     }
+    expect(momentIds, Collection2Catalog.momentCardById.keys.toSet());
   });
 
   test(
-    'recipe chest shards unlock recipes and auto-claim completed set bonuses',
+    'customer chest cards unlock customers and auto-claim completed sets',
     () async {
       final nowUtc = DateTime.utc(2026, 4, 1, 12);
       final controller =
@@ -448,10 +451,10 @@ void main() {
                 counts: {ChestType.recipe: 1},
               ),
               collection2: const Collection2State(
-                recipeShards: {'recipe_chicken_doner': 8},
-                staffCardLevels: {'staff_apprentice': 1},
+                customerCardShards: {'customer_student_regular': 8},
+                masterCardLevels: {'staff_apprentice': 1},
                 unlockedDecorIds: {'decor_new_sign'},
-                unlockedKnifeSkinIds: {'knife_skin_rusty'},
+                unlockedMomentCardIds: {'moment_first_shift'},
               ),
             ),
           );
@@ -461,11 +464,15 @@ void main() {
       expect(reward, isNotNull);
       expect(reward!.rewardType, ChestRewardType.recipeShard);
       expect(
-        controller.state.collection2.recipeLevel('recipe_chicken_doner'),
+        controller.state.collection2.customerCardLevel(
+          'customer_student_regular',
+        ),
         1,
       );
       expect(
-        controller.state.collection2.recipeShardCount('recipe_chicken_doner'),
+        controller.state.collection2.customerCardCount(
+          'customer_student_regular',
+        ),
         1,
       );
       expect(
@@ -544,14 +551,19 @@ void main() {
               counts: {ChestType.recipe: 1},
             ),
             collection2: const Collection2State(
-              recipeLevels: {'recipe_chicken_doner': 5},
+              customerCardLevels: {'customer_student_regular': 5},
             ),
           ),
         );
 
     await controller.openChest(ChestType.recipe);
 
-    expect(controller.state.collection2.recipeLevel('recipe_chicken_doner'), 5);
+    expect(
+      controller.state.collection2.customerCardLevel(
+        'customer_student_regular',
+      ),
+      5,
+    );
     expect(controller.state.customerReputation.totalReputation, 3);
   });
 
@@ -1072,8 +1084,11 @@ void main() {
           )..hydrate(
             GameState.initial(config, nowUtc: nowUtc).copyWith(
               collection2: const Collection2State(
-                staffCards: {'staff_apprentice': 0, 'staff_journeyman': 0},
-                staffCardLevels: {'staff_apprentice': 1, 'staff_journeyman': 1},
+                masterCards: {'staff_apprentice': 0, 'staff_journeyman': 0},
+                masterCardLevels: {
+                  'staff_apprentice': 1,
+                  'staff_journeyman': 1,
+                },
               ),
               branches: const BranchSystemState(
                 branchProgress: {
@@ -1131,7 +1146,7 @@ void main() {
     () async {
       final repository = _RecordingSaveRepository();
       final nowUtc = DateTime.utc(2026, 7, 16);
-      final apprentice = Collection2Catalog.staffCardById['staff_apprentice']!;
+      final apprentice = Collection2Catalog.masterCardById['staff_apprentice']!;
       final controller =
           GameController(
             config: config,
@@ -1158,21 +1173,21 @@ void main() {
             ),
           );
 
-      expect(controller.state.collection2.staffCardLevel(apprentice.id), 0);
+      expect(controller.state.collection2.masterCardLevel(apprentice.id), 0);
       expect(await controller.levelUpBranch('main_branch'), isTrue);
-      expect(controller.state.collection2.staffCardLevel(apprentice.id), 1);
+      expect(controller.state.collection2.masterCardLevel(apprentice.id), 1);
       expect(
         controller.state.branches.claimedBranchMilestones,
         contains(BranchCatalog.firstManagerGrantMarker),
       );
       expect(
-        repository.savedState?.collection2.staffCardLevel(apprentice.id),
+        repository.savedState?.collection2.masterCardLevel(apprentice.id),
         1,
       );
 
       controller.hydrate(controller.state);
-      expect(controller.state.collection2.staffCardLevel(apprentice.id), 1);
-      expect(controller.state.collection2.staffCardCount(apprentice.id), 0);
+      expect(controller.state.collection2.masterCardLevel(apprentice.id), 1);
+      expect(controller.state.collection2.masterCardCount(apprentice.id), 0);
     },
   );
 
@@ -1189,8 +1204,8 @@ void main() {
           )..hydrate(
             GameState.initial(config, nowUtc: nowUtc).copyWith(
               collection2: const Collection2State(
-                staffCards: {'staff_journeyman': 0},
-                staffCardLevels: {'staff_journeyman': 1},
+                masterCards: {'staff_journeyman': 0},
+                masterCardLevels: {'staff_journeyman': 1},
               ),
               branches: const BranchSystemState(
                 branchProgress: {
@@ -1205,7 +1220,7 @@ void main() {
           );
 
       expect(
-        controller.state.collection2.staffCardLevel('staff_apprentice'),
+        controller.state.collection2.masterCardLevel('staff_apprentice'),
         0,
       );
       expect(
@@ -1229,8 +1244,8 @@ void main() {
             GameState.initial(config, nowUtc: nowUtc).copyWith(
               prestige: PrestigeState(runCashEarned: config.prestigeThreshold),
               collection2: const Collection2State(
-                staffCards: {'staff_apprentice': 0},
-                staffCardLevels: {'staff_apprentice': 1},
+                masterCards: {'staff_apprentice': 0},
+                masterCardLevels: {'staff_apprentice': 1},
               ),
               branches: const BranchSystemState(
                 branchProgress: {
@@ -1255,7 +1270,7 @@ void main() {
         contains(BranchCatalog.firstManagerGrantMarker),
       );
       expect(
-        controller.state.collection2.staffCardLevel('staff_apprentice'),
+        controller.state.collection2.masterCardLevel('staff_apprentice'),
         1,
       );
     },

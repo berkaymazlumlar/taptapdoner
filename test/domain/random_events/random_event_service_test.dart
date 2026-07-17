@@ -8,6 +8,17 @@ import 'package:taptapdoner/domain/random_events/random_event_service.dart';
 import 'package:taptapdoner/domain/state/game_state.dart';
 
 void main() {
+  test('catalog contains the full random event sheet', () {
+    expect(RandomEventCatalog.events, hasLength(80));
+    expect(RandomEventCatalog.byId.keys, containsAll(['EVT_001', 'EVT_080']));
+    expect(
+      RandomEventCatalog.events.where(
+        (event) => event.choices.any((choice) => choice.requiresRewardedAd),
+      ),
+      hasLength(3),
+    );
+  });
+
   test(
     'picker waits for first event delay and then selects an eligible event',
     () {

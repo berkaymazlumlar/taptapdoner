@@ -41,7 +41,7 @@ void main() {
     );
 
     expect(grant.effectiveElapsed, const Duration(hours: 24));
-    expect(grant.coins, 17280);
+    expect(grant.coins, 15661);
   });
 
   test('offline income applies offline efficiency', () {
@@ -52,6 +52,6 @@ void main() {
       nowUtc: baseline,
     );
 
-    expect(grant.coins, 1440);
+    expect(grant.coins, 1305);
   });
 }

@@ -74,16 +74,15 @@ void main() {
             claimedBonusItemIds: {'knife_rusty_knife'},
           ),
           collection2: const Collection2State(
-            recipeShards: {'recipe_chicken_doner': 4},
-            recipeLevels: {'recipe_chicken_doner': 1},
-            staffCards: {'staff_apprentice': 2},
-            staffCardLevels: {'staff_apprentice': 1},
+            customerCardShards: {'customer_student_regular': 4},
+            customerCardLevels: {'customer_student_regular': 1},
+            masterCards: {'staff_apprentice': 2},
+            masterCardLevels: {'staff_apprentice': 1},
             decorShards: {'decor_new_sign': 3},
             unlockedDecorIds: {'decor_new_sign'},
             equippedDecorIds: {'decor_new_sign'},
-            knifeSkinShards: {'knife_skin_rusty': 1},
-            unlockedKnifeSkinIds: {'knife_skin_rusty'},
-            equippedKnifeSkinId: 'knife_skin_rusty',
+            momentCardShards: {'moment_first_shift': 1},
+            unlockedMomentCardIds: {'moment_first_shift'},
             claimedSetBonuses: {'street_set'},
             prestigeShards: 6,
           ),
@@ -183,7 +182,7 @@ void main() {
     expect(raw, contains('"achievementId":"tap_10"'));
     expect(raw, contains('"collection"'));
     expect(raw, contains('"collection2"'));
-    expect(raw, contains('"recipe_chicken_doner"'));
+    expect(raw, contains('"customer_student_regular"'));
     expect(raw, contains('"chestInventory"'));
     expect(raw, contains('"shopProgression"'));
     expect(raw, contains('"goals"'));
@@ -229,17 +228,22 @@ void main() {
       loaded.collection.claimedBonusItemIds,
       contains('knife_rusty_knife'),
     );
-    expect(loaded.collection2.recipeShards['recipe_chicken_doner'], 4);
-    expect(loaded.collection2.recipeLevels['recipe_chicken_doner'], 1);
-    expect(loaded.collection2.staffCards['staff_apprentice'], 2);
-    expect(loaded.collection2.staffCardLevels['staff_apprentice'], 1);
+    expect(
+      loaded.collection2.customerCardShards['customer_student_regular'],
+      4,
+    );
+    expect(
+      loaded.collection2.customerCardLevels['customer_student_regular'],
+      1,
+    );
+    expect(loaded.collection2.masterCards['staff_apprentice'], 2);
+    expect(loaded.collection2.masterCardLevels['staff_apprentice'], 1);
     expect(loaded.collection2.unlockedDecorIds, contains('decor_new_sign'));
     expect(loaded.collection2.equippedDecorIds, contains('decor_new_sign'));
     expect(
-      loaded.collection2.unlockedKnifeSkinIds,
-      contains('knife_skin_rusty'),
+      loaded.collection2.unlockedMomentCardIds,
+      contains('moment_first_shift'),
     );
-    expect(loaded.collection2.equippedKnifeSkinId, 'knife_skin_rusty');
     expect(loaded.collection2.claimedSetBonuses, contains('street_set'));
     expect(loaded.collection2.prestigeShards, 6);
     expect(loaded.chestInventory.count(ChestType.small), 2);
@@ -270,6 +274,24 @@ void main() {
     expect(loaded.branches.unlockedRegionIds, contains('local'));
     expect(loaded.branches.claimedBranchMilestones, contains('main_branch:10'));
     expect(loaded.branches.totalBranchIncomeEarned, 123.5);
+  });
+
+  test('legacy recipe and knife collection data migrates to cards', () {
+    final migrated = Collection2State.fromJson({
+      'recipeShards': {'recipe_chicken_doner': 4},
+      'recipeLevels': {'recipe_chicken_doner': 1},
+      'staffCards': {'staff_apprentice': 2},
+      'staffCardLevels': {'staff_apprentice': 1},
+      'knifeSkinShards': {'knife_skin_rusty': 3},
+      'unlockedKnifeSkinIds': ['knife_skin_rusty'],
+    });
+
+    expect(migrated.customerCardCount('customer_student_regular'), 4);
+    expect(migrated.customerCardLevel('customer_student_regular'), 1);
+    expect(migrated.masterCardCount('staff_apprentice'), 2);
+    expect(migrated.masterCardLevel('staff_apprentice'), 1);
+    expect(migrated.momentCardCount('moment_first_shift'), 3);
+    expect(migrated.isMomentCardUnlocked('moment_first_shift'), isTrue);
   });
 
   test('corrupt payload returns null', () async {

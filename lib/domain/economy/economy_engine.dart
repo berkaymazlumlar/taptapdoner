@@ -213,41 +213,13 @@ class EconomyEngine {
     bool includeTemporaryBoost = true,
   }) {
     final now = (nowUtc ?? DateTime.now()).toUtc();
-    final collectionBonuses = _permanentBonuses(state);
-    final temporaryBoostMultiplier =
-        (includeTemporaryBoost && state.passiveBoost.isActiveAt(now)
-            ? 2.0
-            : 1.0) *
-        randomEventModifierProduct(
-          state.randomEvents,
-          RandomEventModifierType.passiveIncome,
-          nowUtc: now,
-        ) *
-        randomEventModifierProduct(
-          state.randomEvents,
-          RandomEventModifierType.globalIncome,
-          nowUtc: now,
-        );
-    final baseIncome = calculatePassiveIncomePerSecond(
-      staffEffect: _staffEffect(state),
-      ovenEffect: _ovenEffect(state),
-      menuEffect: _menuEffect(state),
-      shopMultiplier: shopMultiplier(state),
-      prestigeMultiplier: _prestigeMultiplier(state),
-      collectionPassiveMultiplier:
-          collectionBonuses.passiveMultiplier *
-          _prestigePassiveMultiplier(state),
-      collectionGlobalMultiplier:
-          collectionBonuses.globalMultiplier * _prestigeGlobalMultiplier(state),
-      temporaryBoostMultiplier: temporaryBoostMultiplier,
+    final baseIncome = _basePassiveIncomePerSecond(
+      state,
+      nowUtc: now,
+      includeTemporaryBoost: includeTemporaryBoost,
     );
     return CurrencyMath.clampDouble(
-      baseIncome +
-          _branchIncomePerSecond(
-            state,
-            collectionBonuses: collectionBonuses,
-            temporaryBoostMultiplier: temporaryBoostMultiplier,
-          ),
+      baseIncome + _branchIncomePerSecond(state, baseIncome: baseIncome),
     );
   }
 
@@ -257,31 +229,21 @@ class EconomyEngine {
     bool includeTemporaryBoost = true,
   }) {
     final now = (nowUtc ?? DateTime.now()).toUtc();
-    final collectionBonuses = _permanentBonuses(state);
+    final baseIncome = _basePassiveIncomePerSecond(
+      state,
+      nowUtc: now,
+      includeTemporaryBoost: includeTemporaryBoost,
+    );
     return CurrencyMath.clampDouble(
-      _branchIncomePerSecond(
-        state,
-        collectionBonuses: collectionBonuses,
-        temporaryBoostMultiplier:
-            (includeTemporaryBoost && state.passiveBoost.isActiveAt(now)
-                ? 2
-                : 1) *
-            randomEventModifierProduct(
-              state.randomEvents,
-              RandomEventModifierType.passiveIncome,
-              nowUtc: now,
-            ) *
-            randomEventModifierProduct(
-              state.randomEvents,
-              RandomEventModifierType.globalIncome,
-              nowUtc: now,
-            ),
-      ),
+      _branchIncomePerSecond(state, baseIncome: baseIncome),
     );
   }
 
   double offlineEfficiency(GameState state) {
-    return upgradeEffect(state, UpgradeId.offline);
+    final rawEfficiency = max(0.0, upgradeEffect(state, UpgradeId.offline));
+    // Preserve the value of every offline upgrade without allowing offline
+    // production to overtake real-time passive production.
+    return 1 - exp(-rawEfficiency);
   }
 
   Duration offlineCap(GameState state) {
@@ -321,12 +283,19 @@ class EconomyEngine {
     if (earned is GameNumber) {
       final threshold = GameNumber.fromNum(config.prestigeThreshold);
       final ratio = earned / threshold;
-      if (ratio.exponent >= 38) {
-        return CurrencyMath.legacyInt64MaxCurrency;
+      if (ratio < GameNumber.one) {
+        return 0;
       }
-      return sqrt(ratio.toDouble()).floor();
+      final decades = ratio.exponent + (log(ratio.mantissa) / ln10);
+      // The first threshold grants one point, then every revenue decade adds
+      // two more. This keeps late runs rewarding without exponential spikes.
+      return 1 + ((decades * 2) + 1e-9).floor();
     }
-    return sqrt(earned / config.prestigeThreshold).floor();
+    final ratio = earned / config.prestigeThreshold;
+    if (ratio < 1) {
+      return 0;
+    }
+    return 1 + ((((log(ratio) / ln10) * 2) + 1e-9).floor());
   }
 
   GameState applyTap(GameState state, {DateTime? nowUtc}) {
@@ -447,26 +416,49 @@ class EconomyEngine {
     return 1 + max(0, prestigeShopGlobalBonusPercent(state));
   }
 
-  double _branchIncomePerSecond(
-    GameState state, {
-    required CollectionBonusTotals collectionBonuses,
-    required double temporaryBoostMultiplier,
-  }) {
+  double _branchIncomePerSecond(GameState state, {required double baseIncome}) {
     if (!BranchCatalog.isBranchIncomeActive(state)) {
       return 0;
     }
-    final rawBranchIncome = BranchCatalog.rawBranchIncomePerSecond(state);
-    if (rawBranchIncome <= 0) {
+    final contribution = BranchCatalog.totalIncomeContribution(state);
+    if (baseIncome <= 0 || contribution <= 0) {
       return 0;
     }
-    return CurrencyMath.clampDouble(
-      rawBranchIncome *
-          _prestigeMultiplier(state) *
+    return CurrencyMath.clampDouble(baseIncome * contribution);
+  }
+
+  double _basePassiveIncomePerSecond(
+    GameState state, {
+    required DateTime nowUtc,
+    required bool includeTemporaryBoost,
+  }) {
+    final collectionBonuses = _permanentBonuses(state);
+    final temporaryBoostMultiplier =
+        (includeTemporaryBoost && state.passiveBoost.isActiveAt(nowUtc)
+            ? 2.0
+            : 1.0) *
+        randomEventModifierProduct(
+          state.randomEvents,
+          RandomEventModifierType.passiveIncome,
+          nowUtc: nowUtc,
+        ) *
+        randomEventModifierProduct(
+          state.randomEvents,
+          RandomEventModifierType.globalIncome,
+          nowUtc: nowUtc,
+        );
+    return calculatePassiveIncomePerSecond(
+      staffEffect: _staffEffect(state),
+      ovenEffect: _ovenEffect(state),
+      menuEffect: _menuEffect(state),
+      shopMultiplier: shopMultiplier(state),
+      prestigeMultiplier: _prestigeMultiplier(state),
+      collectionPassiveMultiplier:
           collectionBonuses.passiveMultiplier *
-          _prestigePassiveMultiplier(state) *
-          collectionBonuses.globalMultiplier *
-          _prestigeGlobalMultiplier(state) *
-          temporaryBoostMultiplier,
+          _prestigePassiveMultiplier(state),
+      collectionGlobalMultiplier:
+          collectionBonuses.globalMultiplier * _prestigeGlobalMultiplier(state),
+      temporaryBoostMultiplier: temporaryBoostMultiplier,
     );
   }
 
@@ -754,7 +746,9 @@ class EconomyEngine {
   }
 
   double prestigeMultiplierForPoints(int prestigePoints) {
-    return 1 + (max(0, prestigePoints) * config.prestigeBonusPerPoint);
+    // Total points remain permanent, so diminishing returns prevent repeated
+    // prestige runs from collapsing the late-game timeline.
+    return 1 + (sqrt(max(0, prestigePoints)) * config.prestigeBonusPerPoint);
   }
 
   double _knifeEffect(GameState state) {

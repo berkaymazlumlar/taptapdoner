@@ -23,7 +23,7 @@ class EconomyConfig {
       baseTapValue: 1,
       offlineCap: const Duration(hours: 24),
       prestigeThreshold: 1000000,
-      prestigeBonusPerPoint: 0.05,
+      prestigeBonusPerPoint: 0.10,
       upgrades: defaultUpgradeDefinitions(),
     );
   }

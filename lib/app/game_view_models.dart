@@ -1286,10 +1286,10 @@ class ProgressionSnapshot {
   const ProgressionSnapshot({
     required this.achievements,
     required this.collections,
-    required this.recipeCollections,
-    required this.staffCollections,
+    required this.customerCollections,
+    required this.masterCollections,
     required this.decorCollections,
-    required this.knifeSkinCollections,
+    required this.momentCollections,
     required this.collectionSets,
     required this.chests,
     this.latestClaimableAchievement,
@@ -1298,10 +1298,10 @@ class ProgressionSnapshot {
 
   final List<AchievementProgressSnapshot> achievements;
   final List<CollectionItemSnapshot> collections;
-  final List<Collection2ItemSnapshot> recipeCollections;
-  final List<Collection2ItemSnapshot> staffCollections;
+  final List<Collection2ItemSnapshot> customerCollections;
+  final List<Collection2ItemSnapshot> masterCollections;
   final List<Collection2ItemSnapshot> decorCollections;
-  final List<Collection2ItemSnapshot> knifeSkinCollections;
+  final List<Collection2ItemSnapshot> momentCollections;
   final List<CollectionSetSnapshot> collectionSets;
   final ChestInventorySnapshot chests;
   final AchievementProgressSnapshot? latestClaimableAchievement;
@@ -1313,19 +1313,19 @@ class ProgressionSnapshot {
 
   int get unlockedCollectionCount {
     return collections.where((item) => item.unlocked).length +
-        recipeCollections.where((item) => item.unlocked).length +
-        staffCollections.where((item) => item.unlocked).length +
+        customerCollections.where((item) => item.unlocked).length +
+        masterCollections.where((item) => item.unlocked).length +
         decorCollections.where((item) => item.unlocked).length +
-        knifeSkinCollections.where((item) => item.unlocked).length +
+        momentCollections.where((item) => item.unlocked).length +
         collectionSets.where((item) => item.claimed).length;
   }
 
   int get totalCollectionCount {
     return collections.length +
-        recipeCollections.length +
-        staffCollections.length +
+        customerCollections.length +
+        masterCollections.length +
         decorCollections.length +
-        knifeSkinCollections.length +
+        momentCollections.length +
         collectionSets.length;
   }
 
@@ -1334,10 +1334,10 @@ class ProgressionSnapshot {
     return other is ProgressionSnapshot &&
         listEquals(achievements, other.achievements) &&
         listEquals(collections, other.collections) &&
-        listEquals(recipeCollections, other.recipeCollections) &&
-        listEquals(staffCollections, other.staffCollections) &&
+        listEquals(customerCollections, other.customerCollections) &&
+        listEquals(masterCollections, other.masterCollections) &&
         listEquals(decorCollections, other.decorCollections) &&
-        listEquals(knifeSkinCollections, other.knifeSkinCollections) &&
+        listEquals(momentCollections, other.momentCollections) &&
         listEquals(collectionSets, other.collectionSets) &&
         chests == other.chests &&
         latestClaimableAchievement == other.latestClaimableAchievement &&
@@ -1348,10 +1348,10 @@ class ProgressionSnapshot {
   int get hashCode => Object.hash(
     Object.hashAll(achievements),
     Object.hashAll(collections),
-    Object.hashAll(recipeCollections),
-    Object.hashAll(staffCollections),
+    Object.hashAll(customerCollections),
+    Object.hashAll(masterCollections),
     Object.hashAll(decorCollections),
-    Object.hashAll(knifeSkinCollections),
+    Object.hashAll(momentCollections),
     Object.hashAll(collectionSets),
     chests,
     latestClaimableAchievement,

@@ -1,5 +1,6 @@
+import 'dart:math' show exp, sqrt;
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:taptapdoner/domain/branches/branch_catalog.dart';
 import 'package:taptapdoner/domain/branches/branch_models.dart';
 import 'package:taptapdoner/domain/economy/currency_math.dart';
 import 'package:taptapdoner/domain/economy/game_number.dart';
@@ -289,12 +290,12 @@ void main() {
 
     state = engine.buyUpgrade(state, UpgradeId.offline).state;
 
-    expect(baseline, 720);
+    expect(baseline, 652);
     expect(
       engine.upgradeEffect(state, UpgradeId.offline),
       closeTo(0.208, 0.0001),
     );
-    expect(engine.offlineIncome(state, const Duration(hours: 1)), 748);
+    expect(engine.offlineIncome(state, const Duration(hours: 1)), 676);
   });
 
   test('prestige multiplier applies to tap and passive income', () {
@@ -316,7 +317,7 @@ void main() {
     );
     expect(
       engine.passiveIncomePerSecond(prestigeState, nowUtc: nowUtc),
-      closeTo(basePassive * 1.5, 0.0001),
+      closeTo(basePassive * (1 + (sqrt(10) * 0.10)), 0.0001),
     );
   });
 
@@ -353,9 +354,9 @@ void main() {
     final baseState = GameState.initial(highTapConfig, nowUtc: nowUtc);
     final bonusState = baseState.copyWith(
       collection2: const Collection2State(
-        recipeLevels: {'recipe_chicken_doner': 1},
+        customerCardLevels: {'customer_student_regular': 1},
         unlockedDecorIds: {'decor_spice_shelf'},
-        unlockedKnifeSkinIds: {'knife_skin_rusty'},
+        unlockedMomentCardIds: {'moment_first_shift'},
         claimedSetBonuses: {'street_set'},
       ),
     );
@@ -371,7 +372,7 @@ void main() {
         .state;
     final passiveBonus = passiveBase.copyWith(
       collection2: const Collection2State(
-        staffCardLevels: {'staff_apprentice': 1},
+        masterCardLevels: {'staff_apprentice': 1},
       ),
     );
 
@@ -451,17 +452,57 @@ void main() {
       ),
     );
 
+    final gatedBase = engine.passiveIncomePerSecond(
+      gatedState.copyWith(branches: const BranchSystemState()),
+      nowUtc: nowUtc,
+    );
+    final activeBase = engine.passiveIncomePerSecond(
+      activeState.copyWith(branches: const BranchSystemState()),
+      nowUtc: nowUtc,
+    );
+    const levelOneMainBranchContribution = 0.008;
     expect(
       engine.branchIncomePerSecond(gatedState, nowUtc: nowUtc),
-      closeTo(BranchCatalog.byId['main_branch']!.baseIncomePerSecond, 0.0001),
+      closeTo(gatedBase * levelOneMainBranchContribution, 0.0001),
     );
     expect(
       engine.branchIncomePerSecond(activeState, nowUtc: nowUtc),
-      closeTo(BranchCatalog.byId['main_branch']!.baseIncomePerSecond, 0.0001),
+      closeTo(activeBase * levelOneMainBranchContribution, 0.0001),
     );
     expect(
       engine.passiveIncomePerSecond(gatedState, nowUtc: nowUtc),
       greaterThan(0),
+    );
+  });
+
+  test('maxed airport branch adds 7.5 percent to core passive income', () {
+    final baseState = GameState.initial(config, nowUtc: nowUtc).copyWith(
+      shopProgression: const ShopProgressionState(
+        currentShopLevel: 7,
+        highestShopLevel: 7,
+        unlockedShopIds: {'street_stand', 'doner_chain'},
+      ),
+    );
+    final airportState = baseState.copyWith(
+      branches: const BranchSystemState(
+        branchProgress: {
+          'airport_branch': BranchProgress(
+            branchId: 'airport_branch',
+            isUnlocked: true,
+            level: 50,
+          ),
+        },
+      ),
+    );
+    final baseIncome = engine.passiveIncomePerSecond(baseState, nowUtc: nowUtc);
+
+    expect(
+      engine.branchIncomePerSecond(airportState, nowUtc: nowUtc),
+      closeTo(baseIncome * 0.075, 0.0001),
+    );
+    expect(
+      engine.passiveIncomePerSecond(airportState, nowUtc: nowUtc),
+      closeTo(baseIncome * 1.075, 0.0001),
     );
   });
 
@@ -481,6 +522,7 @@ void main() {
         runCashEarned: 0,
       ),
     );
+    final tapBeforePurchase = highTapEngine.tapValue(state, nowUtc: nowUtc);
 
     final result = highTapEngine.buyPrestigeUpgrade(
       state,
@@ -497,18 +539,74 @@ void main() {
       ),
       1,
     );
-    expect(highTapEngine.tapValue(result.state, nowUtc: nowUtc), 131);
+    expect(
+      highTapEngine.tapValue(result.state, nowUtc: nowUtc),
+      greaterThan(tapBeforePurchase),
+    );
   });
 
-  test('prestige points use the square-root total-earned curve', () {
+  test('prestige points use a log curve and multiplier uses square root', () {
     final state = GameState.initial(config, nowUtc: nowUtc).copyWith(
       prestige: const PrestigeState(reputation: 16, runCashEarned: 125000000),
     );
 
-    expect(engine.availablePrestigePoints(state), 11);
-    expect(engine.prestigeMultiplier(state), closeTo(1.8, 0.0001));
-    expect(engine.prestigeMultiplierForPoints(27), closeTo(2.35, 0.0001));
+    expect(engine.availablePrestigePoints(state), 5);
+    expect(engine.prestigeMultiplier(state), closeTo(1.4, 0.0001));
+    expect(
+      engine.prestigeMultiplierForPoints(27),
+      closeTo(1 + (sqrt(27) * 0.10), 0.0001),
+    );
+    expect(engine.prestigeMultiplierForPoints(100), closeTo(2.0, 0.0001));
+    expect(engine.prestigeMultiplierForPoints(10000), closeTo(11.0, 0.0001));
   });
+
+  test('prestige point awards grow by two points per revenue decade', () {
+    for (final entry in const <int, int>{
+      1_000_000: 1,
+      10_000_000: 3,
+      1_000_000_000: 7,
+      1_000_000_000_000_000: 19,
+    }.entries) {
+      final state = GameState.initial(
+        config,
+        nowUtc: nowUtc,
+      ).copyWith(prestige: PrestigeState(runCashEarned: entry.key));
+      expect(
+        engine.availablePrestigePoints(state),
+        entry.value,
+        reason: 'Unexpected prestige award at ${entry.key} run cash.',
+      );
+    }
+  });
+
+  test(
+    'offline efficiency approaches but never exceeds real-time production',
+    () {
+      final lateOffline = GameState.initial(config, nowUtc: nowUtc).copyWith(
+        upgrades: {
+          for (final definition in config.upgrades)
+            definition.id: definition.id == UpgradeId.offline
+                ? UpgradeState.fromTotalLevel(
+                    definition: definition,
+                    totalLevel: definition.maxLevel,
+                  )
+                : UpgradeState(id: definition.id, level: 1),
+        },
+      );
+
+      final initial = GameState.initial(config, nowUtc: nowUtc);
+      final initialEfficiency = engine.offlineEfficiency(initial);
+      final lateEfficiency = engine.offlineEfficiency(lateOffline);
+
+      expect(
+        engine.upgradeEffect(lateOffline, UpgradeId.offline),
+        greaterThan(1),
+      );
+      expect(initialEfficiency, closeTo(1 - exp(-0.20), 0.0001));
+      expect(lateEfficiency, greaterThan(initialEfficiency));
+      expect(lateEfficiency, lessThan(1.0));
+    },
+  );
 
   test('prestige resets upgrade tracks while preserving permanent stats', () {
     var state = GameState.initial(config, nowUtc: nowUtc).copyWith(
@@ -585,13 +683,12 @@ void main() {
           claimedBonusItemIds: {'knife_rusty_knife'},
         ),
         collection2: const Collection2State(
-          recipeShards: {'recipe_chicken_doner': 4},
-          recipeLevels: {'recipe_chicken_doner': 1},
-          staffCards: {'staff_apprentice': 2},
-          staffCardLevels: {'staff_apprentice': 1},
+          customerCardShards: {'customer_student_regular': 4},
+          customerCardLevels: {'customer_student_regular': 1},
+          masterCards: {'staff_apprentice': 2},
+          masterCardLevels: {'staff_apprentice': 1},
           unlockedDecorIds: {'decor_new_sign'},
-          unlockedKnifeSkinIds: {'knife_skin_rusty'},
-          equippedKnifeSkinId: 'knife_skin_rusty',
+          unlockedMomentCardIds: {'moment_first_shift'},
           claimedSetBonuses: {'street_set'},
         ),
         branches: const BranchSystemState(

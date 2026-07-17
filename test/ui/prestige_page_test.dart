@@ -36,8 +36,8 @@ void main() {
     expect(find.text('Earned'), findsOneWidget);
     expect(find.text('Current'), findsOneWidget);
     expect(find.text('After'), findsOneWidget);
-    expect(find.text('x1.10'), findsOneWidget);
-    expect(find.text('x1.15'), findsOneWidget);
+    expect(find.text('x1.14'), findsOneWidget);
+    expect(find.text('x1.17'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('prestige-shop-shortcut-button')),
       findsOneWidget,
@@ -98,7 +98,7 @@ void main() {
     expect(controller.availablePrestigePoints, 0);
   });
 
-  testWidgets('points to gain uses the shared number unit formatter', (
+  testWidgets('points to gain reflects the logarithmic reward curve', (
     tester,
   ) async {
     final controller = _controller(
@@ -111,7 +111,7 @@ void main() {
 
     await _pumpPage(tester, controller);
 
-    expect(find.text('+1.23 Thousand'), findsOneWidget);
+    expect(find.text('+13'), findsOneWidget);
     expect(find.text('+1234'), findsNothing);
   });
 

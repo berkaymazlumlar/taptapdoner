@@ -92,15 +92,17 @@ void main() {
       find.byKey(const ValueKey('goals-chest-contents-staff')),
       findsOneWidget,
     );
-    expect(find.text('Apprentice Card • 3 staff cards'), findsOneWidget);
-    expect(find.text('%18'), findsOneWidget);
+    expect(find.text('Apprentice Ali • 5 master cards'), findsOneWidget);
+    expect(find.text('%22'), findsOneWidget);
     expect(
-      find.text('Source: Daily 50 reputation and weekly 50 customers goals.'),
+      find.text(
+        'Source: Daily 50 reputation, daily 3 branch levels, weekly 50 customers, and weekly branch milestone goals.',
+      ),
       findsOneWidget,
     );
   });
 
-  testWidgets('staff cards show chest sources derived from drop tables', (
+  testWidgets('master cards show chest sources derived from drop tables', (
     tester,
   ) async {
     const discoverySize = Size(320, 3000);
@@ -113,7 +115,7 @@ void main() {
       child: CollectionPage(controller: controller),
     );
 
-    final staffTab = find.text('Staff');
+    final staffTab = find.text('Masters');
     await tester.tap(staffTab);
     await tester.pumpAndSettle();
 
@@ -122,8 +124,22 @@ void main() {
     );
     expect(apprenticeSource, findsOneWidget);
     final sourceText = tester.widget<Text>(apprenticeSource).data!;
-    expect(sourceText, contains('Small Chest (%10)'));
-    expect(sourceText, contains('Staff Chest (%18)'));
+    expect(sourceText, contains('Small Chest (%9.6)'));
+    expect(sourceText, contains('Chef Chest (%22)'));
+  });
+
+  test('chest reward snapshots localize Turkish item names', () async {
+    final controller = _controller(
+      config,
+      nowUtc: nowUtc,
+      localeCode: 'tr',
+      random: const _FixedRandom(0),
+      chestInventory: const ChestInventoryState(counts: {ChestType.staff: 1}),
+    );
+
+    final reward = await controller.openChest(ChestType.staff);
+
+    expect(reward?.label, 'Çırak Ali x5');
   });
 
   testWidgets('opening a chest swaps the row for a roulette bar', (
@@ -200,8 +216,8 @@ void main() {
       find.byKey(const ValueKey('goals-chest-roulette-small')),
       findsNothing,
     );
-    expect(find.byKey(const ValueKey('chest-reward-reveal')), findsOneWidget);
-    expect(find.textContaining('Small Chest:'), findsOneWidget);
+    expect(find.byKey(const ValueKey('chest-reward-reveal')), findsNothing);
+    expect(find.textContaining('Small Chest:'), findsNothing);
   });
 }
 

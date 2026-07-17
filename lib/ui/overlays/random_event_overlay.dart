@@ -83,6 +83,7 @@ class _RandomEventOverlayState extends State<RandomEventOverlay> {
                   event: event,
                   resolution: _resolution,
                   busy: _busy,
+                  canShowRewardedAd: widget.controller.canDoubleOfflineReward,
                   onClose: _close,
                   onDebugNext: kDebugMode ? _showNextDebugEvent : null,
                   onChoice: _choose,
@@ -101,6 +102,7 @@ class _EventPanel extends StatelessWidget {
     required this.event,
     required this.resolution,
     required this.busy,
+    required this.canShowRewardedAd,
     required this.onClose,
     required this.onDebugNext,
     required this.onChoice,
@@ -109,6 +111,7 @@ class _EventPanel extends StatelessWidget {
   final RandomEventDefinition event;
   final RandomEventResolutionSnapshot? resolution;
   final bool busy;
+  final bool canShowRewardedAd;
   final VoidCallback onClose;
   final AsyncCallback? onDebugNext;
   final ValueChanged<RandomEventChoice> onChoice;
@@ -233,24 +236,34 @@ class _EventPanel extends StatelessWidget {
                 value: event.riskSummary,
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  for (var index = 0; index < event.choices.length; index += 1)
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: index == 0 ? 0 : 8,
-                          right: index == event.choices.length - 1 ? 0 : 8,
+              Builder(
+                builder: (context) {
+                  final choices = event.choices
+                      .where(
+                        (choice) =>
+                            !choice.requiresRewardedAd || canShowRewardedAd,
+                      )
+                      .toList(growable: false);
+                  return Row(
+                    children: [
+                      for (var index = 0; index < choices.length; index += 1)
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: index == 0 ? 0 : 8,
+                              right: index == choices.length - 1 ? 0 : 8,
+                            ),
+                            child: _ChoiceButton(
+                              choice: choices[index],
+                              primary: choices[index].key == 'accept',
+                              busy: busy,
+                              onPressed: () => onChoice(choices[index]),
+                            ),
+                          ),
                         ),
-                        child: _ChoiceButton(
-                          choice: event.choices[index],
-                          primary: event.choices[index].key == 'accept',
-                          busy: busy,
-                          onPressed: () => onChoice(event.choices[index]),
-                        ),
-                      ),
-                    ),
-                ],
+                    ],
+                  );
+                },
               ),
             ] else ...[
               _SummaryRow(

@@ -268,13 +268,27 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('hud-goals-button')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('goals-tab-root')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('achievements-overlay-root')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('goals-page-root')), findsOneWidget);
-    expect(find.byKey(const ValueKey('tap-zone-root')), findsNothing);
-    expect(_findGameWidget(), findsNothing);
+    expect(find.byKey(const ValueKey('tap-zone-root')), findsOneWidget);
+    expect(_findGameWidget(), findsOneWidget);
     expect(find.text('First Cut'), findsOneWidget);
     expect(find.text('Daily Goals'), findsNothing);
     expect(find.byType(ExpansionTile), findsNothing);
+    expect(find.byKey(const ValueKey('bottom-nav-shell')), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('achievements-header-close-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('achievements-overlay-root')),
+      findsNothing,
+    );
     expect(find.byKey(const ValueKey('bottom-nav-shell')), findsOneWidget);
   });
 
@@ -307,13 +321,22 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('shell-chest-button')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('chests-tab-root')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chests-overlay-root')), findsOneWidget);
     expect(find.byKey(const ValueKey('chest-page-root')), findsOneWidget);
     expect(find.byKey(const ValueKey('goals-page-root')), findsNothing);
     expect(
       find.byKey(const ValueKey('goals-section-toggle-chests')),
       findsNothing,
     );
+    expect(find.byKey(const ValueKey('tap-zone-root')), findsOneWidget);
+    expect(_findGameWidget(), findsOneWidget);
+    expect(find.byKey(const ValueKey('bottom-nav-shell')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('chests-header-close-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('chests-overlay-root')), findsNothing);
+    expect(find.byKey(const ValueKey('bottom-nav-shell')), findsOneWidget);
   });
 
   testWidgets('bottom nav opens the separate collection page', (tester) async {
@@ -334,8 +357,8 @@ void main() {
       find.byKey(const ValueKey('goals-section-toggle-collection')),
       findsNothing,
     );
-    expect(find.text('Recipes'), findsOneWidget);
-    expect(find.text('Staff'), findsOneWidget);
+    expect(find.text('Customers'), findsOneWidget);
+    expect(find.text('Masters'), findsOneWidget);
   });
 
   testWidgets('achievement popup claims the reward and dismisses itself', (

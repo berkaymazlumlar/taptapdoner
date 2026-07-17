@@ -100,11 +100,11 @@ void main() {
         },
       ),
       collection2: const Collection2State(
-        staffCards: <String, int>{
+        masterCards: <String, int>{
           'staff_apprentice': 10,
           'staff_journeyman': 10,
         },
-        staffCardLevels: <String, int>{
+        masterCardLevels: <String, int>{
           'staff_apprentice': 1,
           'staff_journeyman': 1,
         },
@@ -143,6 +143,17 @@ void main() {
     );
     expect(
       find.byKey(const ValueKey('manager-option-staff_journeyman')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('manager-sheet-close-button')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('manager-option-staff_apprentice')),
+        matching: find.text('Çırak Ali'),
+      ),
       findsOneWidget,
     );
     expect(find.text('Mahalle Şubesi şubesinde görevli'), findsOneWidget);
